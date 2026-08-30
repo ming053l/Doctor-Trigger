@@ -1,0 +1,47 @@
+{
+  "schema_version": "doctor-trigger-stage-contract-v1",
+  "comparison_modes": {
+    "detector_only": {
+      "input": "cases.csv:input_path",
+      "rule": "Every method scores the exact same finalized query bytes."
+    },
+    "end_to_end": {
+      "enroll_input": "cases.csv:enrollment_input_path",
+      "attack_source": "cases.csv:attack_source_path (swap only)",
+      "attack_parameters": [
+        "cases.csv:backend",
+        "cases.csv:simswap_det_thresh",
+        "cases.csv:fallback_attempt"
+      ],
+      "doctor_trigger_reference": [
+        "cases.csv:doctor_trigger_released_path",
+        "cases.csv:doctor_trigger_template_path",
+        "cases.csv:input_path"
+      ],
+      "rule": "Each proactive method creates its own released enrollment and applies the same recorded attack protocol/source."
+    }
+  },
+  "stages": [
+    {
+      "name": "canonical_alignment",
+      "input": "source frame",
+      "output": "enrollment_input_path"
+    },
+    {
+      "name": "method_enrollment",
+      "input": "enrollment_input_path",
+      "output": "method release plus private state/template"
+    },
+    {
+      "name": "query_generation",
+      "input": "method release plus attack_source_path",
+      "output": "method query"
+    },
+    {
+      "name": "method_scoring",
+      "input": "method query plus private state if required",
+      "output": "peer score contract row"
+    }
+  ],
+  "join_key": "query_id"
+}

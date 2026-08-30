@@ -1,0 +1,25 @@
+output_dir: results/record_model_release
+run_name: record_model_ffpp_train_eval
+train_features_csv: results/record_model_release/features/ffpp_train_features.csv
+eval_feature_csvs:
+  - name: ffpp_test
+    path: results/record_model_release/features/ffpp_test_features.csv
+variants:
+  - host_only
+  - trigger_only
+  - host_plus_trigger
+  - host_plus_trigger_keyshuffle
+  - host_trigger_detector
+  - full_record_model
+seeds: [0, 1, 2]
+train:
+  steps: 1000
+  batch_size: 4096
+  hidden_dim: 64
+  lr: 0.001
+loss:
+  lambda_rel: 1.0
+  lambda_key: 0.3
+  lambda_rank: 0.2
+  lambda_bind: 0.1
+  lambda_copy: 0.2

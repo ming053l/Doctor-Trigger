@@ -1,0 +1,18 @@
+# Reference environment that produced FINAL_RECEIPT.json on the shared server.
+# The PyTorch CUDA wheel may need to be selected for the destination driver's
+# supported CUDA version; see ENVIRONMENT.md before installing.
+numpy==1.26.4
+pandas==2.2.3
+Pillow==11.2.1
+PyYAML==6.0.2
+scipy==1.14.1
+scikit-image==0.22.0
+scikit-learn==1.6.1
+opencv-python==4.11.0.86
+insightface==0.7.3
+onnx==1.16.1
+onnxruntime-gpu==1.17.1
+torch==2.5.0
+torchvision==0.20.0
+easydict==1.13
+tqdm==4.67.1

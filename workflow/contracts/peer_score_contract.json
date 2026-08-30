@@ -1,0 +1,24 @@
+{
+  "schema_version": "doctor-trigger-peer-score-v2",
+  "join_key": "query_id",
+  "required_columns": {
+    "query_id": "string; must appear exactly once and match cases.csv",
+    "method_id": "string; immutable method/config identifier",
+    "score_fake": "float; larger means more likely fake",
+    "status": "one of pass, quarantine"
+  },
+  "optional_columns": {
+    "score_relation": "float; larger means enrolled relation is preserved",
+    "score_key": "float; larger means enrollment key matches",
+    "error": "string; required when status=quarantine"
+  },
+  "fairness_rules": [
+    "Declare detector_only or end_to_end as the comparison mode.",
+    "Detector-only mode must score input_path bytes without modification.",
+    "End-to-end mode must enroll enrollment_input_path and apply the recorded attack using attack_source_path.",
+    "Do not change labels, canonical splits, enrollment bytes, attack-source bytes, or case IDs.",
+    "Fit/calibrate only on split=train; use val only for threshold selection.",
+    "Report test results per dataset and protocol, including quarantines.",
+    "Never silently replace a failed input with a different crop or full frame."
+  ]
+}

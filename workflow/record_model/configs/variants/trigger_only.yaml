@@ -1,0 +1,3 @@
+variant: trigger_only
+uses_host_features: false
+uses_trigger_projection: true
