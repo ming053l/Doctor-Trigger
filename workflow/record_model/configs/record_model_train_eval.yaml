@@ -8,8 +8,6 @@ variants:
   - host_only
   - trigger_only
   - host_plus_trigger
-  - host_plus_trigger_keyshuffle
-  - host_trigger_detector
   - full_record_model
 seeds: [0, 1, 2]
 train:

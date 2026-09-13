@@ -1,4 +1,0 @@
-variant: host_plus_trigger_keyshuffle
-uses_host_features: true
-uses_trigger_projection: true
-uses_key_rank_loss: true

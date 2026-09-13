@@ -23,12 +23,12 @@ def _band_columns(columns: Iterable[str]) -> List[str]:
 def feature_columns_for_variant(variant: str, available_columns: Sequence[str]) -> List[str]:
     available = set(available_columns)
     cols: List[str] = []
-    if variant in {"host_only", "host_plus_trigger", "host_plus_trigger_keyshuffle", "host_trigger_detector", "full_record_model"}:
+    if variant in {"host_only", "host_plus_trigger", "full_record_model"}:
         cols.extend([col for col in HOST_COLUMNS if col in available])
-    if variant in {"trigger_only", "host_plus_trigger", "host_plus_trigger_keyshuffle", "host_trigger_detector", "full_record_model"}:
+    if variant in {"trigger_only", "host_plus_trigger", "full_record_model"}:
         cols.extend([col for col in TRIGGER_COLUMNS if col in available])
         cols.extend(_band_columns(available_columns))
-    if variant in {"host_trigger_detector", "full_record_model"}:
+    if variant == "full_record_model":
         cols.extend([col for col in ["detector_score", "alignment_quality", "D_face_context"] if col in available])
     seen = set()
     out = []
