@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 outputs/
 *.log
+config.yaml
+configs/record_model/*.yaml

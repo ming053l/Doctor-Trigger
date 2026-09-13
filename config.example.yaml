@@ -1,0 +1,42 @@
+# Copy to config.yaml and fill in your local paths. config.yaml is gitignored;
+# every experiment reads paths through dt/paths.py, nothing else may hardcode them.
+
+canonical_root: /path/to/canonical_workflow      # the enrollment/query pipeline output (see README: Data)
+cases_csv:      "{canonical_root}/common/cases.csv"
+features_csv:   "{canonical_root}/features/calibrated_features.csv"
+templates_dir:  "{canonical_root}/private/templates"
+
+model_snapshot: "{repo_root}/experiments/_snapshot"   # trimmed model code the experiments import; ships with this repository
+model_config:   "{model_snapshot}/config_ffpp_std_dfd_resnet50.yaml"
+
+outputs_root:   ./outputs/results
+logs_root:      ./outputs/logs
+record_model_runs:      ./outputs/record_model_runs   # record-model training runs (configs/record_model/*.yaml)
+
+ckpts_root:     /path/to/ckpts
+legacy_outputs: /path/to/legacy_outputs
+legacy_trigger_glob: /path/to/trigger_json/**/*_trigger.json   # earlier trigger renders; only the deployment-cost and imperceptibility experiments read them
+
+checkpoints:
+  image_detector_legacy:   /path/to/image_detector_legacy/best_val_auc.pt
+  image_detector_aug: /path/to/image_detector_aug    # {ds}/best_val_auc.pt, deployed-recipe augmentation
+  image_detector:    /path/to/image_detector                # {ds}/best_val_auc.pt
+  record_model:         "{canonical_root}/results/record_model"
+
+peers_root:     /path/to/peer_methods             # third-party repos cloned side by side (see README: Peers)
+peers:
+  stegastamp_canon: "{peers_root}/ckpts/stegastamp_canon"
+  lidmark_canon:    "{peers_root}/ckpts/lidmark_canon"
+  sepmark_official: "{peers_root}/SepMark/pretrained/.../EC_90.pth"
+  kadnet_official:  "{peers_root}/KAD-Net/results/FD/256/models/EC_100.pth"
+
+engines_root:   "{peers_root}/engines"
+engine_cache:   ./outputs/engine_cache
+simswap_root:   /path/to/SimSwap
+
+paper_repo:     /path/to/paper                    # only needed for fig-* targets
+
+source_manifests:            # stage-0 outputs (workflow/scripts/make_source_manifest.py)
+  ffpp:    /path/to/ffpp_manifest.csv
+  dfdc:    /path/to/dfdc_manifest.csv
+  celebdf: /path/to/celebdf_manifest.csv

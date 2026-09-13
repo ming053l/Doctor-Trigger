@@ -1,0 +1,372 @@
+attribution-matrix:
+  cmd: python attribution_matrix.py
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  output: '{outputs_root}/attribution_matrix.csv'
+  paper: 'Table 3 (reference controls) and appendix Table 10: per-release attribution (own vs same-person
+    sibling release) for H, G_s, ArcFace'
+benign-channels:
+  cmd: python benign_canonical.py {dataset}
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  paper: Table 1 (verification paths) channel columns; appendix Table 8 (benign channels per dataset)
+bootstrap-cis:
+  cmd: python bootstrap_cis.py
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  paper: bootstrap 95% intervals for headline AUCs (not printed in the paper; kept runnable)
+crop_forward_read:
+  cmd: python crop_forward_read.py
+  cwd: '{repo_root}/experiments'
+  gpu: false
+  needs:
+  - DT_CANON_ROOT
+  produces: 'Table 4 (credential retention) crop row: forward-modeled masked-spectrum reading (channel
+    tau, preserved/flagged, AUC)'
+  script: experiments/crop_forward_read.py
+defect-audit:
+  cmd: python defect_audit.py
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  paper: 'appendix E.1 (template source and channel cancellation): side-by-side reproduction of reading
+    the reference from the released image'
+deployment-cost:
+  cmd: python {repo_root}/experiments/depcost.py && python {repo_root}/experiments/depcost_ours.py
+  cwd: '{peers_root}'
+  gpu: true
+  impl: migrated
+  paper: 'appendix Table 19 (deployment cost) and the record-storage paragraph: PSNR, latency, weights'
+  note: runs each peer's own code under peers_root; check its checkpoint paths before rerunning
+image-detector-eval:
+  cmd: python eval_image_detector.py
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  output: '{outputs_root}/image_detector.csv'
+  paper: Table 2 (peer comparison) image-only detector row; fusion variants
+image-detector-eval-aug:
+  cmd: python eval_image_detector.py aug
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  output: '{outputs_root}/image_detector_aug.csv'
+  paper: augmented image-only detector probabilities read by the Table 1 fusion row and the bootstrap
+    intervals
+image-detector-train:
+  cmd: python train_image_detector.py
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  output: '{checkpoints.image_detector}/{ffpp,dfdc,celebdf}/best_val_auc.pt'
+  paper: image-only detector rows of Table 1 (verification paths) and Table 2 (peer comparison), training
+image-detector-train-aug:
+  cmd: python train_image_detector_aug.py {dataset}
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  output: '{checkpoints.image_detector_aug}'
+  paper: Table 1 (verification paths) image-only detector and alarm rows, with the deployed augmentation
+    recipe
+engines:
+  cmd: python engines_canonical.py {engine}
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  note: swapped images cached under {engine_cache}/{engine}; delete to force regeneration
+  paper: Table 1 engine columns
+fig-imperceptibility:
+  cmd: python fig_imperceptibility.py
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  paper: Fig 5 (imperceptibility)
+hyperparam_sensitivity:
+  cmd: DT_FEATURES_CSV={outputs_root}/features_record_scalar/recordscalar_features.csv DT_OUT={outputs_root}/recordscalar_hyper
+    python hyperparam_sensitivity.py
+  cwd: '{repo_root}/experiments'
+  gpu: false
+  needs:
+  - DT_CANON_ROOT
+  - DT_REPO_ROOT
+  - DT_OUT
+  produces: 'appendix Fig 11 (hyperparameters): FRR-target sweep, calibration-set size, lambda_key retraining'
+  script: experiments/hyperparam_sensitivity.py
+  note: paper figure uses DT_FEATURES_CSV={outputs_root}/features_record_scalar/recordscalar_features.csv,
+    DT_OUT={outputs_root}/recordscalar_hyper; figures/build_fig_hyper.py reads it via DT_HYPER_JSON
+kadnet-canon-train:
+  cmd: KADNET_CFG=cfg/canon_{dataset}.yaml python train.py
+  cwd: '{peers_root}/KAD-Net'
+  gpu: true
+  impl: original
+  note: official ckpt geometry is 256px/msg-128 despite the shipped yaml saying 128/30
+  paper: Table 2 (peer comparison) KAD-Net transfer cells (candidate)
+peers-detect:
+  cmd: python peer_canonical.py {method}
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  output: '{outputs_root}/{method}[_pin_X][_engine].csv'
+  paper: Table 2 (peer comparison) peer rows
+peers-distort:
+  cmd: python peer_distort_canonical.py {method}
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  paper: peers under the Table 1 benign channels (not printed in the paper; kept runnable)
+pipeline:
+  cmd: ./run_workflow.sh --gpu 0
+  cwd: '{repo_root}/workflow'
+  gpu: true
+  impl: migrated
+  note: the canonical workflow; stage order and formats in workflow/WORKFLOW.md. Existing artifacts are
+    reused and verified, so re-running against a completed root is safe
+  paper: 'everything upstream: raw frames -> aligned crops -> enrollments -> queries -> features -> record
+    model (Section 4 protocol)'
+pipeline-stage0:
+  cmd: python scripts/make_source_manifest.py {frames_root} {out_csv}
+  cwd: '{repo_root}/workflow'
+  impl: migrated
+  paper: source manifests from extracted frames (one per dataset)
+pipeline-verify:
+  cmd: ./run_workflow.sh --verify-only
+  cwd: '{repo_root}/workflow'
+  impl: migrated
+  paper: integrity acceptance of a completed pipeline root
+posthoc-attack:
+  cmd: python posthoc_attack.py
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  output: '{outputs_root}/posthoc_attack.csv'
+  paper: 'appendix Table 11 (post-hoc enrollment attack): never-released originals against each verifier
+    at deployed thresholds'
+record-codec:
+  cmd: python record_codec.py
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  paper: 'record-storage paragraph of Section 4.2: per-face record at 28 KiB (derive and quantize) or
+    2.3 KiB (sub-band), no measurable loss'
+reference-baselines:
+  cmd: python reference_baselines.py
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  output: '{outputs_root}/reference_baselines.csv'
+  paper: 'Table 3 (reference controls) and appendix Table 10: equally-privileged reference baselines (no-displacement
+    phase, SSIM, ArcFace)'
+reference-channels:
+  cmd: python reference_channels.py
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  output: '{outputs_root}/reference_channels.csv'
+  paper: 'control: reference baselines (H, SSIM, ArcFace) under the Table 1 benign channels'
+release-evidence:
+  cmd: python release_evidence.py
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  output: '{outputs_root}/release_evidence.csv'
+  paper: 'Table 3 (reference controls): only the enrolled release carries the keyed displacement (G_s
+    separates released images from never-released originals)'
+roundtrip:
+  cmd: python roundtrip_canonical.py | tee {logs_root}/roundtrip_canonical.log
+  cmd_note: prints JSONL to stdout
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  output: '{logs_root}/roundtrip_canonical.log'
+  paper: Table 4 (credential retention) and the Fig 7 (channel-wise scores) data
+sensitivity-fig:
+  cmd: python build_sensitivity_fig.py
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  note: reads {outputs_root}/sensitivity/*.csv produced by sensitivity-release jobs
+  paper: Figs 9 and 10 (release-mechanism sensitivity) and appendix Table 12 (ring settings)
+sensitivity-release:
+  cmd: python sensitivity_release.py {dataset} {setting}
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  output: '{outputs_root}/sensitivity/'
+  paper: 'Figs 9 and 10 (release-mechanism sensitivity) and appendix Table 12: alpha and ring sweeps plus
+    the m sweep'
+sepmark-canon-train:
+  cmd: SEPMARK_CFG=cfg/canon_{dataset}.yaml python Dual_Mark_main.py
+  cwd: '{peers_root}/SepMark'
+  gpu: true
+  impl: original
+  paper: Table 2 (peer comparison) SepMark transfer cells (candidate; charitable rule decides)
+  note: pool_F must contain SimSwap(); an Identity()-only pool_F destroys the fragile branch
+subband-fusion:
+  cmd: python subband_fusion.py
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  paper: 'Table 1 fusion row read at the sub-band: max(image-path probability, 1-H) per query'
+subband-table1:
+  cmd: python subband_table1.py {part}
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: migrated
+  paper: all eleven Table 1 cells for the deployed sub-band reading
+subband-freelunch:
+  cmd: python subband_freelunch.py
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  paper: 'appendix I.1 (readout): cut sweep and per-channel radial-profile weighting'
+subband-readout:
+  cmd: python subband_readout.py
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  paper: 'appendix I.1 (readout): the deployed sub-band reading partially recovers blur and codec'
+subband-side-effects:
+  cmd: python subband_side_effects.py
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  paper: 'appendix I.1 (readout): key, post-hoc, and attribution behavior of the sub-band reading'
+record-model-pins:
+  cmd: python scripts/train_eval_record_model_matrix.py --config {repo_root}/configs/record_model/{pin}_to_all.yaml
+  cwd: '{repo_root}/workflow/record_model'
+  impl: migrated
+  paper: superseded for the paper by record-model-recordscalar (these configs read the pipeline outputs
+    features, whose C and key-projection scale use the released PNG)
+verify-features:
+  doc: produced by the pipeline (scripts/extract_features.py); re-running against a completed root only
+    verifies
+  output: '{features_csv}'
+  paper: inputs to Tables 1-4 (H, G_s, margins)
+x264_clip_verdict:
+  cmd: python x264_clip_verdict.py
+  cwd: '{repo_root}/experiments'
+  gpu: false
+  needs:
+  - DT_CANON_ROOT
+  - DT_MODEL_SNAPSHOT
+  - DT_OUT
+  produces: 'Table 4 (credential retention) x264 row: clip-level verdict (shard per split, then collect)'
+  script: experiments/x264_clip_verdict.py
+table4-artifact:
+  cmd: python table4_artifact.py all
+  cwd: '{repo_root}/experiments'
+  impl: original
+  output: '{outputs_root}/table4/'
+  paper: Table 4 rows and Fig 7 panels from one frozen evidence package (rows.csv, rows.tex, manifest.json)
+  note: reproduces roundtrip_canonical (DT_KAPPA_CUT=0.15), crop_forward_read and x264_clip_verdict per
+    row; supersedes them for Table 4
+key-pure-canonical:
+  cmd: DT_FEATURES_CSV={outputs_root}/features_record_scalar/recordscalar_features.csv DT_RECORD_MODEL_SCORES_DIR={record_model_runs}/recordscalar_ffpp/scores
+    DT_TAG=_recordscalar python key_pure_canonical.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  needs: features-record-scalar, record-model-recordscalar (pin=ffpp)
+  output: '{outputs_root}/key_pure_canonical_recordscalar.csv'
+  paper: appendix Tables 15 (wrong-key and ring-transplant rows) and 16 (key-only operating points) on
+    the main test split (record-scalar inputs; without the env it reads the pipeline feature CSV)
+features-record-ref:
+  cmd: python features_record_ref.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  output: '{outputs_root}/features_record_ref/recordref_features.csv'
+  paper: record-model inputs with the stored template as reference (replaces the released-PNG reference)
+record-model-recordref:
+  cmd: python scripts/train_eval_record_model_matrix.py --config {repo_root}/configs/record_model/recordref_{pin}_to_all.yaml
+  cwd: '{repo_root}/workflow/record_model'
+  impl: migrated
+  needs: features-record-ref
+  output: '{record_model_runs}/recordref_{pin}/metrics/'
+  paper: Table 2 record-model S_fake row (pin=ffpp|dfdc|celebdf, 3 seeds), on template-referenced features
+recordref-compare:
+  cmd: python recordref_compare.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  needs: features-record-ref, record-model-recordref (pin=ffpp,dfdc,celebdf)
+  output: '{outputs_root}/recordref_compare.json'
+  paper: 'old vs new reference: Table 2 S_fake row, per-feature AUCs, appendix Table 15 bottom block'
+features-record-scalar:
+  cmd: python features_record_scalar.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  needs: features-record-ref
+  output: '{outputs_root}/features_record_scalar/recordscalar_features.csv'
+  paper: 'record-model inputs: C from the stored template, key projections divided by 9 release scalars
+    stored at enrollment'
+record-model-recordscalar:
+  cmd: python scripts/train_eval_record_model_matrix.py --config {repo_root}/configs/record_model/recordscalar_{pin}_to_all.yaml
+  cwd: '{repo_root}/workflow/record_model'
+  impl: migrated
+  needs: features-record-scalar
+  output: '{record_model_runs}/recordscalar_{pin}/metrics/'
+  paper: Table 2 record-model S_fake row on record-scalar features (pin=ffpp|dfdc|celebdf, 3 seeds)
+copy-ring-canonical:
+  cmd: python copy_ring_canonical.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  needs: features-record-scalar, record-model-recordscalar (pin=ffpp)
+  output: '{outputs_root}/copy_ring/summary.csv'
+  paper: 'ring-transplantation attack under the main protocol: appendix Table 20 and the transplant row
+    of Table 15'
+copy-ring-detector:
+  cmd: python copy_ring_detector.py
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: original
+  output: '{outputs_root}/copy_ring/detector_summary.csv'
+  paper: 'appendix Table 20 (ring transplantation): transplanted-ring images against the image-only detector
+    and the fusion alarm (FF++)'
+copy-ring-amplitude:
+  cmd: python copy_ring_amplitude.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  output: '{outputs_root}/copy_ring/amplitude_summary.csv'
+  paper: 'appendix Table 20 (ring transplantation): ring-amplitude check against the stored host amplitude,
+    and the cost of a full magnitude-and-phase transplant'
+adaptive-attacks:
+  cmd: python adaptive_attacks.py
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: original
+  output: '{outputs_root}/adaptive/summary.csv'
+  paper: 'appendix Table 18 (stress tests): white-box PGD, score-only NES, surrogate transfer at 8/255
+    on the deployed readings'
+diffusion-regeneration:
+  cmd: python diffusion_regeneration.py
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: original
+  output: '{outputs_root}/adaptive/diffusion_summary.csv'
+  paper: 'appendix Table 18 (stress tests): image-to-image diffusion regeneration (sd-turbo), global and
+    face-only, three strengths'
+fig-channel-samples:
+  cmd: python build_fig_channel_samples.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  output: '{outputs_root}/figures/fig_channel_samples.pdf'
+  paper: 'appendix Fig 16: more assets for the released / benign channel / re-rendering comparison of
+    Fig 2'
+operating-points:
+  cmd: python operating_points.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  output: '{outputs_root}/operating_points.csv'
+  paper: 'appendix Table 14 (operating points): AUC and TPR at fixed FPR per engine and corpus, deployed
+    sub-band reading'
+fig-template:
+  cmd: python build_fig_template.py
+  cwd: '{repo_root}/experiments'
+  impl: migrated
+  paper: 'appendix Fig 12: the stored host template, its inversion, and the cross-asset relation matrix'
+peer-fidelity:
+  cmd: python {name}_fidelity.py
+  cwd: '{peers_root}'
+  gpu: true
+  impl: original
+  note: one script per peer (eg, kad, lamp, ...); fid_res.py collects them
+  paper: 'appendix Table 13 (release fidelity): PSNR/SSIM per peer at 128/256/512 delivery sizes'
+threshold-transfer:
+  cmd: python threshold_transfer.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  output: '{outputs_root}/threshold_transfer.csv'
+  needs: record-model-recordscalar (pin=ffpp)
+  paper: 'appendix Table 17 (threshold transfer): a threshold fitted on one corpus, reused on the others,
+    deployed FF++ record model'

@@ -1,0 +1,7 @@
+# Image-only detector (S_df). build_model() reads only this section; weights come from checkpoints.image_detector*.
+model:
+  backbone: resnet50
+  pretrained: true
+  trigger_head_dim: 128
+  loss_lambda: 0.0
+  use_cross_attn: false
