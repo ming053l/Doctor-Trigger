@@ -44,7 +44,7 @@ cfg = yaml.safe_load(open(_dt("DT_MODEL_SNAPSHOT", "/config_ffpp_std_dfd_resnet5
 image_detector = models.build_model(cfg)
 image_detector_params = sum(q.numel() for q in image_detector.parameters())
 record_model_params = 75*64 + 64 + 64*64 + 64 + 3*(64 + 1) + 2*(64*8 + 8)  # hidden 64 plus two 8-d embeddings
-image_detector_ckpt = _dt("DT_IMAGE_DETECTOR_LEGACY")
+image_detector_ckpt = _dt("DT_IMAGE_DETECTOR_AUG", "/ffpp/best_val_auc.pt")   # deployed detector; every head has the same size
 print(json.dumps({
  "enroll_ms_cpu": (t1-t0)/len(imgs)*1000,
  "relation_verify_ms_cpu": (t2-t1)/len(imgs)*1000,

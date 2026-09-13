@@ -91,12 +91,13 @@ write; results go under `outputs_root`.
 
 | Paper artifact | Registry entries |
 | --- | --- |
-| Table 1: verification paths across channels, datasets, and re-rendering | `subband-table1`, `subband-fusion`, `engines engine=<name>`, `image-detector-train-aug dataset=<ds>` then `image-detector-eval` |
+| Table 1: verification paths across channels, datasets, and re-rendering | `subband-table1`, `subband-fusion`, `engines engine=<name>`, `image-detector-train-aug dataset=<ffpp\|dfdc\|celebdf>` then `image-detector-eval` |
 | Table 2: peer comparison and transfer | `peers-detect method=<peer>` (once per peer), `image-detector-eval`; record-model rows: `features-record-ref`, `features-record-scalar`, then `record-model-recordscalar pin=<ffpp\|dfdc\|celebdf>` |
 | Table 3: reference controls | `reference-baselines`, `reference-channels`, `attribution-matrix`, `release-evidence` |
 | Table 4 and Fig 7: credential retention and channel limits | `table4-artifact` |
 | Fig 5: imperceptibility | `fig-imperceptibility` |
-| Table 8: benign channels per dataset | `benign-channels dataset=<FF++\|DFDC\|CelebDF>` |
+| Table 8: benign channels per dataset | `image-detector-train-aug dataset=<ffpp\|dfdc\|celebdf>`, then `benign-channels dataset=<FF++\|DFDC\|CelebDF>` |
+| Appendix E.2: detector without the augmentation recipe | `image-detector-train dataset=<ffpp\|dfdc\|celebdf>`, then `benign-channels dataset=<FF++\|DFDC\|CelebDF> plain_head=<ffpp\|dfdc\|celebdf>` |
 | Figs 9 and 10, Table 12: release-mechanism sensitivity | `sensitivity-release` (grid), then `sensitivity-fig` |
 | Fig 11: hyperparameters | `hyperparam_sensitivity` |
 | Table 11: post-hoc enrollment attack | `posthoc-attack` |

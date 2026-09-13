@@ -67,8 +67,10 @@ def cmd_run(eid, kv):
         return 2
     env = dict(os.environ)
     env["PATH"] = os.path.dirname(sys.executable) + os.pathsep + env.get("PATH", "")
-    if "head" in extra:
-        env["IMAGE_DETECTOR_CKPT"] = os.path.join(P("checkpoints.image_detector"), extra["head"], "best_val_auc.pt")
+    if "head" in extra:            # deployed detector (augmentation recipe)
+        env["IMAGE_DETECTOR_CKPT"] = os.path.join(P("checkpoints.image_detector_aug"), extra["head"], "best_val_auc.pt")
+    if "plain_head" in extra:      # same architecture without augmentation (appendix E.2)
+        env["IMAGE_DETECTOR_CKPT"] = os.path.join(P("checkpoints.image_detector"), extra["plain_head"], "best_val_auc.pt")
     print(f"[{eid}] cwd={cwd}\n[{eid}] {cmd}")
     return subprocess.call(cmd, shell=True, cwd=cwd, env=env)
 

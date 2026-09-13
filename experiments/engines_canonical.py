@@ -37,7 +37,7 @@ from src import models
 import torchvision.transforms as T
 cfg = yaml.safe_load(open(_dt("DT_MODEL_SNAPSHOT", "/config_ffpp_std_dfd_resnet50.yaml")))
 image_detector = models.build_model(cfg).to("cuda")
-image_detector.load_state_dict(torch.load(__import__("os").environ.get("IMAGE_DETECTOR_CKPT", _dt("DT_IMAGE_DETECTOR_LEGACY")), map_location="cuda", weights_only=False)); image_detector.eval()
+image_detector.load_state_dict(torch.load((__import__("os").environ.get("IMAGE_DETECTOR_CKPT") or _dt("DT_IMAGE_DETECTOR_AUG", "/ffpp/best_val_auc.pt")), map_location="cuda", weights_only=False)); image_detector.eval()
 tfm = T.Compose([T.Resize((224,224)), T.ToTensor()])
 @torch.no_grad()
 def dprob(pil):

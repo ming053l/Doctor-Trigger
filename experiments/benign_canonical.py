@@ -39,7 +39,7 @@ def H_of(pil, tp):
 
 cfg = yaml.safe_load(open(_dt("DT_MODEL_SNAPSHOT", "/config_ffpp_std_dfd_resnet50.yaml")))
 image_detector = models.build_model(cfg).to(dev)
-image_detector.load_state_dict(torch.load(_os.environ.get("IMAGE_DETECTOR_CKPT", _dt("DT_IMAGE_DETECTOR_LEGACY")), map_location=dev, weights_only=False)); image_detector.eval()
+image_detector.load_state_dict(torch.load(_os.environ.get("IMAGE_DETECTOR_CKPT") or _dt("DT_IMAGE_DETECTOR_AUG", "/" + {"FF++": "ffpp", "DFDC": "dfdc", "CelebDF": "celebdf"}[DS] + "/best_val_auc.pt"), map_location=dev, weights_only=False)); image_detector.eval()
 tf = T.Compose([T.Resize((224,224)), T.ToTensor()])
 @torch.no_grad()
 def prob(pil):

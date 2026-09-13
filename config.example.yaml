@@ -18,7 +18,6 @@ legacy_outputs: /path/to/legacy_outputs
 legacy_trigger_glob: /path/to/trigger_json/**/*_trigger.json   # earlier trigger renders; only the deployment-cost and imperceptibility experiments read them
 
 checkpoints:
-  image_detector_legacy:   /path/to/image_detector_legacy/best_val_auc.pt
   image_detector_aug: /path/to/image_detector_aug    # {ds}/best_val_auc.pt, deployed-recipe augmentation
   image_detector:    /path/to/image_detector                # {ds}/best_val_auc.pt
   record_model:         "{canonical_root}/results/record_model"

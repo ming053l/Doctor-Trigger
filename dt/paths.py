@@ -40,7 +40,6 @@ _ENV_MAP = {
     "DT_LEGACY_OUTPUTS": "legacy_outputs",
     "DT_IMAGE_DETECTOR": "checkpoints.image_detector",
     "DT_IMAGE_DETECTOR_AUG": "checkpoints.image_detector_aug",
-    "DT_IMAGE_DETECTOR_LEGACY": "checkpoints.image_detector_legacy",
     "DT_ENGINE_CACHE": "engine_cache",
     "DT_SIMSWAP_ROOT": "simswap_root",
     "DT_OUTPUTS": "outputs_root",
@@ -57,4 +56,3 @@ def export_env():
     """Inject every config path as a DT_* env var (the vendored scripts read only these)."""
     for env, key in _ENV_MAP.items():
         os.environ.setdefault(env, P(key))
-    os.environ.setdefault("IMAGE_DETECTOR_CKPT", os.path.join(P("checkpoints.image_detector"), "ffpp", "best_val_auc.pt"))

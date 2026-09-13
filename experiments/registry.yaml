@@ -11,7 +11,8 @@ benign-channels:
   cwd: '{repo_root}/experiments'
   gpu: true
   impl: migrated
-  paper: Table 1 (verification paths) channel columns; appendix Table 8 (benign channels per dataset)
+  paper: appendix Table 8 (benign channels per dataset), detector rows from that dataset's augmented head;
+    with plain_head=<ds>, the non-augmented detector sentence of appendix E.2
 defect-audit:
   cmd: python defect_audit.py
   cwd: '{repo_root}/experiments'
@@ -26,12 +27,12 @@ deployment-cost:
   paper: 'appendix Table 19 (deployment cost) and the record-storage paragraph: PSNR, latency, weights'
   note: runs each peer's own code under peers_root; check its checkpoint paths before rerunning
 image-detector-train:
-  cmd: python train_image_detector.py
+  cmd: python train_image_detector.py {dataset}
   cwd: '{repo_root}/experiments'
   gpu: true
   impl: migrated
   output: '{checkpoints.image_detector}/{ffpp,dfdc,celebdf}/best_val_auc.pt'
-  paper: image-only detector rows of Table 1 (verification paths) and Table 2 (peer comparison), training
+  paper: the non-augmented detector of appendix E.2 (read with benign-channels plain_head=<ds>)
 image-detector-train-aug:
   cmd: python train_image_detector_aug.py {dataset}
   cwd: '{repo_root}/experiments'
