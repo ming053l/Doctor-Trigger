@@ -2,8 +2,7 @@
 
 Code for **DOCTOR TRIGGER: Private Face Records for Cooperative Content Provenance**.
 
-Chia-Ming Lee, Chia-Yu Lin, Yu-Chen Liang, Hung-Kai Huang, Yi-Ting Ku, Chih-Chung Hsu
-(National Yang Ming Chiao Tung University / National Cheng Kung University)
+Anonymous authors (under double-blind review).
 
 **The idea in three sentences.** When a face image is released, the pipeline files a private
 record of it: the face's own mid-band phase, displaced by a secret key, together with the
