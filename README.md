@@ -91,7 +91,7 @@ write; results go under `outputs_root`.
 
 | Paper artifact | Registry entries |
 | --- | --- |
-| Table 1: verification paths across channels, datasets, and re-rendering | `subband-table1`, `subband-fusion`, `engines engine=<name>`, `image-detector-train-aug dataset=<ds>` then `image-detector-eval-aug` |
+| Table 1: verification paths across channels, datasets, and re-rendering | `subband-table1`, `subband-fusion`, `engines engine=<name>`, `image-detector-train-aug dataset=<ds>` then `image-detector-eval` |
 | Table 2: peer comparison and transfer | `peers-detect method=<peer>` (once per peer), `image-detector-eval`; record-model rows: `features-record-ref`, `features-record-scalar`, then `record-model-recordscalar pin=<ffpp\|dfdc\|celebdf>` |
 | Table 3: reference controls | `reference-baselines`, `reference-channels`, `attribution-matrix`, `release-evidence` |
 | Table 4 and Fig 7: credential retention and channel limits | `table4-artifact` |
@@ -102,7 +102,7 @@ write; results go under `outputs_root`.
 | Table 11: post-hoc enrollment attack | `posthoc-attack` |
 | Table 13: release fidelity | `peer-fidelity` |
 | Table 14: operating points | `operating-points` |
-| Tables 15 and 16: wrong keys and key-only operating points | `key-pure-canonical`, `recordref-compare` |
+| Tables 15 and 16: wrong keys and key-only operating points | `key-pure-canonical` |
 | Table 17: threshold transfer | `threshold-transfer` |
 | Table 18: stress tests | `adaptive-attacks`, `diffusion-regeneration` |
 | Table 19: deployment cost | `deployment-cost` |
@@ -112,8 +112,7 @@ write; results go under `outputs_root`.
 | Figs 12 and 16 | `fig-template`, `fig-channel-samples` |
 
 The remaining figures are drawn in the paper source; the entries above produce the data behind
-them. A few entries produce data that the paper does not print (the per-channel peer table,
-bootstrap intervals); they stay runnable and are marked as such in the registry.
+them.
 
 Record-model training fixes the random seed but not GPU nondeterminism, so a rerun can differ from
 the paper in the third decimal. The threshold-transfer table (Table 17) is the one place where printed

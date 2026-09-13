@@ -9,7 +9,7 @@ Record-model means use the FF++-trained full model, averaged over its three seed
 Env: DT_CANON_ROOT, DT_OUTPUTS. Writes $DT_OUTPUTS/key_pure_canonical{tag}.csv and
 $DT_OUTPUTS/record_scores_by_query{tag}.csv, and prints the LaTeX rows. Optional DT_FEATURES_CSV,
 DT_RECORD_MODEL_SCORES_DIR and DT_TAG point it at another feature extraction and its record models
-(e.g. features_record_ref.py with the record-model-recordref runs).
+(the registry entry uses the record-scalar features and runs).
 """
 import glob, os
 from pathlib import Path

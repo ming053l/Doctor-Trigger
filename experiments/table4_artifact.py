@@ -9,16 +9,16 @@ Fig. 7 is drawn from, so the table and the figure come from one artifact.
   python table4_artifact.py all          # still + clips + collect
   python table4_artifact.py still | clips | collect
 
-Protocols (each reproduces the script it supersedes):
-  still-image rows   roundtrip_canonical.py with DT_KAPPA_CUT=0.15. FF++ test, first 200
+Protocols:
+  still-image rows   Sub-band reading, kappa cut 0.15. FF++ test, first 200
                      enrollments (groupby order); H_sub = amplitude-weighted cosine of query phase
                      against the HOST phase on the support, radius/sqrt(0.5) <= 0.15; declared tau =
                      1% quantile of H_sub over 100 FF++ train benign enrollments (groupby order)
                      sent through the same channel. G_release_sub (Fig. 7 y axis) = signed
                      projection divided by the released copy's own projection, same sub-band.
-  crop 90%           crop_forward_read.py. Forward-modeled masked spectrum over the full support,
+  crop 90%           Forward-modeled masked spectrum over the full support,
                      +-2 px placement search; calibration = 100 train benign (drop_duplicates order).
-  H.264 intra, clip  x264_clip_verdict.py. Every FF++ test frame (benign and SimSwap) coded as a
+  H.264 intra, clip  Every FF++ test frame (benign and SimSwap) coded as a
                      one-frame libx264 video (crf 30, yuv420p, 1 thread) and decoded; C_tmpl_sub =
                      cosine against the TEMPLATE phase, sub-band 0.15; clip score = mean over the
                      video's frames; tau = 1% quantile of train clip means (first 100 videos).
@@ -68,8 +68,8 @@ def cohorts():
     te = cases[(cases.split == "test") & (cases.dataset == "FF++")]
     enr = te.groupby("enrollment_id").first().head(N_TEST)
     tr = cases[(cases.split == "train") & (cases.dataset == "FF++") & (cases.protocol == "benign")]
-    cal = tr.groupby("enrollment_id").first().head(N_CAL)            # roundtrip_canonical order
-    cal_crop = tr.drop_duplicates("enrollment_id").head(N_CAL)        # crop_forward_read order
+    cal = tr.groupby("enrollment_id").first().head(N_CAL)            # still-image calibration order
+    cal_crop = tr.drop_duplicates("enrollment_id").head(N_CAL)        # crop calibration order
     if LIMIT:
         enr, cal, cal_crop = enr.head(LIMIT), cal.head(LIMIT), cal_crop.head(LIMIT)
     return te, enr, cal, cal_crop

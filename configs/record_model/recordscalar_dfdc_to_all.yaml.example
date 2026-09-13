@@ -1,5 +1,5 @@
 # Copy to recordscalar_dfdc_to_all.yaml and replace the placeholders with the paths in config.yaml.
-# Same training as dfdc_to_all, on features whose reference is the stored template phase
+# Record-model training on features whose reference is the stored template phase
 # (experiments/features_record_scalar.py): C from the stored template, G family divided by stored release scalars.
 output_dir: "{record_model_runs}/recordscalar_dfdc"
 run_name: recordscalar_dfdc_to_all

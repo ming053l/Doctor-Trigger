@@ -1,6 +1,6 @@
 """Canonical-trained image-only detector: full matrix on canonical test + fusion with the relation.
 
-Usage: eval_image_detector.py [plain|aug]; aug reads checkpoints.image_detector_aug and writes image_detector_aug.csv."""
+Reads checkpoints.image_detector_aug (the deployed augmentation recipe) and writes image_detector_aug.csv."""
 import os as _dtos
 def _dt(env, rest=""):
     v = _dtos.environ.get(env)
@@ -12,10 +12,8 @@ from PIL import Image
 import torchvision.transforms as T
 from sklearn.metrics import roc_auc_score
 from src import models
-MODE = sys.argv[1] if len(sys.argv) > 1 else "plain"   # plain: checkpoints.image_detector; aug: the deployed-recipe augmentation
-assert MODE in ("plain", "aug"), MODE
-CKPTS = _dt("DT_IMAGE_DETECTOR_AUG" if MODE == "aug" else "DT_IMAGE_DETECTOR")
-OUT_CSV = _dt("DT_OUTPUTS", "/image_detector_aug.csv" if MODE == "aug" else "/image_detector.csv")
+CKPTS = _dt("DT_IMAGE_DETECTOR_AUG")
+OUT_CSV = _dt("DT_OUTPUTS", "/image_detector_aug.csv")
 R = _dt("DT_CANON_ROOT")
 dev = "cuda"
 cases = pd.read_csv(f"{R}/common/cases.csv")
