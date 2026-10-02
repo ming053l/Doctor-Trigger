@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Doctor Trigger: A Framework for Release-Bound Face Verification</title>
+<meta name="description" content="Doctor Trigger verifies circulating faces against private publisher-held release records using a weak keyed Fourier-phase signal.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --ink: #1a1d21;
+    --ink-2: #4a5059;
+    --ink-3: #7b828c;
+    --line: #e4e1da;
+    --teal: #0f5c55;
+    --teal-soft: #e5f1ef;
+    --orange: #d9730d;
+    --orange-soft: #fcf0e3;
+    --green: #1e7a34;
+    --green-soft: #e6f4e8;
+    --red: #b3261e;
+    --red-soft: #fbe9e7;
+    --amber: #a15c00;
+    --amber-soft: #fdf1dc;
+    --indigo: #283593;
+    --maxw: 1080px;
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); font-size: 16px; line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; display: block; }
+  a { color: var(--teal); }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding-inline: 24px; }
+  .sc { font-variant: small-caps; font-weight: 600; letter-spacing: .02em; color: var(--ink); }
+  .v { font-family: var(--serif); font-style: italic; }
+
+  /* ---------- nav ---------- */
+  nav.top {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(251, 250, 247, 0.88);
+    backdrop-filter: saturate(1.4) blur(10px);
+    -webkit-backdrop-filter: saturate(1.4) blur(10px);
+    border-bottom: 1px solid var(--line);
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  nav.top .wrap { display: flex; align-items: center; gap: 24px; height: 56px; }
+  nav.top .brand { font-weight: 800; letter-spacing: 0.02em; text-decoration: none; color: var(--ink); white-space: nowrap; }
+  nav.top .brand span { color: var(--orange); }
+  nav.top ul { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; overflow-x: auto; scrollbar-width: none; }
+  nav.top ul::-webkit-scrollbar { display: none; }
+  nav.top li a {
+    display: block; padding: 6px 12px; border-radius: 999px;
+    font-size: 14px; font-weight: 500; color: var(--ink-2); text-decoration: none; white-space: nowrap;
+  }
+  nav.top li a:hover { background: var(--line); color: var(--ink); }
+  nav.top li a.active { background: var(--ink); color: #fff; }
+  .reading-progress {
+    position: absolute; left: 0; bottom: -1px; width: 100%; height: 3px;
+    transform: scaleX(0); transform-origin: left; background: var(--orange);
+    transition: transform .08s linear; pointer-events: none;
+  }
+
+  /* ---------- hero ---------- */
+  header.hero { padding-block: 72px 40px; text-align: center; }
+  .venue {
+    display: inline-block; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--teal); background: var(--teal-soft); padding: 4px 12px; border-radius: 999px; margin-bottom: 20px;
+  }
+  h1 { font-size: clamp(34px, 5.6vw, 60px); line-height: 1.08; margin: 0 0 14px; font-weight: 800; letter-spacing: -0.02em; }
+  h1 .dt { font-variant: small-caps; letter-spacing: 0.01em; }
+  h1 .dt em { font-style: normal; color: var(--orange); }
+  .subtitle { font-family: var(--serif); font-size: clamp(19px, 2.4vw, 25px); color: var(--ink-2); margin: 0 0 28px; }
+  .authors { font-size: 17px; color: var(--ink); margin-bottom: 4px; }
+  .affil { font-size: 15px; color: var(--ink-3); margin-bottom: 28px; }
+  .buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 999px;
+    background: var(--ink); color: #fff; text-decoration: none; font-weight: 600; font-size: 15px;
+    transition: transform .15s ease, background .15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); background: #33383f; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--ink); }
+  .btn.ghost:hover { background: var(--ink); color: #fff; }
+  .btn.disabled { opacity: .45; pointer-events: none; }
+  .btn svg { width: 18px; height: 18px; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-block: 1px solid var(--line); margin-top: 32px; }
+  .stat { padding: 26px 12px; text-align: center; border-right: 1px solid var(--line); }
+  .stat:last-child { border-right: 0; }
+  .stat .num { font-size: clamp(28px, 4vw, 42px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .stat .num small { font-size: .5em; font-weight: 700; color: var(--ink-2); margin-left: 2px; }
+  .stat .lbl { font-size: 13.5px; color: var(--ink-3); margin-top: 6px; }
+
+  /* ---------- sections ---------- */
+  section { padding-block: 64px 16px; }
+  .sec-head { display: flex; align-items: baseline; gap: 18px; margin-bottom: 24px; border-bottom: 2px solid var(--ink); padding-bottom: 12px; }
+  .sec-num { font-family: var(--mono); font-size: 15px; font-weight: 500; color: var(--orange); }
+  h2 { font-size: clamp(26px, 3.4vw, 36px); margin: 0; letter-spacing: -0.015em; line-height: 1.2; }
+  h3 { font-size: 20px; margin: 44px 0 6px; letter-spacing: -0.01em; }
+  p { margin: 0 0 16px; color: var(--ink-2); }
+  p strong, li strong { color: var(--ink); }
+  .sub { font-size: 15px; color: var(--ink-3); margin-bottom: 14px; }
+
+  figure { margin: 24px 0; }
+  figure .frame { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 18px; overflow-x: auto; }
+  figure .frame img { margin: 0 auto; }
+  figcaption { font-size: 14.5px; color: var(--ink-3); margin-top: 12px; line-height: 1.6; }
+  figcaption b { color: var(--ink-2); }
+
+  /* ---------- story layout ---------- */
+  .tldr { max-width: 760px; margin: -12px auto 26px; font-size: 16.5px; line-height: 1.6; color: var(--ink-2); }
+  .sec-note { font-size: 15px; color: var(--ink-3); }
+  .lede { font-family: var(--serif); font-size: 21px; line-height: 1.6; color: var(--ink); max-width: 880px; }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-block: 8px 0; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px;
+    border-top: 4px solid var(--c, var(--teal));
+  }
+  .card .k { font-size: 15.5px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+  .card p { font-size: 14.5px; margin: 0; }
+
+  /* ---------- interactive decision lab ---------- */
+  .decision-lab {
+    margin-top: 28px; padding: 26px; border: 1px solid var(--line); border-radius: 18px;
+    background: linear-gradient(135deg, #fff 0%, #fff 60%, var(--teal-soft) 140%);
+    box-shadow: 0 12px 34px rgba(26, 29, 33, .055);
+  }
+  .lab-head { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 20px; }
+  .lab-head h3 { margin: 0 0 4px; font-size: 22px; }
+  .lab-head p { margin: 0; font-size: 14.5px; }
+  .lab-kicker { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--orange); }
+  .scenario-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .scenario-tab {
+    appearance: none; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px;
+    background: var(--surface); color: var(--ink-2); font: 600 14px/1 var(--sans); cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease, transform .15s ease;
+  }
+  .scenario-tab:hover { border-color: var(--ink-3); transform: translateY(-1px); }
+  .scenario-tab[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .scenario-definition {
+    margin: -4px 0 20px; padding: 13px 15px; border-left: 3px solid var(--orange);
+    border-radius: 4px 10px 10px 4px; background: var(--orange-soft); color: var(--ink-2);
+    font-size: 14.5px; line-height: 1.55;
+  }
+  .scenario-definition strong { color: var(--ink); }
+  .lab-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(240px, .8fr); gap: 18px; }
+  .check-stack { display: grid; gap: 10px; }
+  .check-row {
+    display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+    min-height: 76px; padding: 14px 16px; border-radius: 12px; background: #fff; border: 1px solid var(--line);
+  }
+  .check-icon {
+    display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%;
+    font-weight: 800; background: var(--green-soft); color: var(--green);
+  }
+  .check-row.fail .check-icon { background: var(--red-soft); color: var(--red); }
+  .check-row.likely .check-icon, .check-row.depends .check-icon { background: var(--amber-soft); color: var(--amber); }
+  .check-row.na .check-icon { background: #e8eaf6; color: var(--indigo); }
+  .check-name { color: var(--ink); font-size: 15px; font-weight: 700; }
+  .check-copy { color: var(--ink-3); font-size: 13.5px; line-height: 1.45; }
+  .check-result { font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: var(--green); }
+  .check-row.fail .check-result { color: var(--red); }
+  .check-row.likely .check-result, .check-row.depends .check-result { color: var(--amber); }
+  .check-row.na .check-result { color: var(--indigo); }
+  .verdict {
+    display: flex; flex-direction: column; justify-content: center; min-height: 162px; padding: 22px;
+    border-radius: 14px; background: var(--green-soft); border: 1px solid rgba(30, 122, 52, .18);
+  }
+  .verdict.u { background: var(--red-soft); border-color: rgba(179, 38, 30, .16); }
+  .verdict.a { background: #e8eaf6; border-color: rgba(40, 53, 147, .16); }
+  .verdict-label { font-family: var(--mono); font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); }
+  .verdict-status { margin: 3px 0 8px; font-size: clamp(25px, 3vw, 34px); line-height: 1.15; font-weight: 800; color: var(--green); }
+  .verdict.u .verdict-status { color: var(--red); }
+  .verdict.a .verdict-status { color: var(--indigo); }
+  .verdict p { margin: 0; font-size: 14.5px; line-height: 1.5; }
+
+  /* ---------- figure lightbox ---------- */
+  figure .frame img { cursor: zoom-in; transition: transform .22s ease; }
+  figure .frame:hover img { transform: scale(1.012); }
+  .lightbox {
+    position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 28px;
+    background: rgba(13, 16, 20, .88); backdrop-filter: blur(8px); opacity: 0; visibility: hidden;
+    transition: opacity .2s ease, visibility .2s ease;
+  }
+  .lightbox.open { opacity: 1; visibility: visible; }
+  .lightbox img { max-width: min(1180px, 94vw); max-height: 86vh; border-radius: 10px; background: #fff; }
+  .lightbox-close {
+    position: absolute; top: max(18px, env(safe-area-inset-top)); right: 20px; width: 44px; height: 44px;
+    border: 1px solid rgba(255,255,255,.35); border-radius: 50%; background: rgba(0,0,0,.28);
+    color: #fff; font: 400 28px/1 var(--sans); cursor: pointer;
+  }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: center; margin-top: 36px; }
+  .split figure { margin: 0; }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; margin-top: 36px; }
+  .step-title { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 19px; }
+  .step-title .n {
+    flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--ink); color: #fff; font-size: 13.5px; font-weight: 700;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .chips span {
+    font-family: var(--mono); font-size: 12.5px; color: var(--teal); background: var(--teal-soft);
+    padding: 3px 10px; border-radius: 999px;
+  }
+  .finding { margin-top: 44px; padding-top: 28px; border-top: 1px solid var(--line); }
+  .finding { scroll-margin-top: 72px; }
+  .finding .f-k { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--orange); }
+  .finding h3 { font-size: clamp(21px, 2.4vw, 25px); margin: 4px 0 10px; }
+  .finding > p { max-width: 900px; }
+  .finding figure { margin-top: 16px; }
+  .also { margin-top: 16px; font-size: 15px; }
+  .finding .viz, .finding .versus { margin-top: 14px; }
+  .core { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 18px; }
+  .core-card {
+    display: block; text-decoration: none; color: inherit; background: var(--surface);
+    border: 1px solid var(--line); border-top: 4px solid var(--orange); border-radius: 14px; padding: 22px 24px;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .core-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.06); }
+  .core-k { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--orange); }
+  .core-num { font-size: clamp(36px, 4.6vw, 50px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; margin: 6px 0 8px; }
+  .core-num small { font-size: .4em; font-weight: 700; color: var(--ink-3); letter-spacing: 0; }
+  .core-lbl { font-size: 17px; font-weight: 700; color: var(--ink); line-height: 1.35; margin-bottom: 6px; }
+  .core-card p { margin: 0; font-size: 14.5px; }
+  .support { margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .support .f-k { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+  .support h3 { font-size: 20px; margin: 4px 0 8px; }
+  .support figure { margin: 14px 0 0; }
+  .support .table-wrap { margin-top: 14px; }
+  .also b { color: var(--ink); }
+
+  /* ---------- interactive key-ring walkthrough (Fig. 10) ---------- */
+  .rk-explore { margin-top: 26px; }
+  .rk-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(200px, 1fr); gap: 18px; align-items: start; }
+  .rk-layout .frame { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+  .rk-stage {
+    position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden;
+    background: #16191d; border: 1px solid rgba(15,92,85,.2);
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .rk-stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  .rk-stage.dragging canvas { cursor: grabbing; }
+  .rk-controls { display: flex; flex-direction: column; gap: 14px; }
+  .rk-lens {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .6s ease;
+    background: radial-gradient(circle at 50% 50%, rgba(111,217,200,.16) 0%, rgba(111,217,200,.05) 45%, rgba(111,217,200,0) 72%);
+  }
+  .rk-lens.active { opacity: 1; }
+  .rk-lens::after {
+    content: ""; position: absolute; inset: 0;
+    box-shadow: inset 0 0 1px 1px rgba(111,217,200,.3), inset 0 0 70px rgba(0,0,0,.4);
+  }
+  .rk-hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--mono); }
+  .rk-hud-tl { position: absolute; top: 14px; left: 16px; font-size: 11.5px; color: rgba(255,255,255,.6); letter-spacing: .03em; }
+  .rk-hud-bl { position: absolute; bottom: 12px; left: 16px; font-size: 11px; color: rgba(255,255,255,.4); }
+  .rk-hud-tr {
+    position: absolute; top: 12px; right: 12px; min-width: 140px; padding: 11px 13px; border-radius: 11px; text-align: right;
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(6px);
+  }
+  .rk-hud-tr .m-lbl { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.5); }
+  .rk-hud-tr .m-val { font-size: 23px; font-weight: 700; color: #fff; line-height: 1.25; font-variant-numeric: tabular-nums; }
+  .rk-hud-tr .m-sub { font-size: 10.5px; color: rgba(255,255,255,.55); margin-top: 2px; }
+  .rk-legend { position: absolute; bottom: 12px; right: 12px; display: flex; gap: 10px; font-size: 10.5px; color: rgba(255,255,255,.6); }
+  .rk-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .rk-legend i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .rk-measuring { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 6px; font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: rgba(255,255,255,.6); }
+  .rk-measuring i {
+    width: 6px; height: 6px; border-radius: 50%; background: #2fae55;
+    box-shadow: 0 0 0 0 rgba(47,174,85,.55); animation: rkPulse 1.6s ease-out infinite;
+  }
+  @keyframes rkPulse {
+    0% { box-shadow: 0 0 0 0 rgba(47,174,85,.55); }
+    70% { box-shadow: 0 0 0 7px rgba(47,174,85,0); }
+    100% { box-shadow: 0 0 0 0 rgba(47,174,85,0); }
+  }
+  .rk-stepper { display: flex; align-items: center; gap: 12px; }
+  .rk-step-arrows { display: flex; flex-direction: column; gap: 6px; }
+  .rk-step-arrow {
+    appearance: none; border: 1px solid var(--line); border-radius: 50%; width: 40px; height: 40px; background: var(--surface);
+    color: var(--ink); font-size: 17px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    transition: border-color .15s, transform .15s, opacity .15s;
+  }
+  .rk-step-arrow:hover { border-color: var(--ink-3); transform: translateY(-1px); }
+  .rk-step-arrow[disabled] { opacity: .35; cursor: default; transform: none; }
+  .rk-step-indicator { flex: 1; min-width: 0; text-align: left; }
+  .rk-step-count { font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+  .rk-step-name { font-family: var(--mono); font-size: 16px; font-weight: 600; color: var(--ink); margin-top: 3px; }
+  .rk-tab-rows { display: flex; flex-direction: column; gap: 14px; }
+  .rk-tab-row-label {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3);
+    text-align: left; margin-bottom: 6px;
+  }
+  .rk-tabs { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .rk-layout .scenario-tab { padding: 6px 11px; font-size: 12px; width: 100%; text-align: left; }
+  .rk-caption { margin-top: 16px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  .rk-caption p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+  .rk-caption p + p { margin-top: 8px; }
+  .rk-caption b { color: var(--ink); }
+  .rk-caption .tag {
+    display: inline-block; font-family: var(--mono); font-size: 10.5px; color: var(--teal); background: var(--teal-soft);
+    padding: 2px 7px; border-radius: 6px; margin-right: 6px;
+  }
+
+  /* ---------- status pills ---------- */
+  .status { display: inline-block; font-size: 12.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px; font-style: normal; }
+  .status.c { color: var(--green); background: var(--green-soft); }
+  .status.u { color: var(--red); background: var(--red-soft); }
+  .status.a { color: var(--indigo); background: #e8eaf6; }
+
+  /* ---------- charts ---------- */
+  .viz { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px 14px; }
+  .score-wrap { overflow-x: auto; }
+  .scale { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-3); margin-bottom: 12px; }
+  .scale i { flex: 0 1 180px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #f1efea, #0f6b62); }
+  table.score { width: 100%; border-collapse: separate; border-spacing: 4px; font-size: 14.5px; }
+  table.score { table-layout: fixed; }
+  table.score thead th:first-child { width: 32%; }
+  table.score thead th { border: 0; font-size: 13px; font-weight: 600; color: var(--ink-2); padding: 0 8px 4px; text-align: center; }
+  table.score th[scope="row"] { text-align: left; font-weight: 500; color: var(--ink); padding: 0 12px 0 4px; white-space: nowrap; }
+  table.score td { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; padding: 9px 8px; border-radius: 6px; border: 0; }
+  table.score tbody tr + tr td { border-top: 0; }
+  table.score tr.me th { font-weight: 800; color: var(--orange); }
+  table.score tr.me td { box-shadow: inset 0 0 0 2px var(--orange); }
+
+  .versus { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .vs-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; border-top: 4px solid var(--c); }
+  .vs-card.bad { --c: var(--ink-3); }
+  .vs-card.good { --c: var(--orange); }
+  .vs-num { font-size: clamp(40px, 5vw, 56px); font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+  .vs-card.good .vs-num { color: var(--orange); }
+  .vs-lbl { font-size: 15px; font-weight: 600; color: var(--ink-2); margin: 8px 0 12px; }
+  .vs-card ul { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  .vs-card li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px dashed var(--line); color: var(--ink-2); }
+  .vs-card li b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .vs-card p { margin: 0; font-size: 14.5px; }
+  .vs-card p b { color: var(--ink); }
+  .tview { margin-top: 10px; }
+  .tview summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--teal); padding: 4px 0; }
+  .tview .table-wrap { margin-top: 8px; }
+
+
+  /* ---------- tables ---------- */
+  .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 10px 14px; text-align: center; white-space: nowrap; }
+  thead th { font-weight: 600; color: var(--ink-2); border-bottom: 1.5px solid var(--ink); font-size: 13.5px; }
+  thead tr.group th { border-bottom: 1px solid var(--line); color: var(--ink-3); font-weight: 500; }
+  tbody tr + tr td { border-top: 1px solid var(--line); }
+  td:first-child, th:first-child { text-align: left; }
+  tbody tr.ours td { background: var(--orange-soft); }
+  tbody tr.ours td:first-child { font-weight: 700; color: var(--ink); }
+  tbody tr.sep td { border-top: 1.5px solid var(--ink-3); }
+  td.best { font-weight: 700; color: var(--ink); }
+  td.muted { color: var(--ink-3); }
+  td.hi { color: var(--green); font-weight: 600; }
+  td.mid { color: var(--amber); font-weight: 600; background: var(--amber-soft); }
+  td.lo { color: var(--red); font-weight: 700; background: var(--red-soft); }
+  .note { font-size: 13.5px; color: var(--ink-3); margin-top: 10px; }
+
+
+  .callout {
+    border-left: 4px solid var(--amber); background: var(--amber-soft); border-radius: 10px;
+    padding: 14px 18px; margin-top: 18px; font-size: 15px; color: var(--ink);
+  }
+
+  /* ---------- abstract ---------- */
+  .abstract {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 28px 32px; font-family: var(--serif); font-size: 17.5px; line-height: 1.75; color: var(--ink);
+    text-align: justify; hyphens: auto;
+  }
+  .abstract p { color: var(--ink); margin: 0; }
+
+  /* ---------- video ---------- */
+  .video-frame {
+    position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden;
+    background: #142a38; box-shadow: 0 10px 30px rgba(20, 42, 56, .18);
+  }
+  .video-frame video { display: block; width: 100%; height: 100%; }
+  .play-overlay {
+    position: absolute; inset: 0; margin: auto; width: 84px; height: 84px; border-radius: 50%; border: 0; cursor: pointer;
+    display: grid; place-items: center; background: rgba(217, 115, 13, .95); color: #fff;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .3); transition: transform .15s ease, background .15s ease;
+  }
+  .play-overlay:hover { transform: scale(1.06); background: var(--orange); }
+  .play-overlay[hidden] { display: none; }
+  .play-overlay svg { width: 38px; height: 38px; margin-left: 5px; }
+
+  /* ---------- bibtex ---------- */
+  .bib { position: relative; }
+  .bib pre {
+    margin: 0; background: #16191d; color: #e8e6e1; border-radius: 14px; padding: 22px 24px;
+    font-family: var(--mono); font-size: 13.5px; line-height: 1.6; overflow-x: auto;
+  }
+  .copy {
+    position: absolute; top: 12px; right: 12px; font: inherit; font-size: 13px; font-weight: 600;
+    background: #2b3036; color: #e8e6e1; border: 0; border-radius: 8px; padding: 6px 12px; cursor: pointer;
+  }
+  .copy:hover { background: #3a4047; }
+
+  footer { border-top: 1px solid var(--line); margin-top: 64px; padding-block: 28px 40px; font-size: 13.5px; color: var(--ink-3); text-align: center; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 860px) {
+    .cards, .split, .two, .versus, .core, .rk-layout { grid-template-columns: minmax(0, 1fr); }
+    .lab-body { grid-template-columns: minmax(0, 1fr); }
+    .split { gap: 16px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .stat:nth-child(2) { border-right: 0; }
+    .stat:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding-inline: 16px; }
+    header.hero { padding-block: 44px 24px; }
+    nav.top .brand { display: none; }
+    .abstract { padding: 20px; font-size: 16.5px; text-align: left; }
+    figure .frame { padding: 10px; }
+    section { padding-block: 48px 12px; }
+    .play-overlay { width: 64px; height: 64px; }
+    .lede { font-size: 18.5px; }
+    .tldr { font-size: 15.5px; }
+    .viz { padding: 14px 10px 10px; }
+    table.score { font-size: 13.5px; border-spacing: 3px; }
+    .play-overlay svg { width: 28px; height: 28px; }
+    .decision-lab { padding: 18px; margin-inline: -4px; }
+    .lab-head { align-items: start; flex-direction: column; }
+    .scenario-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+    .scenario-tab { border-radius: 10px; line-height: 1.25; min-height: 42px; }
+    .check-row { grid-template-columns: 38px minmax(0, 1fr); }
+    .check-result { grid-column: 2; }
+    .rk-hud-tr { min-width: 108px; padding: 8px 10px; }
+    .rk-hud-tr .m-val { font-size: 19px; }
+    .rk-legend { position: static; margin-top: 6px; justify-content: flex-end; padding: 0 12px 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="top" aria-label="Sections">
+  <div class="wrap">
+    <a class="brand" href="#top">Doctor <span>Trigger</span></a>
+    <ul>
+      <li><a href="#abstract">Abstract</a></li>
+      <li><a href="#video">Video</a></li>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#method">Method</a></li>
+      <li><a href="#results">Results</a></li>
+      <li><a href="#citation">Citation</a></li>
+    </ul>
+  </div>
+  <div class="reading-progress" id="readingProgress" aria-hidden="true"></div>
+</nav>
+
+<header class="hero wrap" id="top">
+  <div class="venue">Under review · ICLR 2027</div>
+  <h1><span class="dt">Doctor <em>Trigger</em></span></h1>
+  <p class="subtitle">A Framework for Release-Bound Face Verification</p>
+  <p class="tldr">Publishers add an invisible keyed signal to each face before release and keep a private record, so they can later check whether a circulating face is still the version they published, or a swapped or edited copy.</p>
+  <!-- TODO: replace with real authors/affiliations after the review period -->
+  <div class="authors">Anonymous Authors</div>
+  <div class="affil">Paper under double-blind review</div>
+  <div class="buttons">
+    <a class="btn" href="static/pdf/paper.pdf" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      Paper
+    </a>
+    <a class="btn" href="#video">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+      Video (3 min)
+    </a>
+    <!-- TODO: fill in the arXiv / OpenReview link and remove the "disabled" class -->
+    <a class="btn ghost disabled" href="#" aria-disabled="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      OpenReview
+    </a>
+    <!-- TODO: fill in the code link and remove the "disabled" class -->
+    <a class="btn ghost disabled" href="#" aria-disabled="true">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.37-3.87-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.3-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.75.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
+      Code (coming soon)
+    </a>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="num">51.2<small>dB</small></div><div class="lbl">PSNR of the released image:<br>visually near-identical</div></div>
+    <div class="stat"><div class="num">≥0.99</div><div class="lbl">face-swap detection AUC<br>within &amp; across datasets</div></div>
+    <div class="stat"><div class="num">0<small>%</small></div><div class="lbl">unreleased originals accepted<br>by key projection</div></div>
+    <div class="stat"><div class="num">5.9<small>ms</small></div><div class="lbl">relation-only check,<br>in memory</div></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ===================== ABSTRACT ===================== -->
+  <section id="abstract">
+    <div class="sec-head"><h2>Abstract</h2></div>
+    <div class="abstract">
+      <p>
+        Face swapping and generative editing enable realistic facial manipulation, while online redistribution complicates publisher
+        oversight of circulating face images. Existing approaches establish provenance, detect manipulation, recover embedded watermarks,
+        verify image integrity, or disrupt unauthorized face manipulation. These capabilities do not necessarily establish consistency with
+        a specific publisher-enrolled release, limiting the evidence available for verification and human review. To address this gap, we
+        introduce <span class="sc">Doctor Trigger</span>, a framework for verifying circulating faces against private publisher-held release
+        records. Before publication, the publisher embeds a weak keyed Fourier-phase signal in each face while preserving visual fidelity and
+        stores its spectral reference. Afterward, verification compares the circulating face with that reference and uses key projection to
+        measure retention of the release-specific signal. Therefore, relation and key evidence jointly help publishers identify suspicious
+        copies for review, potentially reducing the circulation of manipulated images. Experimental results across FF++, DFDC, and Celeb-DF
+        show that spectral agreement separates tested face swaps and generative manipulations from enrolled releases, while the keyed signal
+        distinguishes published versions from their unreleased originals under the evaluated key-preserving benign transformations.
+        <span class="sc">Doctor Trigger</span> complements provenance metadata with release-specific face verification and record-linked
+        evidence for further assessment.
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================== VIDEO ===================== -->
+  <section id="video">
+    <div class="sec-head"><h2>Video</h2><span class="sec-note">3-minute overview</span></div>
+    <div class="video-frame">
+      <video id="dtVideo" controls preload="metadata" playsinline poster="static/images/video_poster.jpg">
+        <source src="static/videos/doctor_trigger.mp4" type="video/mp4">
+        Your browser cannot play this video. <a href="static/videos/doctor_trigger.mp4">Open the MP4 file</a>.
+      </video>
+      <button type="button" class="play-overlay" id="playOverlay" aria-label="Play video">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- ===================== OVERVIEW ===================== -->
+  <section id="overview">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Overview</h2></div>
+
+    <p class="lede">
+      Face swaps and generative edits are now realistic, and published faces get reposted, compressed and resized as they circulate.
+      A publisher needs to answer one question: <em>is this circulating face still the version we released?</em>
+    </p>
+    <p>
+      Provenance metadata can be stripped along the way, and image-only detectors do not check a face against a specific release.
+      <span class="sc">Doctor Trigger</span> lets the publisher keep a private record of each release and verify circulating copies against it.
+    </p>
+
+    <figure>
+      <div class="frame"><img src="static/images/fig2_release.png" alt="Original vs released image with amplified mid-band residual; template agreement passes for release and JPEG, fails for face re-rendering." loading="lazy"></div>
+      <figcaption><b>Doctor Trigger at a glance.</b> Left: a weak keyed signal is added before publication, and the released face looks virtually the same as the original. Right: the circulating copy is compared with the stored record. A JPEG copy passes (<span class="v">C<sub>B</sub></span> = 1.000); a re-rendered face fails (0.930 &lt; 0.997).</figcaption>
+    </figure>
+
+    <div class="cards">
+      <div class="card" style="--c: var(--orange)">
+        <div class="k">Invisible release signal</div>
+        <p>A secret per-face key slightly shifts the Fourier phase. The released face stays visually near-identical (51.2 dB PSNR).</p>
+      </div>
+      <div class="card" style="--c: var(--teal)">
+        <div class="k">Two complementary checks</div>
+        <p><strong>Face consistency</strong> catches swaps and edits. <strong>Release signal</strong> tells the published version apart from its unreleased original.</p>
+      </div>
+      <div class="card" style="--c: var(--indigo)">
+        <div class="k">Human in the loop</div>
+        <p><span class="status c">Confirmed</span> copies pass routinely. <span class="status u">Unconfirmed</span> ones go to a reviewer. <span class="status a">Unavailable</span> means inputs are missing.</p>
+      </div>
+    </div>
+
+    <div class="decision-lab" aria-labelledby="labTitle">
+      <div class="lab-head">
+        <div>
+          <div class="lab-kicker">Interactive explainer</div>
+          <h3 id="labTitle">Try the verification logic</h3>
+          <p>Choose what reached the verifier. Both checks use thresholds calibrated for the benign transformations the system is intended to tolerate.</p>
+        </div>
+      </div>
+      <div class="scenario-tabs" role="tablist" aria-label="Verification scenarios">
+        <button class="scenario-tab" type="button" role="tab" aria-selected="true" data-scenario="release">Supported benign copy</button>
+        <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="edit">Maliciously transformed face</button>
+        <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="original">Release signal missing</button>
+        <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="missing">Enrollment record missing</button>
+      </div>
+      <div class="scenario-definition" id="scenarioDefinition">
+        <strong>Supported benign copy.</strong> A released face after a benign transformation covered by calibration. Only once benign processing is pushed well past that calibrated range would the release signal or face-consistency score drop below threshold.
+      </div>
+      <div class="lab-body" aria-live="polite">
+        <div class="check-stack">
+          <div class="check-row" id="faceCheck">
+            <div class="check-icon" aria-hidden="true">✓</div>
+            <div><div class="check-name">Face consistency</div><div class="check-copy">Matches the enrolled spectral reference.</div></div>
+            <div class="check-result">Pass</div>
+          </div>
+          <div class="check-row" id="releaseCheck">
+            <div class="check-icon" aria-hidden="true">✓</div>
+            <div><div class="check-name">Release signal</div><div class="check-copy">The enrolled key is present in the circulating copy.</div></div>
+            <div class="check-result">Pass</div>
+          </div>
+        </div>
+        <div class="verdict" id="verdict">
+          <div class="verdict-label">Verifier response</div>
+          <div class="verdict-status">Confirmed</div>
+          <p>The face is consistent with the publisher's enrolled release.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== METHOD ===================== -->
+  <section id="method">
+    <div class="sec-head"><span class="sec-num">02</span><h2>How it works</h2></div>
+
+    <p>Two stages. The publisher enrolls each face before release. Later, a requester, such as a person or platform, submits a circulating copy to the publisher's verifier and gets a status back.</p>
+    <figure style="margin-top:12px">
+      <div class="frame"><img src="static/images/fig1_overview.png" alt="Two-stage publisher-side verification: enrollment and release, then verification and handling." loading="lazy"></div>
+      <figcaption><b>Workflow.</b> Private records stay with the publisher (orange). Credentials and verification status form the public layer (teal).</figcaption>
+    </figure>
+
+    <div class="split">
+      <div>
+        <h3 class="step-title"><span class="n">1</span>Enroll: add a weak keyed signal</h3>
+        <p>A key derived from a master seed and the sample ID picks a signed pattern on a mid-frequency ring of the Fourier spectrum. The phase at those frequencies is shifted by a tiny amount, then a fidelity gate lowers the strength until the release meets the fidelity targets.</p>
+        <p>The publisher keeps a <strong>private record</strong>: the spectral reference, the key and the thresholds. The original image is not needed later.</p>
+        <div class="chips"><span>phase shift 0.0071–0.0235 rad</span><span>PSNR ≥ 35 dB</span><span>SSIM ≥ 0.98</span></div>
+      </div>
+      <figure>
+        <div class="frame"><img src="static/images/fig3_enroll.png" alt="Enrollment pipeline: RGB FFT, ring selection, keyed phase shift, IFFT, blend, fidelity gate." loading="lazy"></div>
+      </figure>
+    </div>
+
+    <div class="two">
+      <div>
+        <h3 class="step-title"><span class="n">2</span>Verify: two checks against the record</h3>
+        <p><strong>Spectral agreement <span class="v">C</span></strong> compares the query's phase with the stored template: is this still the enrolled face?</p>
+        <p><strong>Key projection <span class="v">G<sub>s</sub></span></strong> projects the phase change onto the enrolled key: is the release signal still there? An ideal release scores about 1, the unreleased original 0, and wrong keys cancel out on average.</p>
+      </div>
+      <div>
+        <h3 class="step-title"><span class="n">3</span>Decide and route</h3>
+        <p>A query is <span class="status c">Confirmed</span> only when <em>both</em> checks pass thresholds calibrated on benign processing (at most 1% benign rejection). Otherwise it is <span class="status u">Unconfirmed</span> and flagged for review, or <span class="status a">Unavailable</span> if the record or inputs are missing.</p>
+        <div class="chips"><span>no trained model needed</span><span>optional learned record model</span></div>
+      </div>
+    </div>
+    <figure style="margin-top:8px">
+      <div class="frame"><img src="static/images/fig4_verify.png" alt="Verification: read the private record, verify face consistency and release signal, decide and route." loading="lazy"></div>
+      <figcaption><b>Verification.</b> (a) Read the private record. (b) Check face consistency and the release signal, directly or with an optional record model. (c) Route the query. An optional image-only detector adds a separate review flag.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===================== RESULTS ===================== -->
+  <section id="results">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Results</h2></div>
+    <p class="sub">7,366 real faces from FF++, DFDC and Celeb-DF. Each is verified as the genuine release and as a SimSwap face swap against the same record.</p>
+
+    <div class="core">
+      <a class="core-card" href="#r1">
+        <div class="core-k">Face check</div>
+        <div class="core-num">≥ 0.99 <small>AUC</small></div>
+        <div class="core-lbl">Catches face swaps on every dataset, without training.</div>
+        <p>Watermarks built to survive editing stay at 0.50, a coin flip.</p>
+      </a>
+      <a class="core-card" href="#r2">
+        <div class="core-k">Release check</div>
+        <div class="core-num">99% → 0%</div>
+        <div class="core-lbl">Tells the published version apart from its original.</div>
+        <p>Share of never-published originals wrongly accepted: similarity checks vs. the key.</p>
+      </a>
+    </div>
+
+    <article class="finding" id="r1">
+      <div class="f-k">Face check</div>
+      <h3>Catches face swaps on every dataset.</h3>
+      <p>How well each method separates a face-swapped copy from the genuine release. 1.00 means always right; 0.50 is a coin flip.</p>
+      <div class="viz score-wrap">
+        <div class="scale"><span>0.50 · coin flip</span><i></i><span>1.00 · perfect</span></div>
+        <table class="score">
+          <thead><tr><th></th><th>FF++</th><th>Celeb-DF</th><th>DFDC</th></tr></thead>
+          <tbody>
+            <tr class="me"><th scope="row">Doctor Trigger (direct)</th><td style="background:#0f6b62;color:#ffffff">1.00</td><td style="background:#146e65;color:#ffffff">0.99</td><td style="background:#146e65;color:#ffffff">0.99</td></tr>
+            <tr><th scope="row">LIDMark</th><td style="background:#0f6b62;color:#ffffff">1.00</td><td style="background:#85b0a9;color:#1a1d21">0.74</td><td style="background:#57958e;color:#ffffff">0.84</td></tr>
+            <tr><th scope="row">FaceSigns</th><td style="background:#0f6b62;color:#ffffff">1.00</td><td style="background:#97bab4;color:#1a1d21">0.70</td><td style="background:#97bab4;color:#1a1d21">0.70</td></tr>
+            <tr><th scope="row">StegaStamp</th><td style="background:#38837a;color:#ffffff">0.91</td><td style="background:#d1ddd7;color:#1a1d21">0.57</td><td style="background:#e8eae5;color:#1a1d21">0.52</td></tr>
+            <tr><th scope="row">SepMark</th><td style="background:#9bbdb6;color:#1a1d21">0.69</td><td style="background:#f1efea;color:#1a1d21">0.50</td><td style="background:#f1efea;color:#1a1d21">0.50</td></tr>
+            <tr><th scope="row">KAD-Net</th><td style="background:#dfe4df;color:#1a1d21">0.54</td><td style="background:#f1efea;color:#1a1d21">0.50</td><td style="background:#f1efea;color:#1a1d21">0.50</td></tr>
+            <tr><th scope="row">WAM</th><td style="background:#f1efea;color:#1a1d21">0.50</td><td style="background:#f1efea;color:#1a1d21">0.50</td><td style="background:#f1efea;color:#1a1d21">0.50</td></tr>
+            <tr><th scope="row">VINE-R</th><td style="background:#f1efea;color:#1a1d21">0.50</td><td style="background:#f1efea;color:#1a1d21">0.50</td><td style="background:#f1efea;color:#1a1d21">0.50</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <details class="tview">
+        <summary>Show table, including cross-dataset transfer</summary>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr class="group"><th></th><th colspan="3">Per-dataset</th><th colspan="2">From FF++ →</th><th colspan="2">From DFDC →</th></tr>
+              <tr><th>Method</th><th>FF++</th><th>CDF</th><th>DFDC</th><th>CDF</th><th>DFDC</th><th>CDF</th><th>FF++</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>StegaStamp</td><td>0.91</td><td>0.57</td><td>0.52</td><td>0.59</td><td>0.54</td><td>0.56</td><td>0.80</td></tr>
+              <tr><td>FaceSigns†</td><td>1.00</td><td>0.70</td><td>0.70</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td></tr>
+              <tr><td>SepMark†</td><td>0.69</td><td>0.50</td><td>0.50</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td></tr>
+              <tr><td>WAM†</td><td>0.50</td><td>0.50</td><td>0.50</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td></tr>
+              <tr><td>KAD-Net†</td><td>0.54</td><td>0.50</td><td>0.50</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td></tr>
+              <tr><td>VINE-R†</td><td>0.50</td><td>0.50</td><td>0.50</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td></tr>
+              <tr><td>LIDMark</td><td>1.00</td><td>0.74</td><td>0.84</td><td>0.90</td><td>0.74</td><td>0.92</td><td>0.98</td></tr>
+              <tr class="ours sep"><td>Ours, image-only <span class="v">S<sub>df</sub></span></td><td>0.99</td><td>0.98</td><td>1.00</td><td>0.68</td><td>0.76</td><td>0.93</td><td>0.95</td></tr>
+              <tr class="ours"><td>Ours, direct spectral 1 − <span class="v">C<sub>B</sub></span></td><td class="best">1.00</td><td class="best">0.99</td><td class="best">0.99</td><td class="best">0.99</td><td class="best">0.99</td><td class="best">0.99</td><td class="best">1.00</td></tr>
+              <tr class="ours"><td>Ours, record model <span class="v">S<sub>fake</sub></span></td><td class="best">1.00</td><td class="best">1.00</td><td class="best">1.00</td><td>0.98</td><td class="best">1.00</td><td>0.97</td><td class="best">1.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">†: fixed public weights; —: no dataset-specific training (paper Table 2).</p>
+      </details>
+      <p class="also">Also <b>1.000</b> AUC on StarGAN, UniFace, InSwapper and SD inpainting (FF++; the paper marks this comparison as exploratory).</p>
+      <figure>
+        <div class="frame" style="max-width:760px;margin-inline:auto"><img src="static/images/fig9_examples.png" alt="Released images, JPEG copies and re-rendered faces from FF++ and Celeb-DF with their sub-band template agreement." loading="lazy"></div>
+        <figcaption><b>Examples.</b> Released images and their JPEG copies pass the template check; re-rendered faces fail it. Green and red borders mark acceptance and rejection. Selected rows from paper Fig. 9.</figcaption>
+      </figure>
+    </article>
+
+    <article class="finding" id="r2">
+      <div class="f-k">Release check</div>
+      <h3>Tells the published version apart from its original.</h3>
+      <p>The original photo looks virtually the same as the release, so similarity checks accept it. Only the release carries the keyed signal.</p>
+      <div class="versus">
+        <div class="vs-card bad">
+          <div class="vs-num">≈ 99%</div>
+          <div class="vs-lbl">of originals accepted by similarity checks</div>
+          <ul>
+            <li><span>Similarity to original (<i>H</i>)</span><b>99.25%</b></li>
+            <li><span>Similarity to template (<i>C</i>)</span><b>99.25%</b></li>
+            <li><span>Image similarity (SSIM)</span><b>99.5%</b></li>
+            <li><span>Face identity (ArcFace)</span><b>99.25%</b></li>
+          </ul>
+        </div>
+        <div class="vs-card good">
+          <div class="vs-num">0%</div>
+          <div class="vs-lbl">of originals accepted by the key</div>
+          <p><b>99.5%</b> of JPEG-compressed releases still pass, and all tested wrong keys are rejected.</p>
+        </div>
+      </div>
+      <p class="note">JPEG calibration, paper Table 3.</p>
+      <figure>
+        <div class="frame"><img src="static/images/fig10_key.png" alt="Key sign pattern over the frequency ring, keyed displacement, template, query residual, and sign agreement with the correct and a wrong key." loading="lazy"></div>
+        <figcaption><b>What the key sees</b>, on one FF++ face. (a) The key expands into a sign pattern over the frequency ring. (d) A benign copy's phase residual looks like noise, but its signs follow the key: <b>82%</b> of bins agree with the correct key (e), against <b>49%</b>, chance, with a wrong key (f). Paper Fig. 10.</figcaption>
+      </figure>
+
+      <div class="rk-explore" id="rk-widget">
+        <p class="note">Explore the same evidence in 3D &mdash; rotate the ring, and step through each panel.</p>
+        <div class="rk-layout">
+          <div class="frame">
+            <div class="rk-stage" id="rk-stage">
+              <canvas id="rk-canvas" aria-label="3D visualization of the frequency ring under different scenarios"></canvas>
+              <div class="rk-lens" id="rk-lens" aria-hidden="true"></div>
+              <div class="rk-hud" aria-hidden="true">
+                <div class="rk-hud-tl">RING &kappa; &isin; [0.10, 0.45] &middot; 180 active bins</div>
+                <div class="rk-hud-bl">drag to rotate &middot; scroll to zoom</div>
+                <div class="rk-hud-tr">
+                  <div class="m-lbl" id="rk-metricLabel">Key value</div>
+                  <div class="m-val" id="rk-metricValue">&plusmn;1</div>
+                  <div class="m-sub" id="rk-metricSub">sign pattern only</div>
+                  <div class="rk-measuring" id="rk-measuringTag" hidden><i></i>Measuring</div>
+                </div>
+                <div class="rk-legend" id="rk-legend" hidden></div>
+              </div>
+            </div>
+          </div>
+          <div class="rk-controls">
+            <div class="rk-stepper">
+              <div class="rk-step-arrows">
+                <button class="rk-step-arrow" type="button" id="rk-prevStep" aria-label="Previous panel">&uarr;</button>
+                <button class="rk-step-arrow" type="button" id="rk-nextStep" aria-label="Next panel">&darr;</button>
+              </div>
+              <div class="rk-step-indicator">
+                <div class="rk-step-count" id="rk-stepCount">Step 1 of 4</div>
+                <div class="rk-step-name" id="rk-stepName">(a) The key</div>
+              </div>
+            </div>
+            <div class="rk-tab-rows">
+              <div class="rk-tab-group">
+                <div class="rk-tab-row-label">Reconstructed &middot; (a)&ndash;(d)</div>
+                <div class="rk-tabs" role="tablist" aria-label="Build-up panels">
+                  <button class="scenario-tab" type="button" role="tab" aria-selected="true" data-scenario="key">(a) Key</button>
+                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="displacement">(b) Displacement</button>
+                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="template">(c) Template</button>
+                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="residual">(d) Residual</button>
+                </div>
+              </div>
+              <div class="rk-tab-group">
+                <div class="rk-tab-row-label">Measured &middot; (e)&ndash;(f), and beyond</div>
+                <div class="rk-tabs" role="tablist" aria-label="Key comparison and beyond">
+                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="release">(e) Correct key</button>
+                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="original">(f) Wrong key</button>
+                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="edit">Re-render</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="rk-caption">
+          <p id="rk-captionText"><span class="tag">FIG. 10 &middot; (a) THE KEY</span>A seed expands into a fixed sign pattern over the ring&rsquo;s active bins &mdash; nothing here depends on any image yet. This is the key alone.</p>
+          <p>Panels (a)&ndash;(d) are illustrative reconstructions of the key, its displacement, and how it sits inside a face&rsquo;s own phase &mdash; no real image is Fourier-transformed here. Panels (e)&ndash;(f) use the paper&rsquo;s own reported numbers (82% / 49%).</p>
+        </div>
+      </div>
+    </article>
+
+    <div class="support">
+      <article>
+        <div class="f-k">Invisible</div>
+        <h3>The release looks virtually unchanged.</h3>
+        <p><b>51.2 dB</b> PSNR, compared with 29.9–41.4 dB for the compared watermarking methods on the same face. Across all 7,366 enrollments the average is <b>51.20 dB</b> (minimum 49.3 dB) with SSIM 1.00, and it holds at 128, 256 and 512 px on all three datasets (paper Table 6).</p>
+        <figure>
+          <div class="frame"><img src="static/images/fig5_fidelity.png" alt="Same FF++ face marked by eight methods with PSNR, and 10x amplified residuals." loading="lazy"></div>
+          <figcaption>Residuals amplified 10× below each face. Payload and reference budgets differ across methods.</figcaption>
+        </figure>
+      </article>
+      <article>
+        <div class="f-k">Lightweight</div>
+        <h3>Verification runs on a CPU, with no model weights.</h3>
+        <p>The relation check takes <b>5.9 ms</b> on a CPU using the in-memory record. The compared watermark decoders run on a GPU with 68–3833 MiB of weights.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr class="group"><th></th><th colspan="2">Time (ms) ↓</th><th colspan="2">Memory (MiB) ↓</th></tr>
+              <tr><th>Method</th><th>Embed</th><th>Verify</th><th>Weights</th><th>GPU</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>StegaStamp</td><td>9.3</td><td>2.6</td><td>208</td><td>375</td></tr>
+              <tr><td>FaceSigns</td><td>4.4</td><td>1.7</td><td>72</td><td>102</td></tr>
+              <tr><td>SepMark</td><td>12.5</td><td>17.8</td><td>550</td><td>653</td></tr>
+              <tr><td>WAM</td><td>14.9</td><td>17.0</td><td>360</td><td>450</td></tr>
+              <tr><td>KAD-Net</td><td>17.0</td><td>12.5</td><td>563</td><td>650</td></tr>
+              <tr><td>VINE-R</td><td>79.3</td><td>10.7</td><td>3833</td><td>4569</td></tr>
+              <tr><td>LIDMark</td><td>6.0</td><td>5.9</td><td>68</td><td>93</td></tr>
+              <tr class="ours sep"><td>Ours, relation check</td><td>66.7‡</td><td class="best">5.9‡</td><td class="best">0</td><td class="best">0</td></tr>
+              <tr class="ours"><td>Ours, record model</td><td>66.7‡</td><td>149.9‡</td><td>0.04</td><td class="best">0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">Means over 20 256² crops. ‡ Xeon Gold 6248R CPU; other methods on an A5000 GPU (paper Table 16).</p>
+      </article>
+      <article>
+        <div class="f-k">Robustness</div>
+        <h3>Reliable after common sharing, with known weak spots.</h3>
+        <p>Nearly all manipulations are rejected after re-encoding, screenshots, JPEG and one repost. Repeated reposting, H.264 compression and cropping weaken face-swap rejection.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr class="group"><th></th><th colspan="3">Manipulation rejected ↑</th><th></th></tr>
+            <tr><th>Channel</th><th>Face swap</th><th>Reenactment</th><th>SD inpaint</th><th>Benign pass ↑</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Lossless re-encode</td><td class="hi">100%</td><td class="hi">100%</td><td class="hi">100%</td><td>99%</td></tr>
+            <tr><td>Credential stripping</td><td class="hi">100%</td><td class="hi">100%</td><td class="hi">100%</td><td>99%</td></tr>
+            <tr><td>Screenshot (1.25×)</td><td class="hi">100%</td><td class="hi">100%</td><td class="hi">100%</td><td>99%</td></tr>
+            <tr><td>JPEG q85</td><td class="hi">100%</td><td class="hi">100%</td><td class="hi">100%</td><td>99%</td></tr>
+            <tr><td>Social repost (0.75×, q70)</td><td class="hi">98.5%</td><td class="hi">100%</td><td class="hi">100%</td><td>99%</td></tr>
+            <tr><td>Repost of a repost</td><td class="mid">63%</td><td class="hi">100%</td><td class="hi">100%</td><td>99%</td></tr>
+            <tr><td>H.264 intra, per image</td><td class="lo">11%</td><td class="hi">99.5%</td><td class="hi">97.5%</td><td>99%</td></tr>
+            <tr><td>Center crop 90%</td><td class="lo">6%</td><td class="hi">99%</td><td class="mid">81.5%</td><td>99%</td></tr>
+          </tbody>
+        </table>
+      </div>
+        <p class="note">200 FF++ releases; cutoffs target 1% benign rejection. Selected rows from paper Table 4.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===================== CITATION ===================== -->
+  <section id="citation">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Citation</h2></div>
+    <div class="bib">
+      <button class="copy" type="button" id="copyBib">Copy</button>
+<pre id="bibtex">@inproceedings{anonymous2027doctortrigger,
+  title     = {Doctor Trigger: A Framework for Release-Bound Face Verification},
+  author    = {Anonymous},
+  booktitle = {Submitted to the International Conference on Learning Representations (ICLR)},
+  year      = {2027},
+  note      = {Under review}
+}</pre>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">Doctor Trigger project page · Anonymous submission. No tracking, no analytics.</div>
+</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Expanded research figure" aria-hidden="true">
+  <button class="lightbox-close" id="lightboxClose" type="button" aria-label="Close expanded figure">×</button>
+  <img id="lightboxImage" alt="">
+</div>
+
+<script>
+(function () {
+  // ---- Video play overlay ----
+  var vid = document.getElementById("dtVideo"), ov = document.getElementById("playOverlay");
+  ov.addEventListener("click", function () {
+    if (vid.paused || vid.ended) vid.play(); else vid.pause();
+  });
+  vid.addEventListener("play", function () { ov.hidden = true; });
+  vid.addEventListener("pause", function () { ov.hidden = false; });
+  vid.addEventListener("ended", function () { ov.hidden = false; });
+
+  // ---- Copy BibTeX ----
+  document.getElementById("copyBib").addEventListener("click", function () {
+    var btn = this, txt = document.getElementById("bibtex").textContent;
+    function done() { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); }
+    if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, function () {});
+  });
+
+  // ---- Active nav link ----
+  var links = document.querySelectorAll("nav.top li a");
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) links.forEach(function (a) { a.classList.toggle("active", a.getAttribute("href") === "#" + en.target.id); });
+    });
+  }, { rootMargin: "-45% 0px -50% 0px" });
+  document.querySelectorAll("main section").forEach(function (s) { obs.observe(s); });
+
+  // ---- Reading progress ----
+  var progress = document.getElementById("readingProgress");
+  function updateProgress() {
+    var max = document.documentElement.scrollHeight - window.innerHeight;
+    var value = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+    progress.style.transform = "scaleX(" + value + ")";
+  }
+  updateProgress();
+  window.addEventListener("scroll", updateProgress, { passive: true });
+  window.addEventListener("resize", updateProgress);
+
+  // ---- Interactive verification explainer ----
+  var scenarios = {
+    release: {
+      definition: "<strong>Supported benign copy.</strong> A released face after a benign transformation covered by calibration. Only once benign processing is pushed well past that calibrated range would the release signal or face-consistency score drop below threshold.",
+      face: ["pass", "The consistency score remains above its calibrated threshold.", "Pass"],
+      signal: ["pass", "The keyed release signal remains recoverable above its calibrated threshold.", "Pass"],
+      verdict: ["c", "Confirmed", "Both checks remain within the calibrated acceptance region for supported benign processing."]
+    },
+    edit: {
+      definition: "<strong>Maliciously transformed face.</strong> A face swap, regeneration, deepfake, or related malicious edit. Face consistency is expected to fail; the keyed signal is also likely to be damaged, but it does not need to fail for the final decision to be Unconfirmed.",
+      face: ["fail", "The manipulated face falls below the calibrated consistency threshold.", "Fail"],
+      signal: ["likely", "Face replacement or regeneration often damages the keyed release signal.", "Often fails"],
+      verdict: ["u", "Unconfirmed", "Face consistency failed, so the copy is routed for review regardless of whether some key evidence remains."]
+    },
+    original: {
+      definition: "<strong>Release signal missing.</strong> A face with no recoverable keyed signal—for example, an unreleased original that was never marked, or a released copy whose signal was damaged. Face consistency may still pass if the face content remains close to the enrolled release.",
+      face: ["depends", "The face may still match the enrolled spectral reference.", "May pass"],
+      signal: ["fail", "No keyed release signal is recoverable above the calibrated threshold.", "Fail"],
+      verdict: ["u", "Unconfirmed", "A matching face alone cannot confirm a specific release when its keyed signal is missing."]
+    },
+    missing: {
+      definition: "<strong>Enrollment record missing.</strong> The publisher-side template, key, or required inputs are unavailable, so neither verification score can be evaluated.",
+      face: ["na", "The verifier has no enrolled reference to compare against.", "Not available"],
+      signal: ["na", "The release key cannot be checked without its enrollment record.", "Not available"],
+      verdict: ["a", "Unavailable", "The verifier cannot return a confirmation when required inputs are missing."]
+    }
+  };
+  function setCheck(el, state) {
+    var symbols = { pass: "✓", fail: "×", likely: "≈", depends: "?", na: "—" };
+    var result = state[2] || (state[0] === "pass" ? "Pass" : state[0] === "fail" ? "Fail" : "Not available");
+    el.className = "check-row" + (state[0] === "pass" ? "" : " " + state[0]);
+    el.querySelector(".check-icon").textContent = symbols[state[0]] || "—";
+    el.querySelector(".check-copy").textContent = state[1];
+    el.querySelector(".check-result").textContent = result;
+  }
+  var lab = document.querySelector(".decision-lab");
+  var tabs = lab.querySelectorAll(".scenario-tab");
+  tabs.forEach(function (tab, index) {
+    tab.addEventListener("click", function () {
+      var data = scenarios[tab.dataset.scenario];
+      tabs.forEach(function (item) { item.setAttribute("aria-selected", item === tab ? "true" : "false"); });
+      document.getElementById("scenarioDefinition").innerHTML = data.definition;
+      setCheck(document.getElementById("faceCheck"), data.face);
+      setCheck(document.getElementById("releaseCheck"), data.signal);
+      var verdict = document.getElementById("verdict");
+      verdict.className = "verdict " + data.verdict[0];
+      verdict.querySelector(".verdict-status").textContent = data.verdict[1];
+      verdict.querySelector("p").textContent = data.verdict[2];
+    });
+    tab.addEventListener("keydown", function (event) {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      var next = event.key === "ArrowRight" ? (index + 1) % tabs.length : (index - 1 + tabs.length) % tabs.length;
+      tabs[next].focus();
+      tabs[next].click();
+    });
+  });
+
+  // ---- Click-to-expand figures ----
+  var lightbox = document.getElementById("lightbox");
+  var lightboxImage = document.getElementById("lightboxImage");
+  var lightboxClose = document.getElementById("lightboxClose");
+  var lastFigure = null;
+  function closeLightbox() {
+    lightbox.classList.remove("open");
+    lightbox.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+    if (lastFigure) lastFigure.focus();
+  }
+  document.querySelectorAll("figure .frame img").forEach(function (img) {
+    img.tabIndex = 0;
+    img.setAttribute("role", "button");
+    img.setAttribute("aria-label", "Expand figure: " + img.alt);
+    function openFigure() {
+      lastFigure = img;
+      lightboxImage.src = img.currentSrc || img.src;
+      lightboxImage.alt = img.alt;
+      lightbox.classList.add("open");
+      lightbox.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+      lightboxClose.focus();
+    }
+    img.addEventListener("click", openFigure);
+    img.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openFigure(); }
+    });
+  });
+  lightboxClose.addEventListener("click", closeLightbox);
+  lightbox.addEventListener("click", function (event) { if (event.target === lightbox) closeLightbox(); });
+  document.addEventListener("keydown", function (event) { if (event.key === "Escape" && lightbox.classList.contains("open")) closeLightbox(); });
+})();
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  var widget = document.getElementById("rk-widget");
+  if (!widget || typeof THREE === "undefined") return;
+
+  var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var stageEl = document.getElementById("rk-stage");
+  var canvas = document.getElementById("rk-canvas");
+  var metricValueEl = document.getElementById("rk-metricValue");
+  var metricSubEl = document.getElementById("rk-metricSub");
+  var captionEl = document.getElementById("rk-captionText");
+
+  // ---------- scene ----------
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x12151a);
+  scene.fog = new THREE.Fog(0x12151a, 7, 13);
+
+  var camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+  scene.add(new THREE.AmbientLight(0x5a6672, 1.35));
+  var key1 = new THREE.DirectionalLight(0xffffff, 0.95);
+  key1.position.set(3.5, 5, 4);
+  scene.add(key1);
+  var fillTeal = new THREE.DirectionalLight(0x1fa393, 0.5);
+  fillTeal.position.set(-4, 2, -3);
+  scene.add(fillTeal);
+
+  var INNER_R = 1.5, OUTER_R = 2.6, N_BINS = 180;
+
+  scene.add(new THREE.PolarGridHelper(OUTER_R * 1.18, 16, 4, 64, 0x2a3f45, 0x1d2529));
+
+  // ---------- floor sweep: a radar-style sector lying flat on the same ground plane as the grid,
+  // rotating with the scene itself (world-space, not a screen overlay), on only while "measuring" ----------
+  function makeSweepTexture() {
+    var size = 128;
+    var c = document.createElement("canvas");
+    c.width = size; c.height = size;
+    var ctx = c.getContext("2d");
+    var g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, "rgba(217,115,13,0.85)");
+    g.addColorStop(1, "rgba(217,115,13,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    return new THREE.CanvasTexture(c);
+  }
+  var sweepPivot = new THREE.Group();
+  scene.add(sweepPivot);
+  var sweepMat = new THREE.MeshBasicMaterial({
+    map: makeSweepTexture(), transparent: true, opacity: 0, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  var sweepLength = OUTER_R * 1.3;
+  var sweepBlade = new THREE.Mesh(new THREE.CircleGeometry(sweepLength, 48, 0, Math.PI / 5), sweepMat);
+  sweepBlade.rotation.x = -Math.PI / 2;
+  sweepBlade.position.set(0, 0.015, 0);
+  sweepPivot.add(sweepBlade);
+  var sweepOpacity = 0, sweepTargetOpacity = 0;
+
+  function hash(n) {
+    var x = Math.sin(n) * 43758.5453123;
+    return x - Math.floor(x);
+  }
+
+  var boxGeo = new THREE.BoxGeometry(0.07, 1, 0.07);
+  var bins = [];
+  var ringGroup = new THREE.Group();
+  scene.add(ringGroup);
+
+  for (var i = 0; i < N_BINS; i++) {
+    var angle = i * 2.399963; // golden angle: even angular coverage
+    var rFrac = Math.sqrt(hash(i * 12.9898 + 0.37));
+    var radius = INNER_R + rFrac * (OUTER_R - INNER_R);
+    var mat = new THREE.MeshStandardMaterial({ color: 0x5b6470, roughness: 0.55, metalness: 0.08, transparent: true, opacity: 1 });
+    var mesh = new THREE.Mesh(boxGeo, mat);
+    mesh.position.x = Math.cos(angle) * radius;
+    mesh.position.z = Math.sin(angle) * radius;
+    ringGroup.add(mesh);
+    bins.push({
+      mesh: mesh,
+      seed: i,
+      angle: angle,
+      radius: radius,
+      weight: hash(i * 7.31 + 1.9),
+      height: 0.15, targetHeight: 0.15, fromHeight: 0.15,
+      color: new THREE.Color(0x5b6470), targetColor: new THREE.Color(0x5b6470), fromColor: new THREE.Color(0x5b6470)
+    });
+  }
+
+  // ---------- scenarios ----------
+  var GREEN = 0x2fae55, RED = 0xe2554a, MUTED = 0x5b6470;
+  var DIV_NEG = new THREE.Color(0x1fa393), DIV_MID = new THREE.Color(0x5b6470), DIV_POS = new THREE.Color(0xd9730d);
+  var _divColor = new THREE.Color();
+  function divergingColor(v) {
+    v = Math.max(-1, Math.min(1, v));
+    if (v >= 0) _divColor.copy(DIV_MID).lerp(DIV_POS, v);
+    else _divColor.copy(DIV_MID).lerp(DIV_NEG, -v);
+    return _divColor.getHex();
+  }
+
+  var SCENARIOS = {
+    key: {
+      metricLabel: "Key value", metricValue: "±1", metricSub: "sign pattern only",
+      caption: '<span class="tag">FIG. 10 &middot; (a) THE KEY</span>A seed expands into a fixed sign pattern over the ring’s active bins — nothing here depends on any image yet. This is the key alone.',
+      compute: function (bin) {
+        var s = hash(bin.seed * 12.9898 + 0.11) < 0.5 ? -1 : 1;
+        return { color: s > 0 ? 0xd9730d : 0x1fa393, height: 0.65 };
+      }
+    },
+    displacement: {
+      metricLabel: "Phase shift", metricValue: "≤ 0.024 rad", metricSub: "tiny, per bin",
+      caption: '<span class="tag">FIG. 10 &middot; (b) THE DISPLACEMENT</span>(&alpha;,&beta;) turn that sign pattern into an actual phase nudge, at most about <b>0.024 rad</b> per bin — far below what a viewer, or a naive cosine statistic, can see.',
+      compute: function (bin) {
+        var v = hash(bin.seed * 12.9898 + 0.11) * 2 - 1;
+        return { color: divergingColor(v), height: 0.25 + Math.abs(v) * 0.5 };
+      }
+    },
+    template: {
+      metricLabel: "Stored template", metricValue: "host + δ", metricSub: "key barely visible",
+      caption: '<span class="tag">FIG. 10 &middot; (c) THE TEMPLATE</span>Template = host phase + displacement. The face’s own phase structure (illustrative here, not recomputed from a real image) dwarfs the key’s tiny nudge, which is why the released image looks unchanged.',
+      compute: function (bin) {
+        var host = Math.sin(bin.angle * 3 + 1.3) * 0.55 + Math.sin(bin.angle * 7 - 0.6) * 0.35;
+        var v = hash(bin.seed * 12.9898 + 0.11) * 2 - 1;
+        var combined = host * 0.92 + v * 0.08;
+        return { color: divergingColor(combined), height: 0.55 + Math.abs(combined) * 0.55 };
+      }
+    },
+    residual: {
+      metricLabel: "Query residual", metricValue: "looks like noise", metricSub: "no visible structure",
+      caption: '<span class="tag">FIG. 10 &middot; (d) THE RESIDUAL</span>A returning query’s residual against the host, viewed directly, looks like plain noise (illustrative). Nothing here says whether the key survived — that only shows up once you check bin-by-bin agreement with the key’s sign, next.',
+      compute: function (bin) {
+        var noise = hash(bin.seed * 5.77 + 9.4) * 2 - 1;
+        return { color: divergingColor(noise * 0.7), height: 0.45 + Math.abs(noise) * 0.5 };
+      }
+    },
+    release: {
+      metricLabel: "Sign agreement", metricValue: "82%", metricSub: "Gs = 1.08",
+      legend: '<span><i style="background:#2fae55"></i>agrees with key</span><span><i style="background:#e2554a"></i>disagrees</span>',
+      caption: '<span class="tag">FIG. 10 &middot; CORRECT KEY</span>The same benign copy’s phase residual, projected onto its <b>correct</b> enrolled key. <b>82%</b> of the 180 active bins agree in sign (Gs&nbsp;=&nbsp;1.08), which is why the signed projection concentrates near one.',
+      compute: function (bin) {
+        var m = hash(bin.seed * 12.9898 + 1.0) < 0.82;
+        return { color: m ? GREEN : RED, height: m ? 1.0 + bin.weight * 0.35 : 0.4 + bin.weight * 0.2 };
+      }
+    },
+    original: {
+      metricLabel: "Sign agreement", metricValue: "49%", metricSub: "G = 0.01, chance",
+      legend: '<span><i style="background:#2fae55"></i>agrees with key</span><span><i style="background:#e2554a"></i>disagrees</span>',
+      caption: '<span class="tag">FIG. 10 &middot; WRONG KEY</span>Exactly the same copy and the same residual as panel (e) — only the key direction changes. Against an independent wrong key, agreement falls to <b>49%</b>, chance (G&nbsp;=&nbsp;0.01). A cosine statistic cannot tell (e) and (f) apart at this displacement; the signed projection can.',
+      compute: function (bin) {
+        var m = hash(bin.seed * 12.9898 + 2.0) < 0.49;
+        return { color: m ? GREEN : RED, height: 0.6 + bin.weight * 0.3 };
+      }
+    },
+    edit: {
+      metricLabel: "Sign agreement", metricValue: "—", metricSub: "relation disrupted",
+      legend: '<span><i style="background:#5b6470"></i>relation disrupted, no key check</span>',
+      caption: '<span class="tag">BEYOND FIG. 10 &middot; RE-RENDER</span>This panel is not in Fig. 10: it is a different copy, a re-rendered face, not the benign original that panels (e) and (f) share. Re-rendering breaks the mid-band relation itself before any key is checked, so there is nothing coherent left to project a key onto.',
+      compute: function (bin) {
+        var jitter = hash(bin.seed * 3.71 + 5.2);
+        return { color: MUTED, height: 0.25 + jitter * 2.1 };
+      }
+    }
+  };
+
+  var TRANSITION_MS = reducedMotion ? 0 : 550;
+  var transitionStart = 0;
+  var metricLabelEl = document.getElementById("rk-metricLabel");
+  var legendEl = document.getElementById("rk-legend");
+  var measuringEl = document.getElementById("rk-measuringTag");
+  var lensOverlayEl = document.getElementById("rk-lens");
+  var stepCountEl = document.getElementById("rk-stepCount");
+  var stepNameEl = document.getElementById("rk-stepName");
+  var MEASURE_STAGES = { release: true, original: true, edit: true };
+  var prevBtn = document.getElementById("rk-prevStep");
+  var nextBtn = document.getElementById("rk-nextStep");
+
+  var STEP_ORDER = ["key", "displacement", "template", "residual", "release", "original", "edit"];
+  var BUILD_ORDER = ["key", "displacement", "template", "residual"];
+  var STEP_LABEL = {
+    key: "(a) The key", displacement: "(b) Displacement", template: "(c) Template",
+    residual: "(d) Residual", release: "(e) Correct key", original: "(f) Wrong key", edit: "Re-render"
+  };
+  var currentStep = 0;
+
+  function updateIndicator(key) {
+    var bi = BUILD_ORDER.indexOf(key);
+    stepCountEl.textContent = bi > -1 ? "Step " + (bi + 1) + " of " + BUILD_ORDER.length : "Scenario";
+    stepNameEl.textContent = STEP_LABEL[key];
+  }
+
+  function applyScenario(key) {
+    var s = SCENARIOS[key];
+    var now = performance.now();
+    for (var i = 0; i < bins.length; i++) {
+      var bin = bins[i];
+      var result = s.compute(bin);
+      bin.fromColor.copy(bin.color);
+      bin.fromHeight = bin.height;
+      bin.targetColor.setHex(result.color);
+      bin.targetHeight = result.height;
+    }
+    transitionStart = now;
+    metricLabelEl.textContent = s.metricLabel;
+    metricValueEl.textContent = s.metricValue;
+    metricSubEl.textContent = s.metricSub;
+    captionEl.innerHTML = s.caption;
+    legendEl.innerHTML = s.legend || "";
+    legendEl.hidden = !s.legend;
+    var measuring = !!MEASURE_STAGES[key];
+    measuringEl.hidden = !measuring;
+    lensOverlayEl.classList.toggle("active", measuring);
+    sweepTargetOpacity = measuring ? 1 : 0;
+  }
+
+  function selectScenario(key) {
+    currentStep = STEP_ORDER.indexOf(key);
+    widget.querySelectorAll(".scenario-tab").forEach(function (t) {
+      t.setAttribute("aria-selected", t.dataset.scenario === key ? "true" : "false");
+    });
+    updateIndicator(key);
+    prevBtn.disabled = currentStep === 0;
+    nextBtn.disabled = currentStep === STEP_ORDER.length - 1;
+    applyScenario(key);
+  }
+
+  function tick() {
+    var now = performance.now();
+    var t = TRANSITION_MS <= 0 ? 1 : Math.min(1, (now - transitionStart) / TRANSITION_MS);
+    var ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    for (var i = 0; i < bins.length; i++) {
+      var bin = bins[i];
+      var h = bin.fromHeight + (bin.targetHeight - bin.fromHeight) * ease;
+      bin.height = h;
+      bin.color.copy(bin.fromColor).lerp(bin.targetColor, ease);
+      bin.mesh.scale.y = h;
+      bin.mesh.position.y = h / 2;
+      bin.mesh.material.color.copy(bin.color);
+    }
+  }
+
+  widget.querySelectorAll(".scenario-tab").forEach(function (tab) {
+    tab.addEventListener("click", function () { selectScenario(tab.dataset.scenario); });
+  });
+  prevBtn.addEventListener("click", function () {
+    if (currentStep > 0) selectScenario(STEP_ORDER[currentStep - 1]);
+  });
+  nextBtn.addEventListener("click", function () {
+    if (currentStep < STEP_ORDER.length - 1) selectScenario(STEP_ORDER[currentStep + 1]);
+  });
+
+  // ---------- camera orbit (manual, no OrbitControls dependency) ----------
+  var cam = { theta: 0.7, phi: 1.05, radius: 5.4 };
+  var dragging = false, lastX = 0, lastY = 0, lastInteraction = 0;
+
+  function updateCameraPosition() {
+    var p = Math.max(0.28, Math.min(1.5, cam.phi));
+    camera.position.set(
+      cam.radius * Math.sin(p) * Math.sin(cam.theta),
+      cam.radius * Math.cos(p),
+      cam.radius * Math.sin(p) * Math.cos(cam.theta)
+    );
+    camera.lookAt(0, 0.4, 0);
+  }
+
+  canvas.addEventListener("pointerdown", function (e) {
+    dragging = true; lastX = e.clientX; lastY = e.clientY; lastInteraction = performance.now();
+    stageEl.classList.add("dragging");
+    canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    var dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY; lastInteraction = performance.now();
+    cam.theta -= dx * 0.006;
+    cam.phi -= dy * 0.006;
+    cam.phi = Math.max(0.28, Math.min(1.5, cam.phi));
+  });
+  function stopDrag() { dragging = false; stageEl.classList.remove("dragging"); }
+  canvas.addEventListener("pointerup", stopDrag);
+  canvas.addEventListener("pointerleave", stopDrag);
+  canvas.addEventListener("pointercancel", stopDrag);
+  canvas.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    lastInteraction = performance.now();
+    cam.radius = Math.max(3.2, Math.min(9, cam.radius + e.deltaY * 0.0035));
+  }, { passive: false });
+
+  // ---------- resize ----------
+  function resize() {
+    var w = stageEl.clientWidth, h = stageEl.clientHeight;
+    if (w === 0 || h === 0) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---------- animation loop ----------
+  function animate() {
+    requestAnimationFrame(animate);
+    if (!dragging && !reducedMotion && performance.now() - lastInteraction > 1200) {
+      cam.theta += 0.0022;
+    }
+    updateCameraPosition();
+    tick();
+    sweepOpacity += (sweepTargetOpacity - sweepOpacity) * 0.08;
+    sweepMat.opacity = sweepOpacity;
+    if (!reducedMotion) sweepPivot.rotation.y += 0.018;
+    renderer.render(scene, camera);
+  }
+
+  selectScenario("key");
+  animate();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,485 @@
+<title>The Key Ring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* layout: light instrument-panel page; a fixed-dark 3D viewport ("the screen") sits inside it, with an
+   overlay HUD, scenario tabs below, and a short caption tying the visual back to the paper's numbers */
+:root{
+  --bg:#fbfaf7; --surface:#ffffff; --ink:#1a1d21; --ink-2:#4a5059; --ink-3:#7b828c; --line:#e4e1da;
+  --teal:#0f5c55; --teal-soft:#e5f1ef; --orange:#d9730d; --orange-soft:#fcf0e3;
+  --green:#1e7a34; --red:#b3261e;
+  --stage:#12151a;
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#15181c; --surface:#1b1f24; --ink:#f2f0eb; --ink-2:#c6cad0; --ink-3:#8b919a;
+    --line:#2b2f35; --teal-soft:#123832; --orange-soft:#3a2712; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#15181c; --surface:#1b1f24; --ink:#f2f0eb; --ink-2:#c6cad0; --ink-3:#8b919a;
+  --line:#2b2f35; --teal-soft:#123832; --orange-soft:#3a2712; color-scheme:dark;
+}
+*{box-sizing:border-box;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);}
+.wrap{max-width:880px;margin:0 auto;padding-inline:20px;padding-block:36px 56px;}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--orange);background:var(--orange-soft);
+  padding:4px 12px;border-radius:999px;margin-bottom:16px;
+}
+h1{font-size:clamp(30px,5.2vw,44px);line-height:1.1;letter-spacing:-.02em;font-weight:800;margin:0 0 10px;text-wrap:balance;}
+.lede{font-size:16.5px;line-height:1.6;color:var(--ink-2);max-width:640px;margin:0 0 28px;}
+.stage-shell{
+  position:relative;width:100%;aspect-ratio:16/10;border-radius:18px;overflow:hidden;background:var(--stage);
+  box-shadow:0 18px 44px rgba(10,12,15,.28);touch-action:none;user-select:none;-webkit-user-select:none;
+}
+.stage-shell canvas{display:block;width:100%;height:100%;cursor:grab;}
+.stage-shell.dragging canvas{cursor:grabbing;}
+.lens-overlay{
+  position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s ease;overflow:hidden;
+  background:radial-gradient(circle at 50% 50%, rgba(111,217,200,.16) 0%, rgba(111,217,200,.05) 45%, rgba(111,217,200,0) 72%);
+}
+.lens-overlay.active{opacity:1;}
+.lens-overlay::after{
+  content:"";position:absolute;inset:0;
+  box-shadow:inset 0 0 1px 1px rgba(111,217,200,.3), inset 0 0 70px rgba(0,0,0,.4);
+}
+.hud{position:absolute;inset:0;pointer-events:none;font-family:var(--mono);}
+.hud-tl{position:absolute;top:16px;left:18px;font-size:12px;color:rgba(255,255,255,.62);letter-spacing:.03em;}
+.hud-bl{position:absolute;bottom:14px;left:18px;font-size:11.5px;color:rgba(255,255,255,.42);}
+.hud-tr{
+  position:absolute;top:14px;right:14px;min-width:150px;padding:12px 14px;border-radius:12px;text-align:right;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(6px);
+}
+.hud-tr .m-lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.5);}
+.hud-tr .m-val{font-size:26px;font-weight:700;color:#fff;line-height:1.25;font-variant-numeric:tabular-nums;}
+.hud-tr .m-sub{font-size:11px;color:rgba(255,255,255,.55);margin-top:2px;}
+.legend{position:absolute;bottom:14px;right:14px;display:flex;gap:12px;font-size:11px;color:rgba(255,255,255,.6);}
+.legend span{display:inline-flex;align-items:center;gap:5px;}
+.legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+.measuring{
+  display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:7px;
+  font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.6);
+}
+.measuring i{
+  width:6px;height:6px;border-radius:50%;background:#2fae55;
+  box-shadow:0 0 0 0 rgba(47,174,85,.55);animation:pulseDot 1.6s ease-out infinite;
+}
+@keyframes pulseDot{
+  0%{box-shadow:0 0 0 0 rgba(47,174,85,.55);}
+  70%{box-shadow:0 0 0 7px rgba(47,174,85,0);}
+  100%{box-shadow:0 0 0 0 rgba(47,174,85,0);}
+}
+@media (prefers-reduced-motion: reduce){ .measuring i{animation:none;} }
+.stepper-nav{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:20px;}
+.step-arrow{
+  appearance:none;border:1px solid var(--line);border-radius:50%;width:34px;height:34px;background:var(--surface);
+  color:var(--ink);font-size:16px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  transition:border-color .15s,transform .15s,opacity .15s;
+}
+.step-arrow:hover{border-color:var(--ink-3);transform:translateY(-1px);}
+.step-arrow[disabled]{opacity:.35;cursor:default;transform:none;}
+.step-indicator{font-family:var(--mono);font-size:12.5px;color:var(--ink-3);letter-spacing:.02em;min-width:230px;text-align:center;}
+.step-indicator b{color:var(--ink);}
+.tab-rows{margin-top:16px;}
+.tab-row-label{
+  font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);
+  text-align:center;margin-bottom:7px;
+}
+.tab-rows .tab-row-label:not(:first-child){margin-top:14px;}
+.tabs{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;}
+.tab{
+  appearance:none;border:1px solid var(--line);border-radius:999px;padding:9px 16px;background:var(--surface);
+  color:var(--ink-2);font:600 13.5px/1 var(--sans);cursor:pointer;transition:border-color .15s,background .15s,color .15s,transform .15s;
+}
+.tab:hover{border-color:var(--ink-3);transform:translateY(-1px);}
+.tab[aria-selected="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg);}
+.caption{margin-top:22px;padding:18px 20px;background:var(--surface);border:1px solid var(--line);border-radius:14px;}
+.caption p{margin:0;font-size:14.5px;line-height:1.65;color:var(--ink-2);}
+.caption p+p{margin-top:10px;}
+.caption b{color:var(--ink);}
+.caption .tag{
+  display:inline-block;font-family:var(--mono);font-size:11px;color:var(--teal);background:var(--teal-soft);
+  padding:2px 8px;border-radius:6px;margin-right:6px;
+}
+footer{margin-top:34px;font-size:12.5px;color:var(--ink-3);}
+@media (max-width:520px){
+  .wrap{padding-block:24px 40px;}
+  .hud-tr{min-width:118px;padding:9px 11px;}
+  .hud-tr .m-val{font-size:21px;}
+  .legend{position:static;margin-top:8px;justify-content:flex-end;padding:0 14px 12px;}
+}
+@media (prefers-reduced-motion: reduce){
+  .tab{transition:none;}
+}
+</style>
+
+<div class="wrap">
+  <span class="eyebrow">Doctor Trigger &middot; project-page prototype</span>
+  <h1>The Key Ring</h1>
+  <p class="lede">Every active frequency bin in the enrollment ring, laid out in 3D. Step through Fig. 10's own six panels &mdash; the key, its tiny displacement, the stored template, a query's residual, then agreement with a correct and a wrong key &mdash; as one ring you can rotate. Drag to rotate, scroll to zoom.</p>
+
+  <div class="stage-shell" id="stage">
+    <canvas id="ringCanvas" aria-label="3D visualization of Doctor Trigger's frequency ring under different scenarios"></canvas>
+    <div class="lens-overlay" id="lensOverlay" aria-hidden="true"></div>
+    <div class="hud" aria-hidden="true">
+      <div class="hud-tl">RING &kappa; &isin; [0.10, 0.45] &middot; 180 active bins</div>
+      <div class="hud-bl">drag to rotate &middot; scroll to zoom</div>
+      <div class="hud-tr">
+        <div class="m-lbl" id="metricLabel">Key value</div>
+        <div class="m-val" id="metricValue">&plusmn;1</div>
+        <div class="m-sub" id="metricSub">sign pattern only</div>
+        <div class="measuring" id="measuringTag" hidden><i></i>Measuring</div>
+      </div>
+      <div class="legend" id="legend" hidden>
+        <span><i style="background:#2fae55"></i>agrees with key</span>
+        <span><i style="background:#e2554a"></i>disagrees</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stepper-nav">
+    <button class="step-arrow" type="button" id="prevStep" aria-label="Previous panel">&larr;</button>
+    <div class="step-indicator" id="stepIndicator">Step 1 of 7</div>
+    <button class="step-arrow" type="button" id="nextStep" aria-label="Next panel">&rarr;</button>
+  </div>
+
+  <div class="tab-rows">
+    <div class="tab-row-label">Reconstructed &middot; (a)&ndash;(d)</div>
+    <div class="tabs" role="tablist" aria-label="Build-up panels">
+      <button class="tab" type="button" role="tab" aria-selected="true" data-scenario="key">(a) Key</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-scenario="displacement">(b) Displacement</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-scenario="template">(c) Template</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-scenario="residual">(d) Residual</button>
+    </div>
+    <div class="tab-row-label">Measured &middot; (e)&ndash;(f), and beyond</div>
+    <div class="tabs" role="tablist" aria-label="Key comparison and beyond">
+      <button class="tab" type="button" role="tab" aria-selected="false" data-scenario="release">(e) Correct key</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-scenario="original">(f) Wrong key</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-scenario="edit">Beyond Fig. 10</button>
+    </div>
+  </div>
+
+  <div class="caption">
+    <p id="captionText"><span class="tag">FIG. 10 &middot; (a) THE KEY</span>A seed expands into a fixed sign pattern over the ring&rsquo;s active bins &mdash; nothing here depends on any image yet. This is the key alone.</p>
+    <p>Panels (a)&ndash;(d) are illustrative reconstructions of the key, its displacement, and how it sits inside a face&rsquo;s own phase &mdash; no real image is Fourier-transformed here. Panels (e)&ndash;(f) use the paper&rsquo;s own reported numbers (82% / 49%). Built to check whether a 3D walkthrough earns its place on the project page.</p>
+  </div>
+
+  <footer>Three.js r128 &middot; manual orbit (no external controls library) &middot; prototype, not yet linked from the main page.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  if (typeof THREE === "undefined") {
+    document.getElementById("stage").innerHTML =
+      '<div style="color:#c8ccd2;font:13px/1.5 sans-serif;padding:20px;">Could not load three.js from the CDN.</div>';
+    return;
+  }
+
+  var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var stageEl = document.getElementById("stage");
+  var canvas = document.getElementById("ringCanvas");
+  var metricValueEl = document.getElementById("metricValue");
+  var metricSubEl = document.getElementById("metricSub");
+  var captionEl = document.getElementById("captionText");
+
+  // ---------- scene ----------
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x12151a);
+  scene.fog = new THREE.Fog(0x12151a, 7, 13);
+
+  var camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+  scene.add(new THREE.AmbientLight(0x5a6672, 1.35));
+  var key1 = new THREE.DirectionalLight(0xffffff, 0.95);
+  key1.position.set(3.5, 5, 4);
+  scene.add(key1);
+  var fillTeal = new THREE.DirectionalLight(0x1fa393, 0.5);
+  fillTeal.position.set(-4, 2, -3);
+  scene.add(fillTeal);
+
+  var INNER_R = 1.5, OUTER_R = 2.6, N_BINS = 180;
+
+  scene.add(new THREE.PolarGridHelper(OUTER_R * 1.18, 16, 4, 64, 0x2a3f45, 0x1d2529));
+
+  // ---------- floor sweep: a radar-style beam lying flat on the same ground plane as the grid,
+  // rotating with the scene itself (world-space, not a screen overlay), on only while "measuring" ----------
+  function makeSweepTexture() {
+    var size = 128;
+    var c = document.createElement("canvas");
+    c.width = size; c.height = size;
+    var ctx = c.getContext("2d");
+    var g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, "rgba(217,115,13,0.85)");
+    g.addColorStop(1, "rgba(217,115,13,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    return new THREE.CanvasTexture(c);
+  }
+  var sweepPivot = new THREE.Group();
+  scene.add(sweepPivot);
+  var sweepMat = new THREE.MeshBasicMaterial({
+    map: makeSweepTexture(), transparent: true, opacity: 0, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  var sweepLength = OUTER_R * 1.3;
+  var sweepBlade = new THREE.Mesh(new THREE.CircleGeometry(sweepLength, 48, 0, Math.PI / 5), sweepMat);
+  sweepBlade.rotation.x = -Math.PI / 2;
+  sweepBlade.position.set(0, 0.015, 0);
+  sweepPivot.add(sweepBlade);
+  var sweepOpacity = 0, sweepTargetOpacity = 0;
+
+  function hash(n) {
+    var x = Math.sin(n) * 43758.5453123;
+    return x - Math.floor(x);
+  }
+
+  var boxGeo = new THREE.BoxGeometry(0.07, 1, 0.07);
+  var bins = [];
+  var ringGroup = new THREE.Group();
+  scene.add(ringGroup);
+
+  for (var i = 0; i < N_BINS; i++) {
+    var angle = i * 2.399963; // golden angle: even angular coverage
+    var rFrac = Math.sqrt(hash(i * 12.9898 + 0.37));
+    var radius = INNER_R + rFrac * (OUTER_R - INNER_R);
+    var mat = new THREE.MeshStandardMaterial({ color: 0x5b6470, roughness: 0.55, metalness: 0.08, transparent: true, opacity: 1 });
+    var mesh = new THREE.Mesh(boxGeo, mat);
+    mesh.position.x = Math.cos(angle) * radius;
+    mesh.position.z = Math.sin(angle) * radius;
+    ringGroup.add(mesh);
+    bins.push({
+      mesh: mesh,
+      seed: i,
+      angle: angle,
+      radius: radius,
+      weight: hash(i * 7.31 + 1.9),
+      height: 0.15, targetHeight: 0.15, fromHeight: 0.15,
+      color: new THREE.Color(0x5b6470), targetColor: new THREE.Color(0x5b6470), fromColor: new THREE.Color(0x5b6470)
+    });
+  }
+
+  // ---------- scenarios ----------
+  var GREEN = 0x2fae55, RED = 0xe2554a, MUTED = 0x5b6470;
+  var DIV_NEG = new THREE.Color(0x1fa393), DIV_MID = new THREE.Color(0x5b6470), DIV_POS = new THREE.Color(0xd9730d);
+  var _divColor = new THREE.Color();
+  function divergingColor(v) {
+    v = Math.max(-1, Math.min(1, v));
+    if (v >= 0) _divColor.copy(DIV_MID).lerp(DIV_POS, v);
+    else _divColor.copy(DIV_MID).lerp(DIV_NEG, -v);
+    return _divColor.getHex();
+  }
+
+  var SCENARIOS = {
+    key: {
+      metricLabel: "Key value", metricValue: "±1", metricSub: "sign pattern only",
+      caption: '<span class="tag">FIG. 10 &middot; (a) THE KEY</span>A seed expands into a fixed sign pattern over the ring’s active bins — nothing here depends on any image yet. This is the key alone.',
+      compute: function (bin) {
+        var s = hash(bin.seed * 12.9898 + 0.11) < 0.5 ? -1 : 1;
+        return { color: s > 0 ? 0xd9730d : 0x1fa393, height: 0.65 };
+      }
+    },
+    displacement: {
+      metricLabel: "Phase shift", metricValue: "≤ 0.024 rad", metricSub: "tiny, per bin",
+      caption: '<span class="tag">FIG. 10 &middot; (b) THE DISPLACEMENT</span>(&alpha;,&beta;) turn that sign pattern into an actual phase nudge, at most about <b>0.024 rad</b> per bin — far below what a viewer, or a naive cosine statistic, can see.',
+      compute: function (bin) {
+        var v = hash(bin.seed * 12.9898 + 0.11) * 2 - 1;
+        return { color: divergingColor(v), height: 0.25 + Math.abs(v) * 0.5 };
+      }
+    },
+    template: {
+      metricLabel: "Stored template", metricValue: "host + δ", metricSub: "key barely visible",
+      caption: '<span class="tag">FIG. 10 &middot; (c) THE TEMPLATE</span>Template = host phase + displacement. The face’s own phase structure (illustrative here, not recomputed from a real image) dwarfs the key’s tiny nudge, which is why the released image looks unchanged.',
+      compute: function (bin) {
+        var host = Math.sin(bin.angle * 3 + 1.3) * 0.55 + Math.sin(bin.angle * 7 - 0.6) * 0.35;
+        var v = hash(bin.seed * 12.9898 + 0.11) * 2 - 1;
+        var combined = host * 0.92 + v * 0.08;
+        return { color: divergingColor(combined), height: 0.55 + Math.abs(combined) * 0.55 };
+      }
+    },
+    residual: {
+      metricLabel: "Query residual", metricValue: "looks like noise", metricSub: "no visible structure",
+      caption: '<span class="tag">FIG. 10 &middot; (d) THE RESIDUAL</span>A returning query’s residual against the host, viewed directly, looks like plain noise (illustrative). Nothing here says whether the key survived — that only shows up once you check bin-by-bin agreement with the key’s sign, next.',
+      compute: function (bin) {
+        var noise = hash(bin.seed * 5.77 + 9.4) * 2 - 1;
+        return { color: divergingColor(noise * 0.7), height: 0.45 + Math.abs(noise) * 0.5 };
+      }
+    },
+    release: {
+      metricLabel: "Sign agreement", metricValue: "82%", metricSub: "Gs = 1.08",
+      caption: '<span class="tag">FIG. 10 &middot; CORRECT KEY</span>The same benign copy’s phase residual, projected onto its <b>correct</b> enrolled key. <b>82%</b> of the 180 active bins agree in sign (Gs&nbsp;=&nbsp;1.08), which is why the signed projection concentrates near one.',
+      compute: function (bin) {
+        var m = hash(bin.seed * 12.9898 + 1.0) < 0.82;
+        return { color: m ? GREEN : RED, height: m ? 1.0 + bin.weight * 0.35 : 0.4 + bin.weight * 0.2 };
+      }
+    },
+    original: {
+      metricLabel: "Sign agreement", metricValue: "49%", metricSub: "G = 0.01, chance",
+      caption: '<span class="tag">FIG. 10 &middot; WRONG KEY</span>Exactly the same copy and the same residual as panel (e) — only the key direction changes. Against an independent wrong key, agreement falls to <b>49%</b>, chance (G&nbsp;=&nbsp;0.01). A cosine statistic cannot tell (e) and (f) apart at this displacement; the signed projection can.',
+      compute: function (bin) {
+        var m = hash(bin.seed * 12.9898 + 2.0) < 0.49;
+        return { color: m ? GREEN : RED, height: 0.6 + bin.weight * 0.3 };
+      }
+    },
+    edit: {
+      metricLabel: "Sign agreement", metricValue: "—", metricSub: "relation disrupted",
+      caption: '<span class="tag">BEYOND FIG. 10</span>This panel is not in Fig. 10: it is a different copy, a re-rendered face, not the benign original that panels (e) and (f) share. Re-rendering breaks the mid-band relation itself before any key is checked, so there is nothing coherent left to project a key onto.',
+      compute: function (bin) {
+        var jitter = hash(bin.seed * 3.71 + 5.2);
+        return { color: MUTED, height: 0.25 + jitter * 2.1 };
+      }
+    }
+  };
+
+  var TRANSITION_MS = reducedMotion ? 0 : 550;
+  var transitionStart = 0;
+  var metricLabelEl = document.getElementById("metricLabel");
+  var legendEl = document.getElementById("legend");
+  var measuringEl = document.getElementById("measuringTag");
+  var lensOverlayEl = document.getElementById("lensOverlay");
+  var indicatorEl = document.getElementById("stepIndicator");
+  var MEASURE_STAGES = { release: true, original: true, edit: true };
+  var prevBtn = document.getElementById("prevStep");
+  var nextBtn = document.getElementById("nextStep");
+
+  var STEP_ORDER = ["key", "displacement", "template", "residual", "release", "original", "edit"];
+  var STEP_LABEL = {
+    key: "(a) The key", displacement: "(b) Displacement", template: "(c) Template",
+    residual: "(d) Residual", release: "(e) Correct key", original: "(f) Wrong key", edit: "Beyond Fig. 10"
+  };
+  var currentStep = 0;
+
+  function applyScenario(key) {
+    var s = SCENARIOS[key];
+    var now = performance.now();
+    for (var i = 0; i < bins.length; i++) {
+      var bin = bins[i];
+      var result = s.compute(bin);
+      bin.fromColor.copy(bin.color);
+      bin.fromHeight = bin.height;
+      bin.targetColor.setHex(result.color);
+      bin.targetHeight = result.height;
+    }
+    transitionStart = now;
+    metricLabelEl.textContent = s.metricLabel;
+    metricValueEl.textContent = s.metricValue;
+    metricSubEl.textContent = s.metricSub;
+    captionEl.innerHTML = s.caption;
+    legendEl.hidden = (key !== "release" && key !== "original");
+    var measuring = !!MEASURE_STAGES[key];
+    measuringEl.hidden = !measuring;
+    lensOverlayEl.classList.toggle("active", measuring);
+    sweepTargetOpacity = measuring ? 1 : 0;
+  }
+
+  function selectScenario(key) {
+    currentStep = STEP_ORDER.indexOf(key);
+    document.querySelectorAll(".tab").forEach(function (t) {
+      t.setAttribute("aria-selected", t.dataset.scenario === key ? "true" : "false");
+    });
+    indicatorEl.innerHTML = "Step <b>" + (currentStep + 1) + "</b> of " + STEP_ORDER.length + " &middot; " + STEP_LABEL[key];
+    prevBtn.disabled = currentStep === 0;
+    nextBtn.disabled = currentStep === STEP_ORDER.length - 1;
+    applyScenario(key);
+  }
+
+  function tick(dt) {
+    var now = performance.now();
+    var t = TRANSITION_MS <= 0 ? 1 : Math.min(1, (now - transitionStart) / TRANSITION_MS);
+    var ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    for (var i = 0; i < bins.length; i++) {
+      var bin = bins[i];
+      var h = bin.fromHeight + (bin.targetHeight - bin.fromHeight) * ease;
+      bin.height = h;
+      bin.color.copy(bin.fromColor).lerp(bin.targetColor, ease);
+      bin.mesh.scale.y = h;
+      bin.mesh.position.y = h / 2;
+      bin.mesh.material.color.copy(bin.color);
+    }
+  }
+
+  document.querySelectorAll(".tab").forEach(function (tab) {
+    tab.addEventListener("click", function () { selectScenario(tab.dataset.scenario); });
+  });
+  prevBtn.addEventListener("click", function () {
+    if (currentStep > 0) selectScenario(STEP_ORDER[currentStep - 1]);
+  });
+  nextBtn.addEventListener("click", function () {
+    if (currentStep < STEP_ORDER.length - 1) selectScenario(STEP_ORDER[currentStep + 1]);
+  });
+
+  // ---------- camera orbit (manual, no OrbitControls dependency) ----------
+  var cam = { theta: 0.7, phi: 1.05, radius: 5.4 };
+  var dragging = false, lastX = 0, lastY = 0, lastInteraction = 0;
+
+  function updateCameraPosition() {
+    var p = Math.max(0.28, Math.min(1.5, cam.phi));
+    camera.position.set(
+      cam.radius * Math.sin(p) * Math.sin(cam.theta),
+      cam.radius * Math.cos(p),
+      cam.radius * Math.sin(p) * Math.cos(cam.theta)
+    );
+    camera.lookAt(0, 0.4, 0);
+  }
+
+  canvas.addEventListener("pointerdown", function (e) {
+    dragging = true; lastX = e.clientX; lastY = e.clientY; lastInteraction = performance.now();
+    stageEl.classList.add("dragging");
+    canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    var dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY; lastInteraction = performance.now();
+    cam.theta -= dx * 0.006;
+    cam.phi -= dy * 0.006;
+    cam.phi = Math.max(0.28, Math.min(1.5, cam.phi));
+  });
+  function stopDrag() { dragging = false; stageEl.classList.remove("dragging"); }
+  canvas.addEventListener("pointerup", stopDrag);
+  canvas.addEventListener("pointerleave", stopDrag);
+  canvas.addEventListener("pointercancel", stopDrag);
+  canvas.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    lastInteraction = performance.now();
+    cam.radius = Math.max(3.2, Math.min(9, cam.radius + e.deltaY * 0.0035));
+  }, { passive: false });
+
+  // ---------- resize ----------
+  function resize() {
+    var w = stageEl.clientWidth, h = stageEl.clientHeight;
+    if (w === 0 || h === 0) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---------- animation loop ----------
+  function animate() {
+    requestAnimationFrame(animate);
+    if (!dragging && !reducedMotion && performance.now() - lastInteraction > 1200) {
+      cam.theta += 0.0022;
+    }
+    updateCameraPosition();
+    tick();
+    sweepOpacity += (sweepTargetOpacity - sweepOpacity) * 0.08;
+    sweepMat.opacity = sweepOpacity;
+    if (!reducedMotion) sweepPivot.rotation.y += 0.018;
+    renderer.render(scene, camera);
+  }
+
+  selectScenario("key");
+  animate();
+})();
+</script>
