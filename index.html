@@ -602,6 +602,9 @@
   .rk-verdict .status { font-size: 15px; padding: 3px 12px; background: #fff; }
   .rk-verdict p { margin: 6px 0 0; font-size: 14.5px; color: var(--ink); }
   .rk-honest { margin-top: 12px; }
+  .rk-tally { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-3); }
+  .rk-tally b { color: var(--ink); font-weight: 600; }
+  .rk-tally .weak { color: var(--red); }
   @media (max-width: 860px) {
     .rk-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .rk-try { grid-template-columns: minmax(0, 1fr); }
@@ -1408,9 +1411,10 @@
             <div class="rk-rrow" id="rk-rCode"><span class="rk-ricon" aria-hidden="true"></span><div><div class="rk-rname">Hidden code</div><div class="rk-rval"></div><div class="rk-rnum"></div></div></div>
             <div class="rk-rrow" id="rk-rFace"><span class="rk-ricon" aria-hidden="true"></span><div><div class="rk-rname">Face</div><div class="rk-rval"></div><div class="rk-rnum"></div></div></div>
             <div class="rk-verdict" id="rk-verdict"><span class="status"></span><p></p></div>
+            <p class="rk-tally" id="rk-tally"></p>
           </div>
         </div>
-        <p class="note rk-honest">The ring is a drawing of the idea. The scores come from running the public code on the AI-generated demo faces above: each copy is resized, saved as a JPEG at the chosen quality, then checked against that face's private record. All people shown are AI-generated.<span class="rk-tech-only"> Readout: template reading <span class="v">C</span> vs &tau;<sub>C</sub> and key projection <span class="v">G<sub>s</sub></span> vs &tau;<sub>G</sub> (1% benign quantiles); the wrong code is <code>deterministic_wrong_keys(key)[0]</code>. Steps (a)&ndash;(d) are illustrative; the 82% / 49% sign agreement in (e)&ndash;(f) is the paper's FF++ example above.</span></p>
+        <p class="note rk-honest">The ring is a drawing of the idea. The scores come from running the public code on the AI-generated demo faces above: each copy is resized, saved as a JPEG at the chosen quality, then checked against that face's private record. As in the paper, the pass mark is tuned separately for each kind of sharing so that about 1 in 100 normal copies is flagged. Here it is tuned on 48 other AI-generated faces, so the pass mark is simply the lowest score any of their normal copies got; the 4 demo faces are kept out of the tuning. The line under the verdict counts, for the chosen setting, how the 4 demo faces fare; over all 50 settings, 4 of their 200 normal copies are flagged (2%), a little above the 1-in-100 target because 48 tuning faces give only a rough mark. All people shown are AI-generated.<span class="rk-tech-only"> Readout: template reading <span class="v">C</span> vs &tau;<sub>C</sub> and key projection <span class="v">G<sub>s</sub></span> vs &tau;<sub>G</sub>, both recalibrated at every (JPEG quality, resize) setting on benign copies of 48 enrolled calibration faces: one shared lower-tail quantile &le;&nbsp;1% chosen so joint calibration rejection is &le;&nbsp;1%, which with 48 faces is the calibration minimum; the wrong code is <code>deterministic_wrong_keys(key)[0]</code>. Steps (a)&ndash;(d) are illustrative; the 82% / 49% sign agreement in (e)&ndash;(f) is the paper's FF++ example above.</span></p>
       </div>
     </article>
 
@@ -1882,7 +1886,7 @@
       codeRow.querySelector(".rk-rval").textContent = faceRow.querySelector(".rk-rval").textContent = data === false ? "Scores could not be loaded" : "Loading scores…";
       v.className = "rk-verdict"; v.querySelector(".status").textContent = ""; v.querySelector("p").textContent = "";
     } else {
-      var C = c[0], G = state.wrong ? c[2] : c[1], tc = data.tau_C, tg = data.tau_G;
+      var C = c[0], G = state.wrong ? c[2] : c[1], tc = data.tau_C[state.s][state.q], tg = data.tau_G[state.s][state.q];
       var codeOk = G >= tg, faceOk = C >= tc, ok = codeOk && faceOk;
       codeRow.className = "rk-rrow " + (codeOk ? "ok" : "no");
       codeRow.querySelector(".rk-ricon").textContent = codeOk ? "✓" : "×";
@@ -1896,11 +1900,27 @@
       v.querySelector(".status").className = "status " + (ok ? "c" : "u");
       v.querySelector(".status").textContent = ok ? "Confirmed" : "Flagged for review";
       var why;
-      if (ok) why = "Both checks pass: this is the photo you posted.";
+      if (ok && (state.swap || state.wrong)) {
+        v.className = "rk-verdict u"; v.querySelector(".status").className = "status u";
+        v.querySelector(".status").textContent = "Wrongly confirmed";
+        why = (state.swap ? "The swapped face" : "The wrong code") + " got through. At this heavy a squeeze the pass mark has to be so low that chance can clear it. This is a known weak spot.";
+      }
+      else if (ok) why = "Both checks pass: this is the photo you posted.";
       else if (state.swap) why = "The face was swapped" + (state.wrong ? " and the code is wrong." : ".") + " A person reviews it, with the scores as a receipt.";
       else if (state.wrong) why = "This code was never hidden in the photo, so nothing is found.";
-      else why = "This copy was squeezed harder than the check is tuned for, so a person takes a look.";
+      else why = "A normal copy that scored just under the pass mark. The mark is set so that this happens to about 1 in 100 normal copies; a person takes a look.";
       v.querySelector("p").textContent = why;
+    }
+    var tally = $("rk-tally");
+    if (!c) tally.textContent = "";
+    else {
+      var r = data.rates, n = data.faces.length;
+      var part = function (key, label) {
+        var k = Math.round(r[key][state.s][state.q] * n);
+        return '<span class="' + (k < n ? "weak" : "") + '"><b>' + k + "/" + n + "</b> " + label + "</span>";
+      };
+      tally.innerHTML = "At this setting, on the 4 demo faces: " + [part("benign_pass", "normal copies pass"), part("swap_caught", "swaps flagged"),
+        part("original_rejected", "never-posted originals flagged"), part("wrong_rejected", "wrong codes flagged")].join(" · ") + ".";
     }
     if (ring) ring.show(state, c, data);
   }
@@ -2012,7 +2032,7 @@
       } else {
         mLabel.textContent = st.wrong ? "Wrong-code score" : "Code score";
         mValue.textContent = c ? G.toFixed(2) : "…";
-        mSub.textContent = d ? "found if ≥ " + d.tau_G.toFixed(2) : "";
+        mSub.textContent = d ? "found if ≥ " + d.tau_G[st.s][st.q].toFixed(2) : "";
         legendEl.innerHTML = LEG; legendEl.hidden = st.swap;
       }
       measuringEl.hidden = !isLive; lensEl.classList.toggle("active", isLive); sweepTargetOpacity = isLive ? 1 : 0;
