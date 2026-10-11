@@ -68,8 +68,7 @@ hyperparam_sensitivity:
   paper: 'appendix Fig 12 (calibration and record-model sensitivity): FRR target, calibration-set size,
     lambda_key retraining'
   script: experiments/hyperparam_sensitivity.py
-  note: paper figure uses DT_FEATURES_CSV={outputs_root}/features_record_scalar/recordscalar_features.csv,
-    DT_OUT={outputs_root}/recordscalar_hyper; figures/build_fig_hyper.py reads it via DT_HYPER_JSON
+  note: writes {outputs_root}/recordscalar_hyper/hyper_sensitivity.json; fig-hyper draws Fig 12 from it
 peers-detect:
   cmd: python peer_canonical.py {method}
   cwd: '{repo_root}/experiments'
@@ -148,8 +147,11 @@ table4-artifact:
   cwd: '{repo_root}/experiments'
   impl: original
   output: '{outputs_root}/table4/'
-  paper: Table 4 rows and Fig 7 panels from one frozen evidence package (rows.csv, rows.tex, manifest.json)
-  note: one run covers the still-image, crop and clip protocols of every row
+  paper: Table 4 SimSwap-reject and benign-pass columns, and the per-image scores Fig 7 is drawn from
+    (rows.csv, rows.tex, manifest.json)
+  note: one run covers the still-image, crop and clip protocols of every row; calibration uses every FF++
+    training release and clip as in the paper (DT_T4_NCAL / DT_T4_CLIP_TRAIN take the first n). The reenactment
+    and SD-inpainting columns are not produced here
 key-pure-canonical:
   cmd: DT_FEATURES_CSV={outputs_root}/features_record_scalar/recordscalar_features.csv DT_RECORD_MODEL_SCORES_DIR={record_model_runs}/recordscalar_ffpp/scores
     DT_TAG=_recordscalar python key_pure_canonical.py
@@ -247,3 +249,54 @@ threshold-transfer:
   output: '{outputs_root}/threshold_transfer.csv'
   needs: record-model-recordscalar (pin=ffpp)
   paper: appendix Table 14 (cross-dataset threshold transfer), fixed FF++ record model
+original-control:
+  cmd: python original_control.py {calibration}
+  cwd: '{repo_root}/experiments'
+  gpu: true
+  impl: original
+  output: '{outputs_root}/original_control_cal{calibration}/summary.csv'
+  paper: 'appendix Table 8 (original and release acceptance under channel calibration) and the pass columns
+    of Table 3: calibration=100 for the lossless panel, calibration=1580 (all training releases) for the
+    JPEG-q90 panel'
+  note: ArcFace reads InsightFace buffalo_l weights (downloaded by insightface on first use)
+joint-policy:
+  cmd: DT_FEATURES_CSV={outputs_root}/features_record_scalar/recordscalar_features.csv DT_CKPT_DIR={record_model_runs}/recordscalar_ffpp/checkpoints
+    python joint_policy.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  needs: features-record-scalar, record-model-recordscalar (pin=ffpp)
+  output: '{outputs_root}/joint_policy/rates.csv'
+  paper: appendix Table 13 (joint verification), per-head and matched-budget panels on clean queries;
+    the FF++ delivery panel is not included
+fig-keymatch:
+  cmd: python build_fig_keymatch.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  output: '{outputs_root}/figures/fig_keymatch.pdf'
+  paper: appendix Fig 10 (keyed displacement and query residual)
+fig-release-residual:
+  cmd: python build_fig_release_residual.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  output: '{outputs_root}/figures/fig_supp_residual.pdf'
+  paper: appendix Fig 8 (release residuals)
+fig-signal:
+  cmd: python build_fig_signal.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  output: '{outputs_root}/figures/fig_signal.pdf'
+  paper: Fig 6 (complementary evidence for face consistency and release-signal retention)
+fig-roundtrip:
+  cmd: python build_fig_roundtrip.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  needs: table4-artifact
+  output: '{outputs_root}/figures/fig_roundtrip.pdf'
+  paper: Fig 7 (direct spectral evidence across channels)
+fig-hyper:
+  cmd: python build_fig_hyper.py
+  cwd: '{repo_root}/experiments'
+  impl: original
+  needs: hyperparam_sensitivity
+  output: '{outputs_root}/figures/fig_hyper.pdf'
+  paper: appendix Fig 12 (calibration and record-model sensitivity)

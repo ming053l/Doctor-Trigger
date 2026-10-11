@@ -13,17 +13,19 @@ Protocols:
   still-image rows   Sub-band reading, kappa cut 0.15. FF++ test, first 200
                      enrollments (groupby order); H_sub = amplitude-weighted cosine of query phase
                      against the HOST phase on the support, radius/sqrt(0.5) <= 0.15; declared tau =
-                     1% quantile of H_sub over 100 FF++ train benign enrollments (groupby order)
+                     1% quantile of H_sub over all 1,144 FF++ train benign enrollments
                      sent through the same channel. G_release_sub (Fig. 7 y axis) = signed
                      projection divided by the released copy's own projection, same sub-band.
   crop 90%           Forward-modeled masked spectrum over the full support,
-                     +-2 px placement search; calibration = 100 train benign (drop_duplicates order).
+                     +-2 px placement search; calibration = all train benign crops.
   H.264 intra, clip  Every FF++ test frame (benign and SimSwap) coded as a
                      one-frame libx264 video (crf 30, yuv420p, 1 thread) and decoded; C_tmpl_sub =
                      cosine against the TEMPLATE phase, sub-band 0.15; clip score = mean over the
-                     video's frames; tau = 1% quantile of train clip means (first 100 videos).
+                     video's frames; tau = 1% quantile of the means of all 120 train clips.
                      H_sub against the host phase is stored alongside.
 Env: DT_CANON_ROOT, DT_MODEL_SNAPSHOT, DT_OUTPUTS (exported by run.py).
+Calibration defaults to every FF++ training release and clip, as in the paper; DT_T4_NCAL=n and
+DT_T4_CLIP_TRAIN=n take the first n instead (an earlier draft used 100 and 100).
 Debug only: DT_T4_LIMIT=k restricts every cohort to k items; DT_T4_WORKERS=n.
 Outputs in $DT_OUTPUTS/table4/: still_queries.csv, still_calibration.csv, clip_frames.csv,
 rows.csv, rows.tex, manifest.json.
@@ -53,7 +55,9 @@ from scripts.benign_channels import transform_image  # noqa: E402
 EPS = 1e-12
 CUT = 0.15                    # readout band: radius / sqrt(0.5) <= CUT
 TAU_CLEAN = 0.9821            # clean-copy cutoff: 1% FPR on FF++ train benign (canonical features)
-N_TEST, N_CAL, CLIP_TRAIN_VIDEOS = 200, 100, 100
+N_TEST = 200
+N_CAL = int(os.environ.get("DT_T4_NCAL", "0")) or None                 # None: every train release
+CLIP_TRAIN_VIDEOS = int(os.environ.get("DT_T4_CLIP_TRAIN", "0")) or None  # None: every train clip
 KEY = b"platform-signing-key-demo"   # demo HMAC key of the metadata simulation, not a C2PA credential
 X264 = "ffmpeg -loop 1 -frames:v 1 -c:v libx264 -threads 1 -crf 30 -pix_fmt yuv420p; decode frame 1"
 LIMIT = int(os.environ.get("DT_T4_LIMIT", "0"))
@@ -68,8 +72,10 @@ def cohorts():
     te = cases[(cases.split == "test") & (cases.dataset == "FF++")]
     enr = te.groupby("enrollment_id").first().head(N_TEST)
     tr = cases[(cases.split == "train") & (cases.dataset == "FF++") & (cases.protocol == "benign")]
-    cal = tr.groupby("enrollment_id").first().head(N_CAL)            # still-image calibration order
-    cal_crop = tr.drop_duplicates("enrollment_id").head(N_CAL)        # crop calibration order
+    cal = tr.groupby("enrollment_id").first()                          # still-image calibration order
+    cal_crop = tr.drop_duplicates("enrollment_id")                     # crop calibration order
+    if N_CAL:
+        cal, cal_crop = cal.head(N_CAL), cal_crop.head(N_CAL)
     if LIMIT:
         enr, cal, cal_crop = enr.head(LIMIT), cal.head(LIMIT), cal_crop.head(LIMIT)
     return te, enr, cal, cal_crop
@@ -82,7 +88,7 @@ def clip_videos():
         ds = d[d.split == split]
         vids = sorted(ds.source_group_id.unique())
         if split == "train":
-            vids = vids[:CLIP_TRAIN_VIDEOS]
+            vids = vids[:CLIP_TRAIN_VIDEOS] if CLIP_TRAIN_VIDEOS else vids
         if LIMIT:
             vids = vids[:LIMIT]
         out[split] = (ds, vids)
@@ -338,10 +344,10 @@ def stage_collect():
         g, f = q[(q.channel == ch) & (q.protocol == "benign")], q[(q.channel == ch) & (q.protocol == "swap")]
         if ch == "crop":
             cc = cal[cal.kind == "cal_crop"].H_forward.values
-            gs, fs, stat, calsrc = g.H_forward.values, f.H_forward.values, "forward-modeled masked-spectrum cosine, full support, +-2 px", "100 FF++ train benign, drop_duplicates order, cropped"
+            gs, fs, stat, calsrc = g.H_forward.values, f.H_forward.values, "forward-modeled masked-spectrum cosine, full support, +-2 px", f"{len(cc)} FF++ train benign, drop_duplicates order, cropped"
         else:
             cc = cal[(cal.kind == "cal") & (cal.channel == ch)].H_sub.values
-            gs, fs, stat, calsrc = g.H_sub.values, f.H_sub.values, "H_sub: amplitude-weighted cosine vs host phase, band radius/sqrt(0.5)<=0.15", "100 FF++ train benign, groupby order, same channel"
+            gs, fs, stat, calsrc = g.H_sub.values, f.H_sub.values, "H_sub: amplitude-weighted cosine vs host phase, band radius/sqrt(0.5)<=0.15", f"{len(cc)} FF++ train benign, groupby order, same channel"
         tau = float(np.quantile(cc, 0.01))
         rows.append(dict(base, row=ch, n_benign=len(gs), n_swap=len(fs), credential_rate=float(g.credential.mean()),
                          clean_cutoff=TAU_CLEAN, clean_preserved=float(np.mean(gs >= TAU_CLEAN)), declared_tau=tau,
@@ -355,7 +361,7 @@ def stage_collect():
         fb = te[te.protocol == "swap"].groupby("video")[col].mean().values
         ftau = float(np.quantile(tr[tr.protocol == "benign"][col], 0.01))
         fg, ff = te[te.protocol == "benign"][col].values, te[te.protocol == "swap"][col].values
-        rows.append(dict(row=tag, cohort="every FF++ test frame; 100 first train videos for tau", unit="clip",
+        rows.append(dict(row=tag, cohort=f"every FF++ test frame; {tr.video.nunique()} train videos for tau", unit="clip",
                          n_benign=len(gb), n_swap=len(fb), credential_rate=float("nan"), clean_cutoff=float("nan"),
                          clean_preserved=float("nan"), declared_tau=tau, preserved=float(np.mean(gb >= tau)),
                          flagged=float(np.mean(fb < tau)), auc=auc(gb, fb),
@@ -386,7 +392,7 @@ def stage_collect():
             c = r.loc["transcode_clip"]
             lines.append(f"H.264 intra, clip mean ($n{{=}}{int(c.n_benign)}$) & no & -- & flagged ${pct(c.flagged)}\\%$ / "
                          f"preserved ${pct(c.preserved)}\\%$ & aggregate per clip \\\\")
-    (OUT / "rows.tex").write_text("% generated by DT_repo/experiments/table4_artifact.py from rows.csv; do not edit by hand\n"
+    (OUT / "rows.tex").write_text("% generated by experiments/table4_artifact.py from rows.csv; do not edit by hand\n"
                                   + "\n".join(lines) + "\n")
 
     te_c, enr, cal_c, cal_crop = cohorts(); vids = clip_videos()
