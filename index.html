@@ -514,6 +514,106 @@
     html { scroll-behavior: auto; }
     *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
   }
+  /* ---------- general-audience layer ---------- */
+  .tagline { font: 400 clamp(17px, 2vw, 20px)/1.45 var(--display); color: var(--ink-2); margin: -6px auto 16px; max-width: 640px; }
+  .cta {
+    display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 26px; margin: 0 0 22px; border-radius: 999px;
+    background: var(--accent); color: #fff; font: 500 16.5px/1 var(--display); box-shadow: 0 4px 14px rgba(18, 137, 124, .28);
+    transition: background .15s ease, transform .15s ease;
+  }
+  .cta:hover { background: var(--accent-strong); color: #fff; text-decoration: none; transform: translateY(-1px); }
+  .cta svg { width: 18px; height: 18px; }
+
+  .secnav-shell { position: sticky; top: 0; z-index: 50; padding: 10px 16px; pointer-events: none; }
+  .secnav {
+    pointer-events: auto; display: flex; width: max-content; max-width: 100%; margin: 0 auto; padding: 4px;
+    border-radius: 999px; background: rgba(255, 255, 255, .92); border: 1px solid var(--line);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, .08); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+  }
+  .secnav::-webkit-scrollbar { display: none; }
+  .secnav ul { display: flex; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .secnav a {
+    display: block; padding: 8px 16px; border-radius: 999px; white-space: nowrap;
+    font: 500 14.5px/1.2 var(--display); color: var(--ink-2); transition: background .15s ease, color .15s ease;
+  }
+  .secnav a:hover { background: var(--band); color: var(--ink); text-decoration: none; }
+  .secnav a[aria-current="true"] { background: var(--ink); color: #fff; }
+  .secnav a:focus-visible { outline-offset: -2px; }
+  main section[id], main [id].finding, .researchers, #compare, #demo, #lab { scroll-margin-top: 72px; }
+
+  .plain { max-width: 720px; margin: 0 auto; }
+  .plain p { font-size: 18px; line-height: 1.65; color: var(--ink-2); }
+  .plain p:first-of-type { color: var(--ink); }
+  h2.pub { font-size: clamp(28px, 3.6vw, 38px); font-weight: 500; text-align: center; margin: 0 0 22px; line-height: 1.2; }
+  .pub-intro { text-align: center; max-width: 640px; text-wrap: balance; margin: -8px auto 26px; font-size: 17px; }
+
+  /* carousel */
+  .carousel { max-width: 940px; margin: 0 auto; }
+  .car-steps { display: flex; justify-content: center; gap: 6px; margin: 0 0 18px; padding: 0; list-style: none; flex-wrap: wrap; }
+  .car-steps button {
+    appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer;
+    border-radius: 999px; padding: 8px 14px; font: 500 14.5px/1.2 var(--display); display: inline-flex; align-items: center; gap: 8px;
+  }
+  .car-steps button .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--band); font-size: 12.5px; font-weight: 700; }
+  .car-steps button[aria-current="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .car-steps button[aria-current="true"] .n { background: var(--logo-teal); color: var(--logo-bg); }
+  .car-viewport { overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: var(--band); touch-action: pan-y; }
+  .car-viewport { transition: height .35s ease; }
+  .car-track { display: flex; align-items: flex-start; transition: transform .45s cubic-bezier(.4, 0, .2, 1); }
+  .car-slide { flex: 0 0 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px; align-items: center; padding: 28px; }
+  .car-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin: 0; }
+  .car-pair figure { margin: 0; min-width: 0; }
+  .car-pair img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; user-select: none; -webkit-user-drag: none; }
+  .car-pair figcaption { margin-top: 8px; font: 500 14px/1.35 var(--display); color: var(--ink); text-align: center; }
+  .car-pair figcaption small { display: block; font: 400 12.5px/1.4 var(--sans); color: var(--ink-3); margin-top: 2px; }
+  .car-pair figcaption .status { display: table; margin: 4px auto 0; }
+  .car-text .step-k { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+  .car-text h3 { font-size: clamp(22px, 2.6vw, 28px); margin: 4px 0 10px; line-height: 1.2; }
+  .car-text p { font-size: 16.5px; line-height: 1.6; margin: 0 0 12px; }
+  .car-text ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 15.5px; line-height: 1.5; }
+  .car-text li .status { margin-right: 6px; }
+  .car-ai { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; }
+  .car-controls { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; }
+  .car-arrow {
+    appearance: none; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+    color: var(--ink); cursor: pointer; display: inline-grid; place-items: center;
+  }
+  .car-arrow:hover { border-color: var(--ink-3); }
+  .car-arrow[disabled] { opacity: .35; cursor: default; }
+  .car-arrow svg { width: 18px; height: 18px; }
+  .car-dots { display: flex; gap: 4px; }
+  .car-dots button { appearance: none; border: 0; background: none; padding: 8px 4px; cursor: pointer; }
+  .car-dots button i { display: block; width: 9px; height: 9px; border-radius: 999px; background: #c7ccd2; transition: width .2s ease, background .2s ease; }
+  .car-dots button[aria-current="true"] i { width: 26px; background: var(--accent); }
+
+  /* hands-on sub-blocks */
+  .hand { margin-top: 40px; }
+  .hand:first-of-type { margin-top: 8px; }
+  .hand > h3 { margin: 0 0 4px; font-size: 21px; }
+  .hand > .hand-intro { margin: 0 0 14px; color: var(--ink-2); }
+  .hand .decision-lab { margin-top: 0; }
+
+  /* researcher layer divider */
+  .researchers { margin-top: 64px; }
+  .res-head { padding: 34px 0 6px; border-top: 3px solid var(--ink); text-align: center; }
+  .res-head .k { font-family: var(--mono); font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  .res-head h2 { font-size: clamp(28px, 3.6vw, 38px); font-weight: 500; margin: 6px 0 8px; }
+  .res-head p { margin: 0; font-size: 17px; }
+
+  @media (max-width: 760px) {
+    .car-slide { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 18px 16px 20px; }
+    .car-text h3 { margin-top: 2px; }
+  }
+  @media (max-width: 560px) {
+    .secnav-shell { padding: 8px 16px; }
+    .secnav a { padding: 7px 12px; font-size: 14px; }
+    .plain p { font-size: 17px; }
+    .car-steps { display: none; }
+    .car-text p { font-size: 16px; }
+    .cta { margin-bottom: 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .car-track, .car-viewport { transition: none; } }
 </style>
 </head>
 <body>
@@ -524,6 +624,8 @@
     <span>Doctor <i>Trigger</i></span>
   </h1>
   <p class="subtitle">A Framework for Release-Bound Face Verification</p>
+  <p class="tagline">Check whether a face online is the one you posted.</p>
+  <a class="cta" href="#hands-on">Try it <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></a>
   <ul class="authors" aria-label="Authors">
     <li><a class="name" href="https://ming053l.github.io/" target="_blank" rel="noopener">Chia-Ming Lee</a><sup>1,2</sup></li>
     <li><span class="name">Chia-Yu Lin</span><sup>3</sup></li>
@@ -565,82 +667,128 @@
   </div>
 </section>
 
+<div class="secnav-shell">
+  <nav class="secnav" aria-label="Page sections">
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#hands-on">Hands-on</a></li>
+      <li><a href="#video">Video</a></li>
+      <li><a href="#researchers">For researchers</a></li>
+    </ul>
+  </nav>
+</div>
+
 <main class="wrap">
 
-  <!-- ===================== LEAD + ABSTRACT ===================== -->
-  <section style="padding-top:36px">
-    <p class="lead-p"><b>Doctor Trigger</b> lets publishers add an invisible keyed signal to each face before release and keep a private record, so they can later check whether a circulating face is still the version they published, or a swapped or edited copy.</p>
-  </section>
-
-  <section id="abstract" style="padding-top:20px">
-    <h2 class="sec">Abstract</h2>
-    <div class="abstract-body">
-      <p>
-        Face swapping and generative editing enable realistic facial manipulation, while online redistribution complicates publisher
-        oversight of circulating face images. Existing approaches establish provenance, detect manipulation, recover embedded watermarks,
-        verify image integrity, or disrupt unauthorized face manipulation. These capabilities do not necessarily establish consistency with
-        a specific publisher-enrolled release, limiting the evidence available for verification and human review. To address this gap, we
-        introduce <span class="sc">Doctor Trigger</span>, a framework for verifying circulating faces against private publisher-held release
-        records. Before publication, the publisher embeds a weak keyed Fourier-phase signal in each face while preserving visual fidelity and
-        stores its spectral reference. Afterward, verification compares the circulating face with that reference and uses key projection to
-        measure retention of the release-specific signal. Therefore, relation and key evidence jointly help publishers identify suspicious
-        copies for review, potentially reducing the circulation of manipulated images. Experimental results across FF++, DFDC, and Celeb-DF
-        show that spectral agreement separates tested face swaps and generative manipulations from enrolled releases, while the keyed signal
-        distinguishes published versions from their unreleased originals under the evaluated key-preserving benign transformations.
-        <span class="sc">Doctor Trigger</span> complements provenance metadata with release-specific face verification and record-linked
-        evidence for further assessment.
-      </p>
-    </div>
-    <div class="stats" role="list">
-      <div class="stat" role="listitem"><div class="num">51.2<small>dB</small></div><div class="lbl">PSNR of the released image: visually near-identical</div></div>
-      <div class="stat" role="listitem"><div class="num">≥0.99</div><div class="lbl">face-swap detection AUC within &amp; across datasets</div></div>
-      <div class="stat" role="listitem"><div class="num">0<small>%</small></div><div class="lbl">unreleased originals accepted by key projection</div></div>
-      <div class="stat" role="listitem"><div class="num">5.9<small>ms</small></div><div class="lbl">relation-only check, in memory</div></div>
-    </div>
-  </section>
-
-  <!-- ===================== VIDEO ===================== -->
-  <section id="video">
-    <h2 class="sec">Video</h2>
-    <div class="tabs" role="tablist" aria-label="Choose a video">
-      <button type="button" role="tab" id="vt-promo" aria-controls="vp-promo" aria-selected="true">Short film (83 s)</button>
-      <button type="button" role="tab" id="vt-zh" aria-controls="vp-zh" aria-selected="false" lang="zh-Hant">中文版</button>
-    </div>
-    <div class="vpanel" id="vp-promo" role="tabpanel" aria-labelledby="vt-promo">
-      <div class="video-frame">
-        <video controls preload="metadata" playsinline poster="static/images/promo_poster.jpg">
-          <source src="static/videos/promo_en.mp4" type="video/mp4">
-          Your browser cannot play this video. <a href="static/videos/promo_en.mp4">Open the MP4 file</a>.
-        </video>
-        <button type="button" class="play-overlay" aria-label="Play the short film"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
-      </div>
-      <p class="vtitle"><b>Short film.</b> What Doctor Trigger does, for a general audience, in 83 seconds (English, with sound).</p>
-    </div>
-    <div class="vpanel" id="vp-zh" role="tabpanel" aria-labelledby="vt-zh" hidden lang="zh-Hant">
-      <div class="video-frame">
-        <video controls preload="metadata" playsinline poster="static/images/promo_poster.jpg">
-          <source src="static/videos/promo_zh.mp4" type="video/mp4">
-          無法播放影片。<a href="static/videos/promo_zh.mp4">開啟 MP4 檔案</a>。
-        </video>
-        <button type="button" class="play-overlay" aria-label="播放中文版短片"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
-      </div>
-      <p class="vtitle"><b>中文版短片</b>（83 秒）</p>
-    </div>
-  </section>
-
-  <!-- ===================== OVERVIEW ===================== -->
+  <!-- ===================== GENERAL AUDIENCE: OVERVIEW ===================== -->
   <section id="overview">
-    <h2 class="sec">Overview</h2>
+    <h2 class="pub">What is Doctor Trigger?</h2>
+    <div class="plain">
+      <p>Photos of faces get reposted, compressed, swapped and edited as they spread online. Platforms and investigators often cannot tell which copy is the one a person actually posted, and the evidence ends up scattered across many places.</p>
+      <p>Doctor Trigger hides an invisible code in a photo before it is posted and keeps a small private record. Later, any copy can be checked against that record. The check gives a clear result and a receipt that people can review.</p>
+    </div>
+  </section>
 
-    <p class="lede">
-      Face swaps and generative edits are now realistic, and published faces get reposted, compressed and resized as they circulate.
-      A publisher needs to answer one question: <em>is this circulating face still the version we released?</em>
-    </p>
-    <p>
-      Provenance metadata can be stripped along the way, and image-only detectors do not check a face against a specific release.
-      <span class="sc">Doctor Trigger</span> lets the publisher keep a private record of each release and verify circulating copies against it.
-    </p>
+  <!-- ===================== GENERAL AUDIENCE: HOW IT WORKS ===================== -->
+  <section id="how">
+    <h2 class="pub">How it works</h2>
+    <div class="carousel" id="carousel" role="region" aria-roledescription="carousel" aria-label="How Doctor Trigger works, in three steps">
+      <ul class="car-steps" aria-label="Steps">
+        <li><button type="button" data-go="0" aria-current="true"><span class="n">1</span>Before you post</button></li>
+        <li><button type="button" data-go="1"><span class="n">2</span>When a copy shows up</button></li>
+        <li><button type="button" data-go="2"><span class="n">3</span>The result</button></li>
+      </ul>
+      <div class="car-viewport" tabindex="0" aria-label="Slides. Use the left and right arrow keys to move between steps.">
+        <div class="car-track" id="carTrack" aria-live="polite">
+          <div class="car-slide" role="group" aria-roledescription="slide" aria-label="1 of 3: Before you post">
+            <div class="car-pair">
+              <figure><img src="static/images/compare/cafe_original.jpg" alt="Café selfie, the original photo" width="512" height="512" loading="lazy" draggable="false"><figcaption>Your photo<small>before</small></figcaption></figure>
+              <figure><img src="static/images/compare/cafe_posted.jpg" alt="The same café selfie with the invisible code added; it looks the same" width="512" height="512" loading="lazy" draggable="false"><figcaption>What you post<small>with the hidden code</small></figcaption></figure>
+            </div>
+            <div class="car-text">
+              <div class="step-k">Step 1</div>
+              <h3>Before you post</h3>
+              <p>Doctor Trigger hides an invisible code in your photo. The two pictures look the same to anyone who sees them.</p>
+              <p>It also makes a small private record of the photo. That record stays with you and is never posted.</p>
+            </div>
+          </div>
+          <div class="car-slide" role="group" aria-roledescription="slide" aria-label="2 of 3: When a copy shows up">
+            <div class="car-pair">
+              <figure><img src="static/images/demo/cafe_released.jpg" alt="Café selfie as posted" width="320" height="320" loading="lazy" draggable="false"><figcaption>What you posted<span class="status c">Confirmed</span></figcaption></figure>
+              <figure><img src="static/images/demo/cafe_jpeg.jpg" alt="A compressed repost of the same café selfie" width="320" height="320" loading="lazy" draggable="false"><figcaption>A compressed repost<span class="status c">Confirmed</span></figcaption></figure>
+            </div>
+            <div class="car-text">
+              <div class="step-k">Step 2</div>
+              <h3>When a copy shows up</h3>
+              <p>Say a friend sends you a copy of your selfie from another site. It was saved again and shrunk to a smaller file along the way.</p>
+              <p>Check that copy against your private record. The hidden code survives normal reposting and compression, so the copy still checks out.</p>
+            </div>
+          </div>
+          <div class="car-slide" role="group" aria-roledescription="slide" aria-label="3 of 3: The result">
+            <div class="car-pair">
+              <figure><img src="static/images/demo/cafe_released.jpg" alt="Café selfie as posted" width="320" height="320" loading="lazy" draggable="false"><figcaption>What you posted<small>face match 0.9998 (needs 0.9984)</small><span class="status c">Confirmed</span></figcaption></figure>
+              <figure><img src="static/images/demo/cafe_swap.jpg" alt="The same café selfie with the face swapped" width="320" height="320" loading="lazy" draggable="false"><figcaption>Face swapped<small>face match 0.9535 (needs 0.9984)</small><span class="status u">Unconfirmed</span></figcaption></figure>
+            </div>
+            <div class="car-text">
+              <div class="step-k">Step 3</div>
+              <h3>The result</h3>
+              <p>Every check ends in one of three plain answers.</p>
+              <ul>
+                <li><span class="status c">Confirmed</span>This is the photo you posted.</li>
+                <li><span class="status u">Unconfirmed</span>Something does not match, such as a swapped face. The copy is flagged for a person to review, with a receipt of what was checked.</li>
+                <li><span class="status a">Unavailable</span>The record or the copy needed for the check is missing, so no answer is given.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="car-controls">
+        <button type="button" class="car-arrow" id="carPrev" aria-label="Previous step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <div class="car-dots" role="group" aria-label="Choose a step">
+          <button type="button" data-go="0" aria-label="Step 1: Before you post" aria-current="true"><i></i></button>
+          <button type="button" data-go="1" aria-label="Step 2: When a copy shows up"><i></i></button>
+          <button type="button" data-go="2" aria-label="Step 3: The result"><i></i></button>
+        </div>
+        <button type="button" class="car-arrow" id="carNext" aria-label="Next step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+      <p class="car-ai center">All people shown are AI-generated.</p>
+    </div>
+  </section>
 
+
+  <!-- ===================== GENERAL AUDIENCE: HANDS-ON ===================== -->
+  <section id="hands-on">
+    <h2 class="pub">Hands-on</h2>
+    <p class="pub-intro">Try it yourself on real outputs of the public code.<br>All people shown are AI-generated.</p>
+
+    <div class="hand" id="compare">
+      <h3>Original vs. posted: drag to compare</h3>
+      <p class="hand-intro">Drag the slider across the photo. The left side is the original, the right side is the posted copy with the hidden code.</p>
+    <div class="cmp" id="cmp">
+      <img id="cmpPosted" src="static/images/compare/cafe_posted.jpg" alt="Posted image, carrying the hidden keyed signal" width="512" height="512">
+      <div class="top"><img id="cmpOriginal" src="static/images/compare/cafe_original.jpg" alt="Original image, before the signal is added" width="512" height="512"></div>
+      <div class="bar"></div><div class="knob" aria-hidden="true">&#8596;</div>
+      <span class="tag l">Original</span><span class="tag r">Posted</span>
+      <input id="cmpRange" type="range" min="0" max="100" value="50" step="0.5" aria-label="Position of the divider between the original and the posted image">
+    </div>
+    <p class="cmp-cap" id="cmpCap" aria-live="polite"><span id="cmpLabel">Café selfie</span> <span class="m">· PSNR <b id="cmpPsnr">51.15</b> dB · SSIM <b id="cmpSsim">0.998</b></span></p>
+    <ul class="cmp-thumbs" id="cmpThumbs" aria-label="Choose a sample">
+      <li><button type="button" data-name="cafe" data-label="Café selfie" data-psnr="51.15" data-ssim="0.998" aria-pressed="true" aria-label="Show sample 1: Café selfie" title="Café selfie"><img src="static/images/compare/cafe_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="shop" data-label="Shop owner" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 2: Shop owner" title="Shop owner"><img src="static/images/compare/shop_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="news" data-label="Press briefing" data-psnr="51.14" data-ssim="0.997" aria-pressed="false" aria-label="Show sample 3: Press briefing" title="Press briefing"><img src="static/images/compare/news_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="photographer" data-label="Street photographer" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 4: Street photographer" title="Street photographer"><img src="static/images/compare/photographer_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="market" data-label="Market vendor" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 5: Market vendor" title="Market vendor"><img src="static/images/compare/market_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="office" data-label="Office worker" data-psnr="51.18" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 6: Office worker" title="Office worker"><img src="static/images/compare/office_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="travel" data-label="Travel photo" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 7: Travel photo" title="Travel photo"><img src="static/images/compare/travel_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="rider" data-label="Delivery rider" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 8: Delivery rider" title="Delivery rider"><img src="static/images/compare/rider_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+    </ul>
+    <p class="note center"><b>The hidden code is imperceptible.</b> Each posted image carries the weak keyed signal, enrolled with the public Doctor Trigger code on a 512&nbsp;px face crop, and stays at about 51&nbsp;dB PSNR from its original. PSNR and SSIM are measured on the lossless PNG images; the images shown here are JPEG-compressed for size. All faces are AI-generated and do not show real people.</p>
+    </div>
+
+    <div class="hand" id="demo">
+      <h3>Demo on AI-generated faces</h3>
+      <p class="hand-intro">Four copies of each face, checked against its private record: the posted photo, a compressed repost, a face swap, and the original that was never posted.</p>
     <div class="demo-grid" aria-label="Demo on AI-generated faces">
       <div class="demo-kicker">Demo on AI-generated faces, run with the public code</div>
       <div class="drow" role="group" aria-label="Press briefing">
@@ -769,29 +917,10 @@
       </div>
       <p class="note dnote"><b>Doctor Trigger at a glance.</b> Each face is enrolled with the public code, then the verifier reads four copies against the private record. The posted face and its JPEG repost pass both checks. A face swap of the posted image fails spectral agreement <span class="v">C</span>; the never-posted original still looks like the same face but carries no hidden code, so key projection <span class="v">G<sub>s</sub></span> fails. Thresholds are the 1% quantiles over 144 benign copies (JPEG q85/q90, 0.75&times; resize) of 48 AI-generated faces. All faces are AI-generated and do not show real people; this demo is not part of the paper's benchmark.</p>
     </div>
-    <details class="tview bench">
-      <summary>Examples from the benchmark datasets</summary>
-        <figure style="margin:10px 0 0">
-          <div class="frame"><img src="static/images/fig2_release.png" alt="Original vs released image with amplified mid-band residual; template agreement passes for release and JPEG, fails for face re-rendering." loading="lazy"></div>
-          <figcaption><b>The same steps on a benchmark face.</b> Left: a weak keyed signal is added before publication, and the released face looks virtually the same as the original. Right: the circulating copy is compared with the stored record. A JPEG copy passes (<span class="v">C<sub>B</sub></span> = 1.000); a re-rendered face fails (0.930 &lt; 0.997).</figcaption>
-        </figure>
-    </details>
-
-    <div class="cards">
-      <div class="card">
-        <div class="k">Invisible release signal</div>
-        <p>A secret per-face key slightly shifts the Fourier phase. The released face stays visually near-identical (51.2 dB PSNR).</p>
-      </div>
-      <div class="card">
-        <div class="k">Two complementary checks</div>
-        <p><strong>Face consistency</strong> catches swaps and edits. <strong>Release signal</strong> tells the published version apart from its unreleased original.</p>
-      </div>
-      <div class="card">
-        <div class="k">Human in the loop</div>
-        <p><span class="status c">Confirmed</span> copies pass routinely. <span class="status u">Unconfirmed</span> ones go to a reviewer. <span class="status a">Unavailable</span> means inputs are missing.</p>
-      </div>
     </div>
 
+    <div class="hand" id="lab">
+      <p class="hand-intro">Pick what reached the checker and see which answer comes back, and why.</p>
     <div class="decision-lab" aria-labelledby="labTitle">
       <div class="lab-head">
         <div>
@@ -829,35 +958,117 @@
         </div>
       </div>
     </div>
+    </div>
   </section>
 
-  <!-- ===================== COMPARE ===================== -->
-  <section id="compare">
-    <h2 class="sec">Original vs. posted: drag to compare</h2>
-    <div class="cmp" id="cmp">
-      <img id="cmpPosted" src="static/images/compare/cafe_posted.jpg" alt="Posted image, carrying the hidden keyed signal" width="512" height="512">
-      <div class="top"><img id="cmpOriginal" src="static/images/compare/cafe_original.jpg" alt="Original image, before the signal is added" width="512" height="512"></div>
-      <div class="bar"></div><div class="knob" aria-hidden="true">&#8596;</div>
-      <span class="tag l">Original</span><span class="tag r">Posted</span>
-      <input id="cmpRange" type="range" min="0" max="100" value="50" step="0.5" aria-label="Position of the divider between the original and the posted image">
+  <!-- ===================== VIDEO ===================== -->
+  <section id="video">
+    <h2 class="sec">Video</h2>
+    <div class="tabs" role="tablist" aria-label="Choose a video">
+      <button type="button" role="tab" id="vt-promo" aria-controls="vp-promo" aria-selected="true">Short film (83 s)</button>
+      <button type="button" role="tab" id="vt-zh" aria-controls="vp-zh" aria-selected="false" lang="zh-Hant">中文版</button>
     </div>
-    <p class="cmp-cap" id="cmpCap" aria-live="polite"><span id="cmpLabel">Café selfie</span> <span class="m">· PSNR <b id="cmpPsnr">51.15</b> dB · SSIM <b id="cmpSsim">0.998</b></span></p>
-    <ul class="cmp-thumbs" id="cmpThumbs" aria-label="Choose a sample">
-      <li><button type="button" data-name="cafe" data-label="Café selfie" data-psnr="51.15" data-ssim="0.998" aria-pressed="true" aria-label="Show sample 1: Café selfie" title="Café selfie"><img src="static/images/compare/cafe_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="shop" data-label="Shop owner" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 2: Shop owner" title="Shop owner"><img src="static/images/compare/shop_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="news" data-label="Press briefing" data-psnr="51.14" data-ssim="0.997" aria-pressed="false" aria-label="Show sample 3: Press briefing" title="Press briefing"><img src="static/images/compare/news_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="photographer" data-label="Street photographer" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 4: Street photographer" title="Street photographer"><img src="static/images/compare/photographer_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="market" data-label="Market vendor" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 5: Market vendor" title="Market vendor"><img src="static/images/compare/market_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="office" data-label="Office worker" data-psnr="51.18" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 6: Office worker" title="Office worker"><img src="static/images/compare/office_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="travel" data-label="Travel photo" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 7: Travel photo" title="Travel photo"><img src="static/images/compare/travel_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="rider" data-label="Delivery rider" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 8: Delivery rider" title="Delivery rider"><img src="static/images/compare/rider_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-    </ul>
-    <p class="note center"><b>The hidden code is imperceptible.</b> Each posted image carries the weak keyed signal, enrolled with the public Doctor Trigger code on a 512&nbsp;px face crop, and stays at about 51&nbsp;dB PSNR from its original. PSNR and SSIM are measured on the lossless PNG images; the images shown here are JPEG-compressed for size. All faces are AI-generated and do not show real people.</p>
+    <div class="vpanel" id="vp-promo" role="tabpanel" aria-labelledby="vt-promo">
+      <div class="video-frame">
+        <video controls preload="metadata" playsinline poster="static/images/promo_poster.jpg">
+          <source src="static/videos/promo_en.mp4" type="video/mp4">
+          Your browser cannot play this video. <a href="static/videos/promo_en.mp4">Open the MP4 file</a>.
+        </video>
+        <button type="button" class="play-overlay" aria-label="Play the short film"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
+      </div>
+      <p class="vtitle"><b>Short film.</b> What Doctor Trigger does, for a general audience, in 83 seconds (English, with sound).</p>
+    </div>
+    <div class="vpanel" id="vp-zh" role="tabpanel" aria-labelledby="vt-zh" hidden lang="zh-Hant">
+      <div class="video-frame">
+        <video controls preload="metadata" playsinline poster="static/images/promo_poster.jpg">
+          <source src="static/videos/promo_zh.mp4" type="video/mp4">
+          無法播放影片。<a href="static/videos/promo_zh.mp4">開啟 MP4 檔案</a>。
+        </video>
+        <button type="button" class="play-overlay" aria-label="播放中文版短片"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
+      </div>
+      <p class="vtitle"><b>中文版短片</b>（83 秒）</p>
+    </div>
+  </section>
+
+  <!-- ===================== FOR RESEARCHERS ===================== -->
+  <div class="researchers" id="researchers">
+    <div class="res-head">
+      <div class="k">In depth</div>
+      <h2>For researchers</h2>
+      <p>The full method, results and code.</p>
+    </div>
+
+  <!-- ===================== LEAD + ABSTRACT ===================== -->
+  <section style="padding-top:36px">
+    <p class="lead-p"><b>Doctor Trigger</b> lets publishers add an invisible keyed signal to each face before release and keep a private record, so they can later check whether a circulating face is still the version they published, or a swapped or edited copy.</p>
+  </section>
+
+  <section id="abstract" style="padding-top:20px">
+    <h2 class="sec">Abstract</h2>
+    <div class="abstract-body">
+      <p>
+        Face swapping and generative editing enable realistic facial manipulation, while online redistribution complicates publisher
+        oversight of circulating face images. Existing approaches establish provenance, detect manipulation, recover embedded watermarks,
+        verify image integrity, or disrupt unauthorized face manipulation. These capabilities do not necessarily establish consistency with
+        a specific publisher-enrolled release, limiting the evidence available for verification and human review. To address this gap, we
+        introduce <span class="sc">Doctor Trigger</span>, a framework for verifying circulating faces against private publisher-held release
+        records. Before publication, the publisher embeds a weak keyed Fourier-phase signal in each face while preserving visual fidelity and
+        stores its spectral reference. Afterward, verification compares the circulating face with that reference and uses key projection to
+        measure retention of the release-specific signal. Therefore, relation and key evidence jointly help publishers identify suspicious
+        copies for review, potentially reducing the circulation of manipulated images. Experimental results across FF++, DFDC, and Celeb-DF
+        show that spectral agreement separates tested face swaps and generative manipulations from enrolled releases, while the keyed signal
+        distinguishes published versions from their unreleased originals under the evaluated key-preserving benign transformations.
+        <span class="sc">Doctor Trigger</span> complements provenance metadata with release-specific face verification and record-linked
+        evidence for further assessment.
+      </p>
+    </div>
+    <div class="stats" role="list">
+      <div class="stat" role="listitem"><div class="num">51.2<small>dB</small></div><div class="lbl">PSNR of the released image: visually near-identical</div></div>
+      <div class="stat" role="listitem"><div class="num">≥0.99</div><div class="lbl">face-swap detection AUC within &amp; across datasets</div></div>
+      <div class="stat" role="listitem"><div class="num">0<small>%</small></div><div class="lbl">unreleased originals accepted by key projection</div></div>
+      <div class="stat" role="listitem"><div class="num">5.9<small>ms</small></div><div class="lbl">relation-only check, in memory</div></div>
+    </div>
+  </section>
+
+  <!-- ===================== MOTIVATION ===================== -->
+  <section id="motivation">
+    <h2 class="sec">Motivation</h2>
+
+    <p class="lede">
+      Face swaps and generative edits are now realistic, and published faces get reposted, compressed and resized as they circulate.
+      A publisher needs to answer one question: <em>is this circulating face still the version we released?</em>
+    </p>
+    <p>
+      Provenance metadata can be stripped along the way, and image-only detectors do not check a face against a specific release.
+      <span class="sc">Doctor Trigger</span> lets the publisher keep a private record of each release and verify circulating copies against it.
+    </p>
+    <details class="tview bench">
+      <summary>Examples from the benchmark datasets</summary>
+        <figure style="margin:10px 0 0">
+          <div class="frame"><img src="static/images/fig2_release.png" alt="Original vs released image with amplified mid-band residual; template agreement passes for release and JPEG, fails for face re-rendering." loading="lazy"></div>
+          <figcaption><b>The same steps on a benchmark face.</b> Left: a weak keyed signal is added before publication, and the released face looks virtually the same as the original. Right: the circulating copy is compared with the stored record. A JPEG copy passes (<span class="v">C<sub>B</sub></span> = 1.000); a re-rendered face fails (0.930 &lt; 0.997).</figcaption>
+        </figure>
+    </details>
+
+    <div class="cards">
+      <div class="card">
+        <div class="k">Invisible release signal</div>
+        <p>A secret per-face key slightly shifts the Fourier phase. The released face stays visually near-identical (51.2 dB PSNR).</p>
+      </div>
+      <div class="card">
+        <div class="k">Two complementary checks</div>
+        <p><strong>Face consistency</strong> catches swaps and edits. <strong>Release signal</strong> tells the published version apart from its unreleased original.</p>
+      </div>
+      <div class="card">
+        <div class="k">Human in the loop</div>
+        <p><span class="status c">Confirmed</span> copies pass routinely. <span class="status u">Unconfirmed</span> ones go to a reviewer. <span class="status a">Unavailable</span> means inputs are missing.</p>
+      </div>
+    </div>
   </section>
 
   <!-- ===================== METHOD ===================== -->
   <section id="method">
-    <h2 class="sec">How it works</h2>
+    <h2 class="sec">Method</h2>
 
     <p>Two stages. The publisher enrolls each face before release. Later, a requester, such as a person or platform, submits a circulating copy to the publisher's verifier and gets a status back.</p>
     <figure style="margin-top:12px">
@@ -1145,6 +1356,7 @@
       <p class="note" id="copyStatus" aria-live="polite"></p>
     </div>
   </section>
+  </div>
 </main>
 
 <footer>
@@ -1310,6 +1522,77 @@
   lightboxClose.addEventListener("click", closeLightbox);
   lightbox.addEventListener("click", function (event) { if (event.target === lightbox) closeLightbox(); });
   document.addEventListener("keydown", function (event) { if (event.key === "Escape" && lightbox.classList.contains("open")) closeLightbox(); });
+})();
+</script>
+
+<script>
+(function () {
+  // ---- "How it works" carousel: buttons, dots, arrow keys, swipe; no auto-advance ----
+  var car = document.getElementById("carousel");
+  if (car) {
+    var track = document.getElementById("carTrack");
+    var slides = track.querySelectorAll(".car-slide");
+    var gos = car.querySelectorAll("[data-go]");
+    var prev = document.getElementById("carPrev"), next = document.getElementById("carNext");
+    var cur = 0, vp = car.querySelector(".car-viewport");
+    function go(i) {
+      cur = Math.max(0, Math.min(slides.length - 1, i));
+      track.style.transform = "translateX(" + (-100 * cur) + "%)";
+      slides.forEach(function (s, k) {
+        var on = k === cur;
+        s.setAttribute("aria-hidden", on ? "false" : "true");
+        if ("inert" in s) s.inert = !on;
+      });
+      gos.forEach(function (b) { b.setAttribute("aria-current", +b.getAttribute("data-go") === cur ? "true" : "false"); });
+      prev.disabled = cur === 0;
+      next.disabled = cur === slides.length - 1;
+      fit();
+    }
+    function fit() { vp.style.height = slides[cur].offsetHeight + 2 + "px"; }
+    window.addEventListener("resize", fit);
+    window.addEventListener("load", fit);
+    gos.forEach(function (b) { b.addEventListener("click", function () { go(+b.getAttribute("data-go")); }); });
+    prev.addEventListener("click", function () { go(cur - 1); });
+    next.addEventListener("click", function () { go(cur + 1); });
+    car.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowLeft") { e.preventDefault(); go(cur - 1); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); go(cur + 1); }
+    });
+    var sx = null, sy = 0;
+    vp.addEventListener("pointerdown", function (e) { if (e.pointerType !== "mouse") { sx = e.clientX; sy = e.clientY; } });
+    vp.addEventListener("pointerup", function (e) {
+      if (sx === null) return;
+      var dx = e.clientX - sx, dy = e.clientY - sy; sx = null;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) go(cur + (dx < 0 ? 1 : -1));
+    });
+    vp.addEventListener("pointercancel", function () { sx = null; });
+    go(0);
+  }
+
+  // ---- Sticky section nav: active link follows scroll position ----
+  var nav = document.querySelector(".secnav");
+  if (nav && "IntersectionObserver" in window) {
+    var links = {}, visible = {};
+    nav.querySelectorAll("a").forEach(function (a) { links[a.getAttribute("href").slice(1)] = a; });
+    var order = Object.keys(links);
+    function setActive(id) {
+      order.forEach(function (k) {
+        if (k === id) links[k].setAttribute("aria-current", "true"); else links[k].removeAttribute("aria-current");
+      });
+      var a = id && links[id];
+      if (a && nav.scrollWidth > nav.clientWidth) {
+        var l = a.offsetLeft - nav.clientWidth / 2 + a.offsetWidth / 2;
+        nav.scrollTo({ left: Math.max(0, l), behavior: "auto" });
+      }
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { visible[en.target.id] = en.isIntersecting; });
+      var active = null;
+      order.forEach(function (k) { if (visible[k]) active = active || k; });
+      setActive(active);
+    }, { rootMargin: "-40% 0px -55% 0px", threshold: 0 });
+    order.forEach(function (k) { var el = document.getElementById(k); if (el) io.observe(el); });
+  }
 })();
 </script>
 
