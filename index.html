@@ -135,6 +135,30 @@
   .card p { font-size: 14.5px; margin: 0; }
   .card .chips { margin-top: 8px; }
 
+  /* ---------- AI-face demo grid ---------- */
+  .demo-grid { margin: 24px auto; max-width: 880px; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+  .demo-kicker { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
+  .drow { display: grid; grid-template-columns: 112px repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+  .dlead { font: 600 15px/1.3 var(--display); color: var(--ink); padding-top: 6px; }
+  .dcell { margin: 0; min-width: 0; }
+  .dcell img { width: 100%; height: auto; display: block; border-radius: 4px; }
+  .dcell figcaption { margin-top: 6px; font-size: 13px; line-height: 1.45; text-align: left; color: var(--ink-2); }
+  .dcell .dcol { display: block; font: 600 13.5px/1.3 var(--display); color: var(--ink); }
+  .dcell .dm { display: block; font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  .dcell .dm.ok { color: #1f7a3a; } .dcell .dm.no { color: #b42318; }
+  .dcell .dm.ok::after { content: " pass"; } .dcell .dm.no::after { content: " fail"; }
+  .dcell .status { margin-top: 3px; display: inline-block; }
+  .dcell .why { display: block; font-size: 12px; color: var(--ink-3); }
+  .dnote { margin: 10px 0 0; }
+  .bench { margin-top: 4px; }
+  @media (max-width: 760px) {
+    .drow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dlead { grid-column: 1 / -1; padding-top: 0; }
+  }
+  @media (max-width: 420px) {
+    .demo-grid { padding: 12px 10px; }
+    .dcell .dm { font-size: 11px; white-space: normal; }
+  }
   /* ---------- drag-to-compare ---------- */
   .cmp {
     position: relative; max-width: 512px; margin: 0 auto; border-radius: 6px; overflow: hidden; background: #000;
@@ -628,10 +652,141 @@
       <span class="sc">Doctor Trigger</span> lets the publisher keep a private record of each release and verify circulating copies against it.
     </p>
 
-    <figure>
-      <div class="frame"><img src="static/images/fig2_release.png" alt="Original vs released image with amplified mid-band residual; template agreement passes for release and JPEG, fails for face re-rendering." loading="lazy"></div>
-      <figcaption><b>Doctor Trigger at a glance.</b> Left: a weak keyed signal is added before publication, and the released face looks virtually the same as the original. Right: the circulating copy is compared with the stored record. A JPEG copy passes (<span class="v">C<sub>B</sub></span> = 1.000); a re-rendered face fails (0.930 &lt; 0.997).</figcaption>
-    </figure>
+    <div class="demo-grid" aria-label="Demo on AI-generated faces">
+      <div class="demo-kicker">Demo on AI-generated faces, run with the public code</div>
+      <div class="drow" role="group" aria-label="Press briefing">
+        <div class="dlead">Press briefing</div>
+        <figure class="dcell">
+          <img src="static/images/demo/news_released.jpg" alt="Press briefing, posted" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Posted</span>
+            <span class="dm ok"><span class="v">C</span> 0.9994 &ge; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 2.27 &ge; 0.93</span>
+            <span class="status c">Confirmed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/news_jpeg.jpg" alt="Press briefing, jpeg repost" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">JPEG repost</span>
+            <span class="dm ok"><span class="v">C</span> 0.9986 &ge; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.34 &ge; 0.93</span>
+            <span class="status c">Confirmed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/news_swap.jpg" alt="Press briefing, face swapped" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Face swapped</span>
+            <span class="dm no"><span class="v">C</span> 0.9351 &lt; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.97 &ge; 0.93</span>
+            <span class="status u">Unconfirmed</span> <span class="why">face changed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/news_original.jpg" alt="Press briefing, never posted" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Never posted</span>
+            <span class="dm ok"><span class="v">C</span> 0.9997 &ge; 0.9984</span>
+            <span class="dm no"><span class="v">G<sub>s</sub></span> 0.00 &lt; 0.93</span>
+            <span class="status u">Unconfirmed</span> <span class="why">hidden code not found</span></figcaption>
+        </figure>
+      </div>
+      <div class="drow" role="group" aria-label="Café selfie">
+        <div class="dlead">Café selfie</div>
+        <figure class="dcell">
+          <img src="static/images/demo/cafe_released.jpg" alt="Café selfie, posted" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Posted</span>
+            <span class="dm ok"><span class="v">C</span> 0.9998 &ge; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.78 &ge; 0.93</span>
+            <span class="status c">Confirmed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/cafe_jpeg.jpg" alt="Café selfie, jpeg repost" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">JPEG repost</span>
+            <span class="dm ok"><span class="v">C</span> 0.9993 &ge; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.32 &ge; 0.93</span>
+            <span class="status c">Confirmed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/cafe_swap.jpg" alt="Café selfie, face swapped" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Face swapped</span>
+            <span class="dm no"><span class="v">C</span> 0.9535 &lt; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.23 &ge; 0.93</span>
+            <span class="status u">Unconfirmed</span> <span class="why">face changed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/cafe_original.jpg" alt="Café selfie, never posted" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Never posted</span>
+            <span class="dm ok"><span class="v">C</span> 0.9997 &ge; 0.9984</span>
+            <span class="dm no"><span class="v">G<sub>s</sub></span> 0.00 &lt; 0.93</span>
+            <span class="status u">Unconfirmed</span> <span class="why">hidden code not found</span></figcaption>
+        </figure>
+      </div>
+      <div class="drow" role="group" aria-label="Travel photo">
+        <div class="dlead">Travel photo</div>
+        <figure class="dcell">
+          <img src="static/images/demo/travel_released.jpg" alt="Travel photo, posted" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Posted</span>
+            <span class="dm ok"><span class="v">C</span> 0.9999 &ge; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.38 &ge; 0.93</span>
+            <span class="status c">Confirmed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/travel_jpeg.jpg" alt="Travel photo, jpeg repost" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">JPEG repost</span>
+            <span class="dm ok"><span class="v">C</span> 0.9997 &ge; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.06 &ge; 0.93</span>
+            <span class="status c">Confirmed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/travel_swap.jpg" alt="Travel photo, face swapped" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Face swapped</span>
+            <span class="dm no"><span class="v">C</span> 0.9711 &lt; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.18 &ge; 0.93</span>
+            <span class="status u">Unconfirmed</span> <span class="why">face changed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/travel_original.jpg" alt="Travel photo, never posted" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Never posted</span>
+            <span class="dm ok"><span class="v">C</span> 0.9997 &ge; 0.9984</span>
+            <span class="dm no"><span class="v">G<sub>s</sub></span> -0.00 &lt; 0.93</span>
+            <span class="status u">Unconfirmed</span> <span class="why">hidden code not found</span></figcaption>
+        </figure>
+      </div>
+      <div class="drow" role="group" aria-label="Beauty vlog">
+        <div class="dlead">Beauty vlog</div>
+        <figure class="dcell">
+          <img src="static/images/demo/beauty_released.jpg" alt="Beauty vlog, posted" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Posted</span>
+            <span class="dm ok"><span class="v">C</span> 0.9998 &ge; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.77 &ge; 0.93</span>
+            <span class="status c">Confirmed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/beauty_jpeg.jpg" alt="Beauty vlog, jpeg repost" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">JPEG repost</span>
+            <span class="dm ok"><span class="v">C</span> 0.9993 &ge; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.15 &ge; 0.93</span>
+            <span class="status c">Confirmed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/beauty_swap.jpg" alt="Beauty vlog, face swapped" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Face swapped</span>
+            <span class="dm no"><span class="v">C</span> 0.9379 &lt; 0.9984</span>
+            <span class="dm ok"><span class="v">G<sub>s</sub></span> 1.39 &ge; 0.93</span>
+            <span class="status u">Unconfirmed</span> <span class="why">face changed</span></figcaption>
+        </figure>
+        <figure class="dcell">
+          <img src="static/images/demo/beauty_original.jpg" alt="Beauty vlog, never posted" width="320" height="320" loading="lazy">
+          <figcaption><span class="dcol">Never posted</span>
+            <span class="dm ok"><span class="v">C</span> 0.9997 &ge; 0.9984</span>
+            <span class="dm no"><span class="v">G<sub>s</sub></span> -0.00 &lt; 0.93</span>
+            <span class="status u">Unconfirmed</span> <span class="why">hidden code not found</span></figcaption>
+        </figure>
+      </div>
+      <p class="note dnote"><b>Doctor Trigger at a glance.</b> Each face is enrolled with the public code, then the verifier reads four copies against the private record. The posted face and its JPEG repost pass both checks. A face swap of the posted image fails spectral agreement <span class="v">C</span>; the never-posted original still looks like the same face but carries no hidden code, so key projection <span class="v">G<sub>s</sub></span> fails. Thresholds are the 1% quantiles over 144 benign copies (JPEG q85/q90, 0.75&times; resize) of 48 AI-generated faces. All faces are AI-generated and do not show real people; this demo is not part of the paper's benchmark.</p>
+    </div>
+    <details class="tview bench">
+      <summary>Examples from the benchmark datasets</summary>
+        <figure style="margin:10px 0 0">
+          <div class="frame"><img src="static/images/fig2_release.png" alt="Original vs released image with amplified mid-band residual; template agreement passes for release and JPEG, fails for face re-rendering." loading="lazy"></div>
+          <figcaption><b>The same steps on a benchmark face.</b> Left: a weak keyed signal is added before publication, and the released face looks virtually the same as the original. Right: the circulating copy is compared with the stored record. A JPEG copy passes (<span class="v">C<sub>B</sub></span> = 1.000); a re-rendered face fails (0.930 &lt; 0.997).</figcaption>
+        </figure>
+    </details>
 
     <div class="cards">
       <div class="card">
@@ -700,13 +855,13 @@
     <p class="cmp-cap" id="cmpCap" aria-live="polite"><span id="cmpLabel">Café selfie</span> <span class="m">· PSNR <b id="cmpPsnr">51.15</b> dB · SSIM <b id="cmpSsim">0.998</b></span></p>
     <ul class="cmp-thumbs" id="cmpThumbs" aria-label="Choose a sample">
       <li><button type="button" data-name="cafe" data-label="Café selfie" data-psnr="51.15" data-ssim="0.998" aria-pressed="true" aria-label="Show sample 1: Café selfie" title="Café selfie"><img src="static/images/compare/cafe_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="news" data-label="Press briefing" data-psnr="51.14" data-ssim="0.997" aria-pressed="false" aria-label="Show sample 2: Press briefing" title="Press briefing"><img src="static/images/compare/news_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="travel" data-label="Travel photo" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 3: Travel photo" title="Travel photo"><img src="static/images/compare/travel_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="beauty" data-label="Beauty vlog" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 4: Beauty vlog" title="Beauty vlog"><img src="static/images/compare/beauty_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="shop" data-label="Shop owner" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 2: Shop owner" title="Shop owner"><img src="static/images/compare/shop_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="news" data-label="Press briefing" data-psnr="51.14" data-ssim="0.997" aria-pressed="false" aria-label="Show sample 3: Press briefing" title="Press briefing"><img src="static/images/compare/news_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="photographer" data-label="Street photographer" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 4: Street photographer" title="Street photographer"><img src="static/images/compare/photographer_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
       <li><button type="button" data-name="market" data-label="Market vendor" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 5: Market vendor" title="Market vendor"><img src="static/images/compare/market_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="shop" data-label="Shop owner" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 6: Shop owner" title="Shop owner"><img src="static/images/compare/shop_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="photographer" data-label="Street photographer" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 7: Street photographer" title="Street photographer"><img src="static/images/compare/photographer_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
-      <li><button type="button" data-name="doctor" data-label="Hospital doctor" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 8: Hospital doctor" title="Hospital doctor"><img src="static/images/compare/doctor_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="office" data-label="Office worker" data-psnr="51.18" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 6: Office worker" title="Office worker"><img src="static/images/compare/office_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="travel" data-label="Travel photo" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 7: Travel photo" title="Travel photo"><img src="static/images/compare/travel_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="rider" data-label="Delivery rider" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 8: Delivery rider" title="Delivery rider"><img src="static/images/compare/rider_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
     </ul>
     <p class="note center"><b>The hidden code is imperceptible.</b> Each posted image carries the weak keyed signal, enrolled with the public Doctor Trigger code on a 512&nbsp;px face crop, and stays at about 51&nbsp;dB PSNR from its original. PSNR and SSIM are measured on the lossless PNG images; the images shown here are JPEG-compressed for size. All faces are AI-generated and do not show real people.</p>
   </section>
@@ -830,10 +985,13 @@
         <p class="note">†: fixed public weights; —: no dataset-specific training.</p>
       </details>
       <p class="also">Also <b>1.000</b> AUC on StarGAN, UniFace, InSwapper and SD inpainting (FF++; the paper marks this comparison as exploratory).</p>
-      <figure>
+      <details class="tview bench">
+        <summary>Examples from the benchmark datasets</summary>
+      <figure style="margin:10px 0 0">
         <div class="frame" style="max-width:760px;margin-inline:auto"><img src="static/images/fig9_examples.png" alt="Released images, JPEG copies and re-rendered faces from FF++ and Celeb-DF with their sub-band template agreement." loading="lazy"></div>
-        <figcaption><b>Examples.</b> Released images and their JPEG copies pass the template check; re-rendered faces fail it. Green and red borders mark acceptance and rejection.</figcaption>
+        <figcaption><b>Benchmark examples (FF++, Celeb-DF).</b> Released images and their JPEG copies pass the template check; re-rendered faces fail it. Green and red borders mark acceptance and rejection.</figcaption>
       </figure>
+      </details>
     </article>
 
     <article class="finding" id="r2">
