@@ -52,63 +52,72 @@ scored through the same files, per
 
 ## Paper artifact → registry entry
 
-Numbering follows the current paper PDF on the
-[project page](https://ming053l.github.io/Doctor-Trigger/static/pdf/paper.pdf). The `paper:` text
-inside `registry.yaml` (what `run.py list` prints) was written against an earlier draft, so its
-table and figure numbers can differ from the ones below.
+Numbering follows the current paper (the PDF on the
+[project page](https://ming053l.github.io/Doctor-Trigger/static/pdf/paper.pdf)); the `paper:` text
+that `run.py list` prints uses the same numbers.
 
-**Confidence:** ✓ = the script's docstring or registry entry describes exactly this artifact;
-~ = likely, from matching content, but not confirmed against the script's output; ? = not found.
+**Marks:** ✓ = the entry produces this artifact; ~ = the entry produces part of it, or the
+artifact needs inputs this repository does not ship (noted in the row); ✗ = no code in this
+repository, with the reason. "Re-run" means the entry was run on the released pipeline outputs and
+reproduced the printed numbers (figures: pixel-identical renders).
 
 ### Main paper
 
 | Paper artifact | Registry entries (`python run.py run <id>`) | |
 | --- | --- | --- |
-| Table 1: sub-band agreement C_B (benign processing, datasets, other manipulations) | `subband-table1 part=<benign\|datasets\|engines>`; engine columns read the swaps cached by `engines engine=<name>` | ✓ (C_B row); full-ring C row ~ |
-| Table 2: face-swap detection within and across datasets | peers: `peers-detect method=<peer>`; image-only S_df: `image-detector-train-aug dataset=<ffpp\|dfdc\|celebdf>` then `image-detector-eval`; record model S_fake: `features-record-ref` → `features-record-scalar` → `record-model-recordscalar pin=<ffpp\|dfdc\|celebdf>` | ✓ for these rows; source of the direct 1 − C_B row ? |
-| Table 3: release evidence from the key | `reference-baselines` (swap AUC), `release-evidence` (original / release pass) | ✓ |
-| Fig 5: visual fidelity | `fig-imperceptibility` (also reads earlier trigger renders, `legacy_trigger_glob`, not shipped) | ✓ |
-| Sec. 4.2 record storage (2.3 KiB sub-band payload) | `record-codec` | ✓ |
-| Table 4 and Fig 7: credential retention and channels | `table4-artifact` | ✓ |
-| Fig 2 (right) | drawn in the paper source; appendix version: `fig-channel-samples` | ~ |
-| Figs 1, 3, 4, 6 | drawn in the paper source | — |
+| Fig 1: two-stage verification interface | illustration (no code) | ✗ |
+| Fig 2: release evidence with preserved fidelity | illustration drawn from one asset in the paper source (no code); the multi-asset version of its right half is Fig 9, `fig-channel-samples` | ✗ |
+| Fig 3: enrollment for later verification | illustration (no code) | ✗ |
+| Fig 4: from release evidence to verification and review | illustration (no code) | ✗ |
+| Table 1: frequency-restricted spectral agreement | C_B row: `subband-table1 part=<benign\|datasets\|engines>` (engine columns read the swaps cached by `engines engine=<name>`); full-ring row: `benign-channels dataset=FF++`; exploratory cut sweep named in the caption: `subband-readout`. Clean SimSwap columns re-run. The WebP column has no script (the benign part measures an H.264 family instead) | ~ |
+| Table 2: face-swap detection within and across datasets | peers: `peers-detect method=<peer>`; image-only S_df: `image-detector-train-aug dataset=<ds>` then `image-detector-eval`; direct 1 − C_B: `subband-table1 part=datasets` (re-run; a direct test has no training, so its transfer columns equal the target dataset's AUC); record model S_fake: `features-record-ref` → `features-record-scalar` → `record-model-recordscalar pin=<ffpp\|dfdc\|celebdf>` | ✓ |
+| Table 3: release evidence from the key | swap AUC: `reference-baselines`; pass rates: `original-control calibration=1580` (re-run) | ✓ |
+| Table 4: credential retention across delivery channels | `table4-artifact` (credential, SimSwap-reject and benign-pass columns; collect stage re-run on the frozen per-image scores). The reenactment and SD-inpainting columns are not produced | ~ |
+| Fig 5: visual fidelity of released images | `fig-imperceptibility` (also reads earlier trigger renders, `legacy_trigger_glob`, not shipped) | ✓ |
+| Fig 6: complementary evidence for face consistency and release signal | `fig-signal` (re-run) | ✓ |
+| Fig 7: direct spectral evidence across channels | `table4-artifact`, then `fig-roundtrip` (re-run from the frozen Table 4 scores) | ✓ |
+| Sec. 4.2 verification cost and storage | `record-codec` (payload sizes), `deployment-cost` (timings) | ✓ |
 
 ### Appendix
 
 | Paper artifact | Registry entries | |
 | --- | --- | --- |
-| Table 6: release fidelity per dataset and resolution | `peer-fidelity` (runs per-peer `*_fidelity.py` under `peers_root`; those scripts are **not** in this repository) | ~ |
-| Fig 9: verification examples across datasets | `fig-channel-samples` | ~ |
-| Table 7: private-reference comparisons | `reference-baselines` (swap), `attribution-matrix` (same-person release), `release-evidence` (release vs original) | ✓ |
-| Table 8: original and release acceptance under channel calibration | candidates: `release-evidence`, `posthoc-attack` | ? |
+| Table 5: notation | text only | — |
+| Table 6: release fidelity per dataset and resolution | `peer-fidelity` records the command, but the per-peer `*_fidelity.py` scripts run inside each peer's checkout and are not part of this repository | ✗ |
+| Fig 8: release residuals | `fig-release-residual` (re-run) | ✓ |
+| Fig 9: verification examples across datasets | `fig-channel-samples` | ✓ |
+| Fig 10: keyed displacement and query residual | `fig-keymatch` (re-run) | ✓ |
+| Table 7: private-reference comparisons | `reference-baselines` (swap columns), `attribution-matrix` (same-person release), `release-evidence` (release vs original) | ✓ |
+| Table 8: original and release acceptance under channel calibration | `original-control calibration=100` (lossless panel), `original-control calibration=1580` (JPEG-q90 panel); re-run | ✓ |
 | Fig 11: enrolled template and asset specificity | `fig-template` | ✓ |
-| Table 9: key discrimination and learned record scores | `key-pure-canonical` (needs `features-record-scalar`, `record-model-recordscalar pin=ffpp`) | ~ |
+| Table 9: key discrimination and learned record scores | `key-pure-canonical` (needs `features-record-scalar`, `record-model-recordscalar pin=ffpp`) | ✓ |
 | Table 10: benign-channel robustness across datasets | `image-detector-train-aug dataset=<ds>`, then `benign-channels dataset=<FF++\|DFDC\|CelebDF>` | ✓ |
-| Table 11: face-swap detection after image processing (C vs C_B) | closest: `subband-readout` | ? |
-| Table 12: operating points of the direct relation test | `operating-points` | ✓ |
-| Table 13: joint verification (direct vs learned) | — | ? |
+| Table 11: face-swap detection after image processing (additional sources) | not released: a separate cohort of 100 further FF++ videos with its own releases, swaps and scores, generated outside this pipeline | ✗ |
+| Table 12: empirical operating points of the direct relation test | `operating-points` | ✓ |
+| Table 13: joint verification with per-head and joint budgets | `joint-policy` (per-head and matched panels; re-run). The FF++ delivery panel is not released | ~ |
 | Table 14: cross-dataset threshold transfer | `threshold-transfer` | ✓ |
-| Fig 12: calibration and record-model sensitivity | `hyperparam_sensitivity` | ✓ |
+| Fig 12: calibration and record-model sensitivity | `hyperparam_sensitivity`, then `fig-hyper` (drawing re-run from the stored sweep) | ✓ |
 | Table 15, Figs 13 and 14: ring, strength, wrong-key count | `sensitivity-release dataset=<FF++\|DFDC\|CelebDF> setting=<alpha:0.02\|band:0.05-0.45\|...>` (grid; see `experiments/sensitivity_launch.sh`), then `sensitivity-fig` | ✓ |
-| Table 16: runtime and records | `deployment-cost` (runs under `peers_root`), `record-codec` | ✓ |
-| Table 17: regeneration and adaptive attacks | `adaptive-attacks`, `diffusion-regeneration` | ✓ |
-| Table 18 and App. K.2: phase-ring transplantation | `copy-ring-canonical`, `copy-ring-detector`, `copy-ring-amplitude` | ✓ |
-| Figs 8 and 10 | — | ? |
+| Table 16: runtime and records | `deployment-cost` (runs under `peers_root`), `record-codec`; the CPU timings of our paths come from a later benchmark that is not included | ~ |
+| Table 17: regeneration and targeted attacks | `adaptive-attacks`, `diffusion-regeneration` (template and image-only columns; the record-model S_fake column is not produced) | ~ |
+| Table 18: phase-ring transplantation | `copy-ring-canonical`, `copy-ring-detector` (FF++), `copy-ring-amplitude`; the Celeb-DF and DFDC image-only and either-flag rows are not produced | ~ |
 
-Registry entries not placed above (supporting controls whose current table placement is not
-confirmed): `subband-fusion`, `subband-freelunch`, `subband-side-effects`, `reference-channels`,
-`defect-audit`, `posthoc-attack`, `image-detector-train` (detector without augmentation; read with
-`benign-channels plain_head=<ds>`).
+`image-detector-train` trains the same detector without augmentation; it is the baseline behind the
+augmentation remark of App. G.1 (read with `benign-channels plain_head=<ds>`).
 
 ## Expected variation
 
 Record-model training fixes the random seed but not GPU nondeterminism, so a rerun can differ from
 the paper in the third decimal. The threshold-transfer table (Table 14) is the one place where
 printed values move, for example 3.9e-2 becoming 3.6e-2; its conclusion does not change.
+ArcFace similarities also vary slightly between inference runs (up to about 3e-4). With only 100
+calibration releases per dataset this can move a lossless-calibrated ArcFace cutoff by a few
+queries: one rerun of `original-control calibration=100` gave 99.25% lossless acceptance where
+Table 8 prints 98.75%; every other cell of Tables 3 and 8 reproduced exactly.
 
 ## What you need to provide
 
-The repository contains the method, the pipeline, and every evaluation. It does not ship:
+The repository contains the method, the pipeline, and the evaluations mapped above. It does not ship:
 
 1. **The datasets** (FF++, Celeb-DF v2, DFDC), see [DATA.md](DATA.md).
 2. **SimSwap weights** (`simswap_root`), used to build the face-swap queries.
@@ -118,8 +127,10 @@ The repository contains the method, the pipeline, and every evaluation. It does 
    their released weights.
 5. **Attack engine weights** (`engines_root`) for the engine columns: StarGAN-v2, UniFace,
    InSwapper, Stable Diffusion 1.5 inpainting.
+6. **InsightFace `buffalo_l` weights** for the ArcFace references (`reference-baselines`,
+   `original-control`); `insightface` downloads them on first use.
 
-Items 4 and 5 are only needed for the comparison experiments. Two entries, `fig-imperceptibility`
+Items 4 to 6 are only needed for the comparison experiments. Two entries, `fig-imperceptibility`
 and `deployment-cost`, also read trigger renders from an earlier enrollment run
 (`legacy_trigger_glob`) that are not part of this release.
 
