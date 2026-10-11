@@ -510,6 +510,84 @@
     table.score thead th:first-child { width: 34%; }
     .rk-hud-tl { display: none; }
   }
+  /* ---------- key-ring explainer: guided steps + live repost controls ---------- */
+  .rk-intro { margin-bottom: 14px; }
+  .rk-legend[hidden], .rk-measuring[hidden] { display: none; }
+  .rk-intro .f-k { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+  .rk-title { font-size: 20px; font-weight: 500; margin: 4px 0 6px; }
+  .rk-intro p { margin: 0 0 10px; max-width: 760px; }
+  .rk-techbtn {
+    appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer;
+    border-radius: 999px; min-height: 36px; padding: 6px 14px; font: 500 13.5px/1.2 var(--display);
+  }
+  .rk-techbtn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .rk-tech-only { display: none; }
+  .rk-explore.tech .rk-tech-only { display: revert; }
+  .rk-explore.tech small.rk-tech-only { display: block; }
+  .rk-stage { touch-action: pan-y; }
+  .rk-stage.no3d canvas { display: none; }
+  .rk-stage.no3d::after { content: "3D drawing unavailable in this browser"; position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.6); font-size: 13px; }
+  .rk-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; counter-reset: none; }
+  .rk-steps button {
+    appearance: none; width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink-2); padding: 6px 10px; font: 400 14px/1.25 var(--sans);
+  }
+  .rk-steps button:hover { border-color: var(--ink-3); }
+  .rk-steps button b { font-weight: 600; color: var(--ink); }
+  .rk-steps button small { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+  .rk-steps .n { flex: none; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--band); font-size: 12.5px; font-weight: 700; color: var(--ink); }
+  .rk-steps button[aria-current="step"] { background: var(--ink); border-color: var(--ink); }
+  .rk-steps button[aria-current="step"] b, .rk-steps button[aria-current="step"] small { color: #fff; }
+  .rk-steps button[aria-current="step"] .n { background: var(--logo-teal); color: var(--logo-bg); }
+  .rk-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+  .rk-nav .rk-step-arrow { width: auto; height: auto; min-height: 44px; border-radius: 999px; padding: 0 14px; white-space: nowrap; font: 500 14px/1 var(--display); }
+  .rk-nav .rk-step-count { font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
+  .rk-plain { font-size: 15.5px !important; color: var(--ink) !important; }
+  .rk-plain b { color: var(--ink); }
+  .rk-try {
+    margin-top: 14px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px;
+    padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+  }
+  .rk-try h5 { font: 600 16px/1.3 var(--display); color: var(--ink); margin: 0 0 10px; }
+  .rk-field { display: block; margin-bottom: 12px; }
+  .rk-flabel { display: flex; justify-content: space-between; font-size: 14.5px; color: var(--ink); margin-bottom: 2px; }
+  .rk-flabel b { font-family: var(--mono); font-weight: 600; }
+  .rk-field input[type=range] { width: 100%; height: 44px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .rk-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-3); margin-top: -8px; }
+  .rk-field select { width: 100%; min-height: 44px; margin-top: 4px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font: 400 14.5px var(--sans); }
+  .rk-toggles { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 12px; }
+  .rk-toggle {
+    appearance: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font: 500 14px/1 var(--display);
+  }
+  .rk-toggle i { width: 30px; height: 18px; border-radius: 999px; background: #c7ccd2; position: relative; transition: background .15s; }
+  .rk-toggle i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .rk-toggle[aria-pressed="true"] { border-color: var(--accent); }
+  .rk-toggle[aria-pressed="true"] i { background: var(--accent); }
+  .rk-toggle[aria-pressed="true"] i::after { transform: translateX(12px); }
+  .rk-readout { display: flex; flex-direction: column; gap: 10px; }
+  .rk-rrow { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+  .rk-ricon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; font-weight: 800; background: #eef0f2; color: var(--ink-3); }
+  .rk-rrow.ok .rk-ricon { background: var(--green-soft); color: var(--green); }
+  .rk-rrow.no .rk-ricon { background: var(--red-soft); color: var(--red); }
+  .rk-rname { font-size: 12.5px; color: var(--ink-3); }
+  .rk-rval { font-size: 16px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+  .rk-rrow.ok .rk-rval { color: var(--green); } .rk-rrow.no .rk-rval { color: var(--red); }
+  .rk-rnum { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+  .rk-verdict { padding: 12px 14px; border-radius: 10px; background: #f4f5f6; min-height: 72px; }
+  .rk-verdict.c { background: var(--green-soft); } .rk-verdict.u { background: var(--red-soft); }
+  .rk-verdict .status { font-size: 15px; padding: 3px 12px; background: #fff; }
+  .rk-verdict p { margin: 6px 0 0; font-size: 14.5px; color: var(--ink); }
+  .rk-honest { margin-top: 12px; }
+  @media (max-width: 860px) {
+    .rk-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rk-try { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 560px) {
+    .rk-stage { aspect-ratio: 4 / 3; }
+    .rk-try { padding: 14px; }
+    .rk-hud-tr .m-sub { display: none; }
+  }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
@@ -1222,61 +1300,86 @@
       </figure>
 
       <div class="rk-explore" id="rk-widget">
-        <p class="note">Explore the same evidence in 3D &mdash; rotate the ring, and step through each panel.</p>
+        <div class="rk-intro">
+          <div class="f-k">Hands-on</div>
+          <h4 class="rk-title">How the hidden code is found</h4>
+          <p>Walk through the six steps, then try your own repost settings. The ring is a drawing of the idea; the scores below come from running the public code on the AI-generated demo faces.</p>
+          <button type="button" class="rk-techbtn" id="rk-tech" aria-pressed="false">Show technical terms</button>
+        </div>
         <div class="rk-layout">
           <div class="frame">
             <div class="rk-stage" id="rk-stage">
-              <canvas id="rk-canvas" aria-label="3D visualization of the frequency ring under different scenarios"></canvas>
+              <canvas id="rk-canvas" role="img" aria-label="Drawing of the hidden code as a ring of bars; it changes with each step and with the repost settings"></canvas>
               <div class="rk-lens" id="rk-lens" aria-hidden="true"></div>
               <div class="rk-hud" aria-hidden="true">
-                <div class="rk-hud-tl">RING &kappa; &isin; [0.10, 0.45] &middot; 180 active bins</div>
-                <div class="rk-hud-bl">drag to rotate &middot; scroll to zoom</div>
+                <div class="rk-hud-tl rk-tech-only">RING &kappa; &isin; [0.10, 0.45] &middot; 180 active bins</div>
+                <div class="rk-hud-bl">drag to rotate</div>
                 <div class="rk-hud-tr">
-                  <div class="m-lbl" id="rk-metricLabel">Key value</div>
+                  <div class="m-lbl" id="rk-metricLabel">Your code</div>
                   <div class="m-val" id="rk-metricValue">&plusmn;1</div>
-                  <div class="m-sub" id="rk-metricSub">sign pattern only</div>
-                  <div class="rk-measuring" id="rk-measuringTag" hidden><i></i>Measuring</div>
+                  <div class="m-sub" id="rk-metricSub">a pattern of ups and downs</div>
+                  <div class="rk-measuring" id="rk-measuringTag" hidden><i></i>Checking</div>
                 </div>
                 <div class="rk-legend" id="rk-legend" hidden></div>
               </div>
             </div>
           </div>
           <div class="rk-controls">
-            <div class="rk-stepper">
-              <div class="rk-step-arrows">
-                <button class="rk-step-arrow" type="button" id="rk-prevStep" aria-label="Previous panel">&uarr;</button>
-                <button class="rk-step-arrow" type="button" id="rk-nextStep" aria-label="Next panel">&darr;</button>
-              </div>
-              <div class="rk-step-indicator">
-                <div class="rk-step-count" id="rk-stepCount">Step 1 of 4</div>
-                <div class="rk-step-name" id="rk-stepName">(a) The key</div>
-              </div>
-            </div>
-            <div class="rk-tab-rows">
-              <div class="rk-tab-group">
-                <div class="rk-tab-row-label">Reconstructed &middot; (a)&ndash;(d)</div>
-                <div class="rk-tabs" role="tablist" aria-label="Build-up panels">
-                  <button class="scenario-tab" type="button" role="tab" aria-selected="true" data-scenario="key">(a) Key</button>
-                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="displacement">(b) Displacement</button>
-                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="template">(c) Template</button>
-                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="residual">(d) Residual</button>
-                </div>
-              </div>
-              <div class="rk-tab-group">
-                <div class="rk-tab-row-label">Measured &middot; (e)&ndash;(f), and beyond</div>
-                <div class="rk-tabs" role="tablist" aria-label="Key comparison and beyond">
-                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="release">(e) Correct key</button>
-                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="original">(f) Wrong key</button>
-                  <button class="scenario-tab" type="button" role="tab" aria-selected="false" data-scenario="edit">Re-render</button>
-                </div>
-              </div>
+            <ol class="rk-steps" id="rk-steps" aria-label="Steps">
+              <li><button type="button" data-step="key"><span class="n">1</span><span><b>Your secret code</b><small class="rk-tech-only">(a) key</small></span></button></li>
+              <li><button type="button" data-step="displacement"><span class="n">2</span><span><b>Hide it in the photo</b><small class="rk-tech-only">(b) displacement</small></span></button></li>
+              <li><button type="button" data-step="template"><span class="n">3</span><span><b>The posted photo</b><small class="rk-tech-only">(c) template</small></span></button></li>
+              <li><button type="button" data-step="residual"><span class="n">4</span><span><b>After reposting</b><small class="rk-tech-only">(d) residual</small></span></button></li>
+              <li><button type="button" data-step="release"><span class="n">5</span><span><b>Check with your code</b><small class="rk-tech-only">(e) correct key</small></span></button></li>
+              <li><button type="button" data-step="original"><span class="n">6</span><span><b>Check with a wrong code</b><small class="rk-tech-only">(f) wrong key</small></span></button></li>
+            </ol>
+            <div class="rk-nav">
+              <button class="rk-step-arrow" type="button" id="rk-prevStep" aria-label="Previous step">&larr; Back</button>
+              <span class="rk-step-count" id="rk-stepCount">1 / 6</span>
+              <button class="rk-step-arrow" type="button" id="rk-nextStep" aria-label="Next step">Next &rarr;</button>
             </div>
           </div>
         </div>
         <div class="rk-caption">
-          <p id="rk-captionText"><span class="tag">(a) THE KEY</span>A seed expands into a fixed sign pattern over the ring&rsquo;s active bins &mdash; nothing here depends on any image yet. This is the key alone.</p>
-          <p>Panels (a)&ndash;(d) are illustrative reconstructions of the key, its displacement, and how it sits inside a face&rsquo;s own phase &mdash; no real image is Fourier-transformed here. Panels (e)&ndash;(f) use the paper&rsquo;s own reported numbers (82% / 49%).</p>
+          <p class="rk-plain" id="rk-plainText" aria-live="polite"></p>
+          <p class="rk-tech-only rk-techcap" id="rk-captionText"></p>
         </div>
+
+        <div class="rk-try" aria-labelledby="rk-tryTitle">
+          <div class="rk-try-controls">
+            <h5 id="rk-tryTitle">Try a repost</h5>
+            <label class="rk-field" for="rk-q">
+              <span class="rk-flabel">Repost quality <b id="rk-qOut">85</b></span>
+              <input type="range" id="rk-q" min="0" max="9" step="1" value="6">
+              <span class="rk-ends"><span>heavily compressed</span><span>best</span></span>
+            </label>
+            <label class="rk-field" for="rk-s">
+              <span class="rk-flabel">Resize <b id="rk-sOut">1.0&times;</b></span>
+              <input type="range" id="rk-s" min="0" max="4" step="1" value="4">
+              <span class="rk-ends"><span>half size</span><span>full size</span></span>
+            </label>
+            <div class="rk-toggles">
+              <button type="button" class="rk-toggle" id="rk-swap" aria-pressed="false"><i aria-hidden="true"></i>Swap the face</button>
+              <button type="button" class="rk-toggle" id="rk-wrong" aria-pressed="false"><i aria-hidden="true"></i>Use a wrong code</button>
+            </div>
+            <label class="rk-field" for="rk-face">
+              <span class="rk-flabel">Face</span>
+              <select id="rk-face">
+                <option value="mean">Average of the 4 demo faces</option>
+                <option value="news">Press briefing</option>
+                <option value="cafe">Café selfie</option>
+                <option value="travel">Travel photo</option>
+                <option value="beauty">Beauty vlog</option>
+              </select>
+            </label>
+          </div>
+          <div class="rk-readout" id="rk-readout" aria-live="polite">
+            <div class="rk-rrow" id="rk-rCode"><span class="rk-ricon" aria-hidden="true"></span><div><div class="rk-rname">Hidden code</div><div class="rk-rval"></div><div class="rk-rnum"></div></div></div>
+            <div class="rk-rrow" id="rk-rFace"><span class="rk-ricon" aria-hidden="true"></span><div><div class="rk-rname">Face</div><div class="rk-rval"></div><div class="rk-rnum"></div></div></div>
+            <div class="rk-verdict" id="rk-verdict"><span class="status"></span><p></p></div>
+          </div>
+        </div>
+        <p class="note rk-honest">The ring is a drawing of the idea. The scores come from running the public code on the AI-generated demo faces above: each copy is resized, saved as a JPEG at the chosen quality, then checked against that face's private record. All people shown are AI-generated.<span class="rk-tech-only"> Readout: template reading <span class="v">C</span> vs &tau;<sub>C</sub> and key projection <span class="v">G<sub>s</sub></span> vs &tau;<sub>G</sub> (1% benign quantiles); the wrong code is <code>deterministic_wrong_keys(key)[0]</code>. Steps (a)&ndash;(d) are illustrative; the 82% / 49% sign agreement in (e)&ndash;(f) is the paper's FF++ example above.</span></p>
       </div>
     </article>
 
@@ -1601,319 +1704,278 @@
 (function () {
   "use strict";
   var widget = document.getElementById("rk-widget");
-  if (!widget || typeof THREE === "undefined") return;
-
+  if (!widget) return;
   var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function $(id) { return document.getElementById(id); }
 
-  var stageEl = document.getElementById("rk-stage");
-  var canvas = document.getElementById("rk-canvas");
-  var metricValueEl = document.getElementById("rk-metricValue");
-  var metricSubEl = document.getElementById("rk-metricSub");
-  var captionEl = document.getElementById("rk-captionText");
-
-  // ---------- scene ----------
-  var scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x12151a);
-  scene.fog = new THREE.Fog(0x12151a, 7, 13);
-
-  var camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-
-  scene.add(new THREE.AmbientLight(0x5a6672, 1.35));
-  var key1 = new THREE.DirectionalLight(0xffffff, 0.95);
-  key1.position.set(3.5, 5, 4);
-  scene.add(key1);
-  var fillTeal = new THREE.DirectionalLight(0x1fa393, 0.5);
-  fillTeal.position.set(-4, 2, -3);
-  scene.add(fillTeal);
-
-  var INNER_R = 1.5, OUTER_R = 2.6, N_BINS = 180;
-
-  scene.add(new THREE.PolarGridHelper(OUTER_R * 1.18, 16, 4, 64, 0x2a3f45, 0x1d2529));
-
-  // ---------- floor sweep: a radar-style sector lying flat on the same ground plane as the grid,
-  // rotating with the scene itself (world-space, not a screen overlay), on only while "measuring" ----------
-  function makeSweepTexture() {
-    var size = 128;
-    var c = document.createElement("canvas");
-    c.width = size; c.height = size;
-    var ctx = c.getContext("2d");
-    var g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, "rgba(217,115,13,0.85)");
-    g.addColorStop(1, "rgba(217,115,13,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, size, size);
-    return new THREE.CanvasTexture(c);
-  }
-  var sweepPivot = new THREE.Group();
-  scene.add(sweepPivot);
-  var sweepMat = new THREE.MeshBasicMaterial({
-    map: makeSweepTexture(), transparent: true, opacity: 0, side: THREE.DoubleSide,
-    depthWrite: false, blending: THREE.AdditiveBlending
-  });
-  var sweepLength = OUTER_R * 1.3;
-  var sweepBlade = new THREE.Mesh(new THREE.CircleGeometry(sweepLength, 48, 0, Math.PI / 5), sweepMat);
-  sweepBlade.rotation.x = -Math.PI / 2;
-  sweepBlade.position.set(0, 0.015, 0);
-  sweepPivot.add(sweepBlade);
-  var sweepOpacity = 0, sweepTargetOpacity = 0;
-
-  function hash(n) {
-    var x = Math.sin(n) * 43758.5453123;
-    return x - Math.floor(x);
-  }
-
-  var boxGeo = new THREE.BoxGeometry(0.07, 1, 0.07);
-  var bins = [];
-  var ringGroup = new THREE.Group();
-  scene.add(ringGroup);
-
-  for (var i = 0; i < N_BINS; i++) {
-    var angle = i * 2.399963; // golden angle: even angular coverage
-    var rFrac = Math.sqrt(hash(i * 12.9898 + 0.37));
-    var radius = INNER_R + rFrac * (OUTER_R - INNER_R);
-    var mat = new THREE.MeshStandardMaterial({ color: 0x5b6470, roughness: 0.55, metalness: 0.08, transparent: true, opacity: 1 });
-    var mesh = new THREE.Mesh(boxGeo, mat);
-    mesh.position.x = Math.cos(angle) * radius;
-    mesh.position.z = Math.sin(angle) * radius;
-    ringGroup.add(mesh);
-    bins.push({
-      mesh: mesh,
-      seed: i,
-      angle: angle,
-      radius: radius,
-      weight: hash(i * 7.31 + 1.9),
-      height: 0.15, targetHeight: 0.15, fromHeight: 0.15,
-      color: new THREE.Color(0x5b6470), targetColor: new THREE.Color(0x5b6470), fromColor: new THREE.Color(0x5b6470)
-    });
-  }
-
-  // ---------- scenarios ----------
-  var GREEN = 0x2fae55, RED = 0xe2554a, MUTED = 0x5b6470;
-  var DIV_NEG = new THREE.Color(0x1fa393), DIV_MID = new THREE.Color(0x5b6470), DIV_POS = new THREE.Color(0xd9730d);
-  var _divColor = new THREE.Color();
-  function divergingColor(v) {
-    v = Math.max(-1, Math.min(1, v));
-    if (v >= 0) _divColor.copy(DIV_MID).lerp(DIV_POS, v);
-    else _divColor.copy(DIV_MID).lerp(DIV_NEG, -v);
-    return _divColor.getHex();
-  }
-
-  var SCENARIOS = {
+  // ---------- steps: plain text first, the paper's technical wording behind the toggle ----------
+  var STEPS = {
     key: {
-      metricLabel: "Key value", metricValue: "±1", metricSub: "sign pattern only",
-      caption: '<span class="tag">(a) THE KEY</span>A seed expands into a fixed sign pattern over the ring’s active bins — nothing here depends on any image yet. This is the key alone.',
-      compute: function (bin) {
-        var s = hash(bin.seed * 12.9898 + 0.11) < 0.5 ? -1 : 1;
-        return { color: s > 0 ? 0xd9730d : 0x1fa393, height: 0.65 };
-      }
+      plain: "<b>Your secret code.</b> A pattern of ups and downs that only you hold. Nothing here depends on the photo yet.",
+      tech: '<span class="tag">(a) THE KEY</span>A seed expands into a fixed sign pattern over the ring’s active bins — nothing here depends on any image yet. This is the key alone.',
+      hud: ["Your code", "±1", "a pattern of ups and downs"], techSub: "sign pattern only"
     },
     displacement: {
-      metricLabel: "Phase shift", metricValue: "≤ 0.024 rad", metricSub: "tiny, per bin",
-      caption: '<span class="tag">(b) THE DISPLACEMENT</span>(&alpha;,&beta;) turn that sign pattern into an actual phase nudge, at most about <b>0.024 rad</b> per bin — far below what a viewer, or a naive cosine statistic, can see.',
-      compute: function (bin) {
-        var v = hash(bin.seed * 12.9898 + 0.11) * 2 - 1;
-        return { color: divergingColor(v), height: 0.25 + Math.abs(v) * 0.5 };
-      }
+      plain: "<b>Hide it in the photo.</b> The code nudges the photo by a tiny amount, far too small for anyone to see.",
+      tech: '<span class="tag">(b) THE DISPLACEMENT</span>(&alpha;,&beta;) turn that sign pattern into an actual phase nudge, at most about <b>0.024 rad</b> per bin — far below what a viewer, or a naive cosine statistic, can see.',
+      hud: ["Nudge size", "tiny", "invisible to the eye"], techSub: "≤ 0.024 rad per bin"
     },
     template: {
-      metricLabel: "Stored template", metricValue: "host + δ", metricSub: "key barely visible",
-      caption: '<span class="tag">(c) THE TEMPLATE</span>Template = host phase + displacement. The face’s own phase structure (illustrative here, not recomputed from a real image) dwarfs the key’s tiny nudge, which is why the released image looks unchanged.',
-      compute: function (bin) {
-        var host = Math.sin(bin.angle * 3 + 1.3) * 0.55 + Math.sin(bin.angle * 7 - 0.6) * 0.35;
-        var v = hash(bin.seed * 12.9898 + 0.11) * 2 - 1;
-        var combined = host * 0.92 + v * 0.08;
-        return { color: divergingColor(combined), height: 0.55 + Math.abs(combined) * 0.55 };
-      }
+      plain: "<b>The posted photo.</b> The photo’s own detail is much bigger than the nudge, so the posted photo looks unchanged. Your private record keeps a note of it.",
+      tech: '<span class="tag">(c) THE TEMPLATE</span>Template = host phase + displacement. The face’s own phase structure (illustrative here, not recomputed from a real image) dwarfs the key’s tiny nudge, which is why the released image looks unchanged.',
+      hud: ["Posted photo", "looks the same", "the code is buried in it"], techSub: "host + δ"
     },
     residual: {
-      metricLabel: "Query residual", metricValue: "looks like noise", metricSub: "no visible structure",
-      caption: '<span class="tag">(d) THE RESIDUAL</span>A returning query’s residual against the host, viewed directly, looks like plain noise (illustrative). Nothing here says whether the key survived — that only shows up once you check bin-by-bin agreement with the key’s sign, next.',
-      compute: function (bin) {
-        var noise = hash(bin.seed * 5.77 + 9.4) * 2 - 1;
-        return { color: divergingColor(noise * 0.7), height: 0.45 + Math.abs(noise) * 0.5 };
-      }
+      plain: "<b>After reposting.</b> Each repost adds its own small changes. Looked at directly, what is left of the code just looks like noise.",
+      tech: '<span class="tag">(d) THE RESIDUAL</span>A returning query’s residual against the host, viewed directly, looks like plain noise (illustrative). Nothing here says whether the key survived — that only shows up once you check bin-by-bin agreement with the key’s sign, next.',
+      hud: ["After reposting", "looks like noise", "no visible pattern"], techSub: "query residual"
     },
     release: {
-      metricLabel: "Sign agreement", metricValue: "82%", metricSub: "Gs = 1.08",
-      legend: '<span><i style="background:#2fae55"></i>agrees with key</span><span><i style="background:#e2554a"></i>disagrees</span>',
-      caption: '<span class="tag">CORRECT KEY</span>The same benign copy’s phase residual, projected onto its <b>correct</b> enrolled key. <b>82%</b> of the 180 active bins agree in sign (Gs&nbsp;=&nbsp;1.08), which is why the signed projection concentrates near one.',
-      compute: function (bin) {
-        var m = hash(bin.seed * 12.9898 + 1.0) < 0.82;
-        return { color: m ? GREEN : RED, height: m ? 1.0 + bin.weight * 0.35 : 0.4 + bin.weight * 0.2 };
-      }
+      plain: "<b>Check with your code.</b> Line the copy up with your code. Green bars agree with it, red bars do not. When most agree, the code is found. Now try the repost settings below.",
+      tech: '<span class="tag">(e) CORRECT KEY</span>The copy’s phase residual is projected onto its <b>correct</b> enrolled key. In the paper’s FF++ example, <b>82%</b> of the 180 active bins agree in sign (G<sub>s</sub>&nbsp;=&nbsp;1.08). Here the bar colours follow the live G<sub>s</sub> from the demo faces.'
     },
     original: {
-      metricLabel: "Sign agreement", metricValue: "49%", metricSub: "G = 0.01, chance",
-      legend: '<span><i style="background:#2fae55"></i>agrees with key</span><span><i style="background:#e2554a"></i>disagrees</span>',
-      caption: '<span class="tag">WRONG KEY</span>Exactly the same copy and the same residual as panel (e) — only the key direction changes. Against an independent wrong key, agreement falls to <b>49%</b>, chance (G&nbsp;=&nbsp;0.01). A cosine statistic cannot tell (e) and (f) apart at this displacement; the signed projection can.',
-      compute: function (bin) {
-        var m = hash(bin.seed * 12.9898 + 2.0) < 0.49;
-        return { color: m ? GREEN : RED, height: 0.6 + bin.weight * 0.3 };
-      }
-    },
-    edit: {
-      metricLabel: "Sign agreement", metricValue: "—", metricSub: "relation disrupted",
-      legend: '<span><i style="background:#5b6470"></i>relation disrupted, no key check</span>',
-      caption: '<span class="tag">RE-RENDER</span>This panel shows a different copy, a re-rendered face, not the benign original that panels (e) and (f) share. Re-rendering breaks the mid-band relation itself before any key is checked, so there is nothing coherent left to project a key onto.',
-      compute: function (bin) {
-        var jitter = hash(bin.seed * 3.71 + 5.2);
-        return { color: MUTED, height: 0.25 + jitter * 2.1 };
-      }
+      plain: "<b>Check with a wrong code.</b> Someone else’s code does not line up: about half the bars agree, as if by a coin flip, so nothing is found.",
+      tech: '<span class="tag">(f) WRONG KEY</span>The same copy against an independent wrong key: in the paper’s FF++ example agreement falls to <b>49%</b>, chance (G&nbsp;=&nbsp;0.01). A cosine statistic cannot tell (e) and (f) apart at this displacement; the signed projection can.'
     }
   };
+  var ORDER = ["key", "displacement", "template", "residual", "release", "original"];
+  var SWAP_TECH = '<span class="tag">RE-RENDER</span>A swapped face breaks the mid-band relation itself, so the template reading C drops below its threshold whatever the key says.';
 
-  var TRANSITION_MS = reducedMotion ? 0 : 550;
-  var transitionStart = 0;
-  var metricLabelEl = document.getElementById("rk-metricLabel");
-  var legendEl = document.getElementById("rk-legend");
-  var measuringEl = document.getElementById("rk-measuringTag");
-  var lensOverlayEl = document.getElementById("rk-lens");
-  var stepCountEl = document.getElementById("rk-stepCount");
-  var stepNameEl = document.getElementById("rk-stepName");
-  var MEASURE_STAGES = { release: true, original: true, edit: true };
-  var prevBtn = document.getElementById("rk-prevStep");
-  var nextBtn = document.getElementById("rk-nextStep");
+  var state = { step: "key", q: 6, s: 4, swap: false, wrong: false, face: "mean", tech: false };
+  var data = null;
 
-  var STEP_ORDER = ["key", "displacement", "template", "residual", "release", "original", "edit"];
-  var BUILD_ORDER = ["key", "displacement", "template", "residual"];
-  var STEP_LABEL = {
-    key: "(a) The key", displacement: "(b) Displacement", template: "(c) Template",
-    residual: "(d) Residual", release: "(e) Correct key", original: "(f) Wrong key", edit: "Re-render"
-  };
-  var currentStep = 0;
+  var stepBtns = widget.querySelectorAll("#rk-steps button");
+  var prevBtn = $("rk-prevStep"), nextBtn = $("rk-nextStep");
+  var qIn = $("rk-q"), sIn = $("rk-s"), swapBtn = $("rk-swap"), wrongBtn = $("rk-wrong"), faceSel = $("rk-face"), techBtn = $("rk-tech");
+  var QUALS = [30, 40, 50, 60, 70, 80, 85, 90, 95, 100], SIZES = [0.5, 0.6, 0.75, 0.9, 1.0];
 
-  function updateIndicator(key) {
-    var bi = BUILD_ORDER.indexOf(key);
-    stepCountEl.textContent = bi > -1 ? "Step " + (bi + 1) + " of " + BUILD_ORDER.length : "Scenario";
-    stepNameEl.textContent = STEP_LABEL[key];
+  function cell() {
+    if (!data) return null;
+    var src = state.face === "mean" ? data.mean : data.per_face[state.face];
+    return src[state.swap ? "swap" : "released"][state.s][state.q];
   }
+  function live() { return state.step === "release" || state.step === "original"; }
 
-  function applyScenario(key) {
-    var s = SCENARIOS[key];
-    var now = performance.now();
-    for (var i = 0; i < bins.length; i++) {
-      var bin = bins[i];
-      var result = s.compute(bin);
-      bin.fromColor.copy(bin.color);
-      bin.fromHeight = bin.height;
-      bin.targetColor.setHex(result.color);
-      bin.targetHeight = result.height;
+  function render() {
+    var i = ORDER.indexOf(state.step), st = STEPS[state.step];
+    stepBtns.forEach(function (b) { b.setAttribute("aria-current", b.dataset.step === state.step ? "step" : "false"); });
+    prevBtn.disabled = i === 0; nextBtn.disabled = i === ORDER.length - 1;
+    $("rk-stepCount").textContent = (i + 1) + " / " + ORDER.length;
+    var plain = st.plain;
+    if (live() && state.swap) plain += " <b>The face was swapped,</b> so the face check fails.";
+    $("rk-plainText").innerHTML = plain;
+    $("rk-captionText").innerHTML = st.tech + (live() && state.swap ? " " + SWAP_TECH : "");
+    widget.classList.toggle("tech", state.tech);
+    techBtn.setAttribute("aria-pressed", state.tech ? "true" : "false");
+    techBtn.textContent = state.tech ? "Hide technical terms" : "Show technical terms";
+
+    // controls
+    qIn.value = state.q; sIn.value = state.s;
+    $("rk-qOut").textContent = QUALS[state.q];
+    $("rk-sOut").textContent = SIZES[state.s].toFixed(SIZES[state.s] === 0.75 ? 2 : 1) + "×";
+    qIn.setAttribute("aria-valuetext", "JPEG quality " + QUALS[state.q]);
+    sIn.setAttribute("aria-valuetext", SIZES[state.s] + " times");
+    swapBtn.setAttribute("aria-pressed", state.swap ? "true" : "false");
+    wrongBtn.setAttribute("aria-pressed", state.wrong ? "true" : "false");
+
+    // readout (real numbers from widget_curves.json)
+    var c = cell(), codeRow = $("rk-rCode"), faceRow = $("rk-rFace"), v = $("rk-verdict");
+    if (!c) {
+      codeRow.className = faceRow.className = "rk-rrow na";
+      codeRow.querySelector(".rk-rval").textContent = faceRow.querySelector(".rk-rval").textContent = data === false ? "Scores could not be loaded" : "Loading scores…";
+      v.className = "rk-verdict"; v.querySelector(".status").textContent = ""; v.querySelector("p").textContent = "";
+    } else {
+      var C = c[0], G = state.wrong ? c[2] : c[1], tc = data.tau_C, tg = data.tau_G;
+      var codeOk = G >= tg, faceOk = C >= tc, ok = codeOk && faceOk;
+      codeRow.className = "rk-rrow " + (codeOk ? "ok" : "no");
+      codeRow.querySelector(".rk-ricon").textContent = codeOk ? "✓" : "×";
+      codeRow.querySelector(".rk-rval").textContent = codeOk ? "Found" : "Not found";
+      codeRow.querySelector(".rk-rnum").innerHTML = "code score " + G.toFixed(2) + (codeOk ? " ≥ " : " &lt; ") + tg.toFixed(2) + (state.wrong ? " (wrong code)" : "");
+      faceRow.className = "rk-rrow " + (faceOk ? "ok" : "no");
+      faceRow.querySelector(".rk-ricon").textContent = faceOk ? "✓" : "×";
+      faceRow.querySelector(".rk-rval").textContent = faceOk ? "Matches the posted one" : (state.swap ? "Changed" : "Too worn to confirm");
+      faceRow.querySelector(".rk-rnum").innerHTML = "face match " + C.toFixed(4) + (faceOk ? " ≥ " : " &lt; ") + tc.toFixed(4);
+      v.className = "rk-verdict " + (ok ? "c" : "u");
+      v.querySelector(".status").className = "status " + (ok ? "c" : "u");
+      v.querySelector(".status").textContent = ok ? "Confirmed" : "Flagged for review";
+      var why;
+      if (ok) why = "Both checks pass: this is the photo you posted.";
+      else if (state.swap) why = "The face was swapped" + (state.wrong ? " and the code is wrong." : ".") + " A person reviews it, with the scores as a receipt.";
+      else if (state.wrong) why = "This code was never hidden in the photo, so nothing is found.";
+      else why = "This copy was squeezed harder than the check is tuned for, so a person takes a look.";
+      v.querySelector("p").textContent = why;
     }
-    transitionStart = now;
-    metricLabelEl.textContent = s.metricLabel;
-    metricValueEl.textContent = s.metricValue;
-    metricSubEl.textContent = s.metricSub;
-    captionEl.innerHTML = s.caption;
-    legendEl.innerHTML = s.legend || "";
-    legendEl.hidden = !s.legend;
-    var measuring = !!MEASURE_STAGES[key];
-    measuringEl.hidden = !measuring;
-    lensOverlayEl.classList.toggle("active", measuring);
-    sweepTargetOpacity = measuring ? 1 : 0;
+    if (ring) ring.show(state, c, data);
   }
 
-  function selectScenario(key) {
-    currentStep = STEP_ORDER.indexOf(key);
-    widget.querySelectorAll(".scenario-tab").forEach(function (t) {
-      t.setAttribute("aria-selected", t.dataset.scenario === key ? "true" : "false");
+  function go(step) { state.step = step; if (step === "release") state.wrong = false; if (step === "original") state.wrong = true; render(); }
+  function toLive() { if (!live()) state.step = state.wrong ? "original" : "release"; }
+  stepBtns.forEach(function (b) { b.addEventListener("click", function () { go(b.dataset.step); }); });
+  prevBtn.addEventListener("click", function () { var i = ORDER.indexOf(state.step); if (i > 0) go(ORDER[i - 1]); });
+  nextBtn.addEventListener("click", function () { var i = ORDER.indexOf(state.step); if (i < ORDER.length - 1) go(ORDER[i + 1]); });
+  qIn.addEventListener("input", function () { state.q = +qIn.value; toLive(); render(); });
+  sIn.addEventListener("input", function () { state.s = +sIn.value; toLive(); render(); });
+  swapBtn.addEventListener("click", function () { state.swap = !state.swap; toLive(); render(); });
+  wrongBtn.addEventListener("click", function () { state.wrong = !state.wrong; state.step = state.wrong ? "original" : "release"; render(); });
+  faceSel.addEventListener("change", function () { state.face = faceSel.value; toLive(); render(); });
+  techBtn.addEventListener("click", function () { state.tech = !state.tech; render(); });
+
+  // ---------- the ring (visual only; optional if WebGL / three.js is missing) ----------
+  var ring = null;
+  try { ring = makeRing(); } catch (e) { ring = null; }
+  if (!ring) $("rk-stage").classList.add("no3d");
+
+  fetch("static/data/widget_curves.json").then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (j) { data = j; render(); }, function () { data = false; render(); });
+  render();
+
+  function makeRing() {
+    if (typeof THREE === "undefined") return null;
+    var stageEl = $("rk-stage"), canvas = $("rk-canvas");
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x12151a);
+    scene.fog = new THREE.Fog(0x12151a, 7, 13);
+    var camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    scene.add(new THREE.AmbientLight(0x5a6672, 1.35));
+    var key1 = new THREE.DirectionalLight(0xffffff, 0.95); key1.position.set(3.5, 5, 4); scene.add(key1);
+    var fillTeal = new THREE.DirectionalLight(0x1fa393, 0.5); fillTeal.position.set(-4, 2, -3); scene.add(fillTeal);
+    var INNER_R = 1.5, OUTER_R = 2.6, N_BINS = 180;
+    scene.add(new THREE.PolarGridHelper(OUTER_R * 1.18, 16, 4, 64, 0x2a3f45, 0x1d2529));
+
+    function makeSweepTexture() {
+      var size = 128, c = document.createElement("canvas"); c.width = size; c.height = size;
+      var ctx = c.getContext("2d"), g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+      g.addColorStop(0, "rgba(217,115,13,0.85)"); g.addColorStop(1, "rgba(217,115,13,0)");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, size, size);
+      return new THREE.CanvasTexture(c);
+    }
+    var sweepPivot = new THREE.Group(); scene.add(sweepPivot);
+    var sweepMat = new THREE.MeshBasicMaterial({ map: makeSweepTexture(), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+    var sweepBlade = new THREE.Mesh(new THREE.CircleGeometry(OUTER_R * 1.3, 48, 0, Math.PI / 5), sweepMat);
+    sweepBlade.rotation.x = -Math.PI / 2; sweepBlade.position.set(0, 0.015, 0); sweepPivot.add(sweepBlade);
+    var sweepOpacity = 0, sweepTargetOpacity = 0;
+
+    function hash(n) { var x = Math.sin(n) * 43758.5453123; return x - Math.floor(x); }
+    var boxGeo = new THREE.BoxGeometry(0.07, 1, 0.07), bins = [], ringGroup = new THREE.Group(); scene.add(ringGroup);
+    for (var i = 0; i < N_BINS; i++) {
+      var angle = i * 2.399963, radius = INNER_R + Math.sqrt(hash(i * 12.9898 + 0.37)) * (OUTER_R - INNER_R);
+      var mat = new THREE.MeshStandardMaterial({ color: 0x5b6470, roughness: 0.55, metalness: 0.08, transparent: true, opacity: 1 });
+      var mesh = new THREE.Mesh(boxGeo, mat);
+      mesh.position.x = Math.cos(angle) * radius; mesh.position.z = Math.sin(angle) * radius; ringGroup.add(mesh);
+      bins.push({ mesh: mesh, seed: i, angle: angle, weight: hash(i * 7.31 + 1.9),
+        height: 0.15, targetHeight: 0.15, fromHeight: 0.15, op: 1, fromOp: 1, targetOp: 1,
+        color: new THREE.Color(0x5b6470), targetColor: new THREE.Color(0x5b6470), fromColor: new THREE.Color(0x5b6470) });
+    }
+    var GREEN = 0x2fae55, RED = 0xe2554a, MUTED = 0x5b6470;
+    var DIV_NEG = new THREE.Color(0x1fa393), DIV_MID = new THREE.Color(0x5b6470), DIV_POS = new THREE.Color(0xd9730d), _c = new THREE.Color();
+    function div(v) { v = Math.max(-1, Math.min(1, v)); if (v >= 0) _c.copy(DIV_MID).lerp(DIV_POS, v); else _c.copy(DIV_MID).lerp(DIV_NEG, -v); return _c.getHex(); }
+
+    // illustrative build-up (steps 1-4), unchanged drawings
+    var BUILD = {
+      key: function (b) { return { color: hash(b.seed * 12.9898 + 0.11) < 0.5 ? DIV_NEG.getHex() : DIV_POS.getHex(), height: 0.65 }; },
+      displacement: function (b) { var v = hash(b.seed * 12.9898 + 0.11) * 2 - 1; return { color: div(v), height: 0.25 + Math.abs(v) * 0.5 }; },
+      template: function (b) {
+        var host = Math.sin(b.angle * 3 + 1.3) * 0.55 + Math.sin(b.angle * 7 - 0.6) * 0.35, v = hash(b.seed * 12.9898 + 0.11) * 2 - 1, m = host * 0.92 + v * 0.08;
+        return { color: div(m), height: 0.55 + Math.abs(m) * 0.55 };
+      },
+      residual: function (b) { var n = hash(b.seed * 5.77 + 9.4) * 2 - 1; return { color: div(n * 0.7), height: 0.45 + Math.abs(n) * 0.5 }; }
+    };
+
+    var TRANSITION_MS = reducedMotion ? 0 : 550, transitionStart = 0;
+    var mLabel = $("rk-metricLabel"), mValue = $("rk-metricValue"), mSub = $("rk-metricSub"), legendEl = $("rk-legend"), measuringEl = $("rk-measuringTag"), lensEl = $("rk-lens");
+    var LEG = '<span><i style="background:#2fae55"></i>agrees</span><span><i style="background:#e2554a"></i>disagrees</span>';
+
+    function show(st, c, d) {
+      var isLive = st.step === "release" || st.step === "original";
+      var q = [30, 40, 50, 60, 70, 80, 85, 90, 95, 100][st.q], s = [0.5, 0.6, 0.75, 0.9, 1.0][st.s];
+      // how much the repost has worn the copy down: drives fading and shuffling only
+      var wear = Math.max(0, Math.min(1, (100 - q) / 70 * 0.75 + (1 - s) * 0.8));
+      var G = c ? (st.wrong ? c[2] : c[1]) : (st.wrong ? 0 : 1.08);
+      var pAgree = 0.5 + 0.32 * Math.max(-1, Math.min(1, G / 1.08));
+      bins.forEach(function (b) {
+        var r;
+        if (!isLive) r = BUILD[st.step](b);
+        else if (st.swap) { var j = hash(b.seed * 3.71 + 5.2); r = { color: MUTED, height: 0.25 + j * 1.3 }; }
+        else {
+          var agree = hash(b.seed * 12.9898 + (st.wrong ? 2.0 : 1.0)) < pAgree;
+          var jit = (hash(b.seed * 9.13 + q * 0.37 + s * 3.1) - 0.5) * wear;
+          r = { color: agree ? GREEN : RED, height: Math.max(0.12, (agree ? 1.0 + b.weight * 0.35 : 0.4 + b.weight * 0.2) * (1 - 0.45 * wear) + jit) };
+        }
+        b.fromColor.copy(b.color); b.fromHeight = b.height; b.fromOp = b.op;
+        b.targetColor.setHex(r.color); b.targetHeight = r.height;
+        b.targetOp = isLive && !st.swap ? 1 - 0.55 * wear * hash(b.seed * 4.4 + 0.7) : 1;
+      });
+      transitionStart = performance.now();
+      if (!isLive) {
+        var h = STEPS[st.step].hud;
+        mLabel.textContent = h[0]; mValue.textContent = h[1]; mSub.textContent = st.tech ? STEPS[st.step].techSub : h[2];
+        legendEl.hidden = true;
+      } else {
+        mLabel.textContent = st.wrong ? "Wrong-code score" : "Code score";
+        mValue.textContent = c ? G.toFixed(2) : "…";
+        mSub.textContent = d ? "found if ≥ " + d.tau_G.toFixed(2) : "";
+        legendEl.innerHTML = LEG; legendEl.hidden = st.swap;
+      }
+      measuringEl.hidden = !isLive; lensEl.classList.toggle("active", isLive); sweepTargetOpacity = isLive ? 1 : 0;
+    }
+
+    function tick() {
+      var t = TRANSITION_MS <= 0 ? 1 : Math.min(1, (performance.now() - transitionStart) / TRANSITION_MS);
+      var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      for (var i = 0; i < bins.length; i++) {
+        var b = bins[i], h = b.fromHeight + (b.targetHeight - b.fromHeight) * e;
+        b.height = h; b.op = b.fromOp + (b.targetOp - b.fromOp) * e;
+        b.color.copy(b.fromColor).lerp(b.targetColor, e);
+        b.mesh.scale.y = h; b.mesh.position.y = h / 2;
+        b.mesh.material.color.copy(b.color); b.mesh.material.opacity = b.op;
+      }
+    }
+
+    // camera orbit: drag to rotate (vertical swipes still scroll the page on touch); ctrl/pinch + wheel zooms
+    var cam = { theta: 0.7, phi: 1.05, radius: 5.4 }, dragging = false, lastX = 0, lastY = 0, lastInteraction = 0;
+    function updateCamera() {
+      var p = Math.max(0.28, Math.min(1.5, cam.phi));
+      camera.position.set(cam.radius * Math.sin(p) * Math.sin(cam.theta), cam.radius * Math.cos(p), cam.radius * Math.sin(p) * Math.cos(cam.theta));
+      camera.lookAt(0, 0.4, 0);
+    }
+    canvas.addEventListener("pointerdown", function (e) { dragging = true; lastX = e.clientX; lastY = e.clientY; lastInteraction = performance.now(); stageEl.classList.add("dragging"); });
+    canvas.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      var dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY; lastInteraction = performance.now();
+      cam.theta -= dx * 0.006; cam.phi = Math.max(0.28, Math.min(1.5, cam.phi - dy * 0.006));
     });
-    updateIndicator(key);
-    prevBtn.disabled = currentStep === 0;
-    nextBtn.disabled = currentStep === STEP_ORDER.length - 1;
-    applyScenario(key);
-  }
+    function stopDrag() { dragging = false; stageEl.classList.remove("dragging"); }
+    ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) { canvas.addEventListener(ev, stopDrag); });
+    canvas.addEventListener("wheel", function (e) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault(); lastInteraction = performance.now();
+      cam.radius = Math.max(3.2, Math.min(9, cam.radius + e.deltaY * 0.01));
+    }, { passive: false });
 
-  function tick() {
-    var now = performance.now();
-    var t = TRANSITION_MS <= 0 ? 1 : Math.min(1, (now - transitionStart) / TRANSITION_MS);
-    var ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    for (var i = 0; i < bins.length; i++) {
-      var bin = bins[i];
-      var h = bin.fromHeight + (bin.targetHeight - bin.fromHeight) * ease;
-      bin.height = h;
-      bin.color.copy(bin.fromColor).lerp(bin.targetColor, ease);
-      bin.mesh.scale.y = h;
-      bin.mesh.position.y = h / 2;
-      bin.mesh.material.color.copy(bin.color);
+    function resize() {
+      var w = stageEl.clientWidth, h = stageEl.clientHeight; if (!w || !h) return;
+      renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
     }
-  }
+    window.addEventListener("resize", resize); resize();
 
-  widget.querySelectorAll(".scenario-tab").forEach(function (tab) {
-    tab.addEventListener("click", function () { selectScenario(tab.dataset.scenario); });
-  });
-  prevBtn.addEventListener("click", function () {
-    if (currentStep > 0) selectScenario(STEP_ORDER[currentStep - 1]);
-  });
-  nextBtn.addEventListener("click", function () {
-    if (currentStep < STEP_ORDER.length - 1) selectScenario(STEP_ORDER[currentStep + 1]);
-  });
-
-  // ---------- camera orbit (manual, no OrbitControls dependency) ----------
-  var cam = { theta: 0.7, phi: 1.05, radius: 5.4 };
-  var dragging = false, lastX = 0, lastY = 0, lastInteraction = 0;
-
-  function updateCameraPosition() {
-    var p = Math.max(0.28, Math.min(1.5, cam.phi));
-    camera.position.set(
-      cam.radius * Math.sin(p) * Math.sin(cam.theta),
-      cam.radius * Math.cos(p),
-      cam.radius * Math.sin(p) * Math.cos(cam.theta)
-    );
-    camera.lookAt(0, 0.4, 0);
-  }
-
-  canvas.addEventListener("pointerdown", function (e) {
-    dragging = true; lastX = e.clientX; lastY = e.clientY; lastInteraction = performance.now();
-    stageEl.classList.add("dragging");
-    canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
-  });
-  canvas.addEventListener("pointermove", function (e) {
-    if (!dragging) return;
-    var dx = e.clientX - lastX, dy = e.clientY - lastY;
-    lastX = e.clientX; lastY = e.clientY; lastInteraction = performance.now();
-    cam.theta -= dx * 0.006;
-    cam.phi -= dy * 0.006;
-    cam.phi = Math.max(0.28, Math.min(1.5, cam.phi));
-  });
-  function stopDrag() { dragging = false; stageEl.classList.remove("dragging"); }
-  canvas.addEventListener("pointerup", stopDrag);
-  canvas.addEventListener("pointerleave", stopDrag);
-  canvas.addEventListener("pointercancel", stopDrag);
-  canvas.addEventListener("wheel", function (e) {
-    e.preventDefault();
-    lastInteraction = performance.now();
-    cam.radius = Math.max(3.2, Math.min(9, cam.radius + e.deltaY * 0.0035));
-  }, { passive: false });
-
-  // ---------- resize ----------
-  function resize() {
-    var w = stageEl.clientWidth, h = stageEl.clientHeight;
-    if (w === 0 || h === 0) return;
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-  }
-  window.addEventListener("resize", resize);
-  resize();
-
-  // ---------- animation loop ----------
-  function animate() {
-    requestAnimationFrame(animate);
-    if (!dragging && !reducedMotion && performance.now() - lastInteraction > 1200) {
-      cam.theta += 0.0022;
+    var onScreen = true;
+    if ("IntersectionObserver" in window) new IntersectionObserver(function (en) { onScreen = en[0].isIntersecting; }).observe(stageEl);
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!onScreen) return;
+      if (!dragging && !reducedMotion && performance.now() - lastInteraction > 1200) cam.theta += 0.0022;
+      updateCamera(); tick();
+      sweepOpacity += (sweepTargetOpacity - sweepOpacity) * (reducedMotion ? 1 : 0.08);
+      sweepMat.opacity = sweepOpacity;
+      if (!reducedMotion) sweepPivot.rotation.y += 0.018;
+      renderer.render(scene, camera);
     }
-    updateCameraPosition();
-    tick();
-    sweepOpacity += (sweepTargetOpacity - sweepOpacity) * 0.08;
-    sweepMat.opacity = sweepOpacity;
-    if (!reducedMotion) sweepPivot.rotation.y += 0.018;
-    renderer.render(scene, camera);
+    animate();
+    return { show: show };
   }
-
-  selectScenario("key");
-  animate();
 })();
 </script>
 <script>
