@@ -199,6 +199,10 @@
   }
   .vlang button[aria-checked="true"] { background: var(--accent); color: #fff; }
   .vlang button:focus-visible, .vcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .vnudge { margin: 10px 0 0; }
+  .vnudge[hidden] { display: none; }
+  .vnudge button { background: none; border: 0; padding: 6px 0; min-height: 44px; font: inherit; font-size: 15px; font-weight: 600; color: var(--accent); cursor: pointer; text-align: left; }
+  .vnudge button:hover { text-decoration: underline; }
   .vchoices { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0 14px; }
   .vcard {
     display: flex; flex-direction: column; gap: 4px; min-height: 44px; padding: 12px 14px; text-align: left;
@@ -1104,13 +1108,13 @@
         <span class="vc-top"><span class="vc-title">1-minute explainer</span><span class="vc-dur">1:00</span></span>
         <span class="vc-desc">What it is and how it works.</span>
       </button>
-      <button type="button" role="radio" class="vcard" data-v="film" aria-checked="false">
-        <span class="vc-top"><span class="vc-title">Short film</span><span class="vc-dur">1:24</span></span>
-        <span class="vc-desc">The problem, told as a story.</span>
-      </button>
       <button type="button" role="radio" class="vcard" data-v="whynow" aria-checked="false">
         <span class="vc-top"><span class="vc-title">Why now</span><span class="vc-dur">1:59</span></span>
         <span class="vc-desc">How this relates to Apple Reference Image and Google SynthID.</span>
+      </button>
+      <button type="button" role="radio" class="vcard" data-v="film" aria-checked="false">
+        <span class="vc-top"><span class="vc-title">Short film</span><span class="vc-dur">1:24</span></span>
+        <span class="vc-desc">The problem, told as a story.</span>
       </button>
     </div>
     <div class="video-frame">
@@ -1128,6 +1132,7 @@
       </span>
       <span id="vAi">All people shown are AI-generated.</span>
     </div>
+    <p class="vnudge" id="vNudge"><button type="button" id="vNudgeBtn">Why now? See how this relates to Apple Reference Image and Google SynthID &rarr;</button></p>
     <p class="vtm" id="vTm" hidden>Apple and iPhone are trademarks of Apple Inc.; Google and SynthID are trademarks of Google LLC. This research is not affiliated with either company.</p>
   </section>
 
@@ -1624,6 +1629,10 @@
     dl.setAttribute("download", "DoctorTrigger_" + v + "_" + lang + ".mp4");
     var ai = document.getElementById("vAi"), tm = document.getElementById("vTm");
     ai.textContent = t.ai; tm.textContent = t.tm; tm.hidden = v !== "whynow";
+    var nudge = document.getElementById("vNudge"), nb = document.getElementById("vNudgeBtn");
+    nudge.hidden = v !== "explainer";
+    nb.textContent = lang === "zh" ? "為什麼是現在？看它和 Apple Reference Image、Google SynthID 的關係 →" : "Why now? See how this relates to Apple Reference Image and Google SynthID →";
+    nb.lang = lang === "zh" ? "zh-Hant" : "en";
     [ai, tm, dl].forEach(function (el) { el.lang = lang === "zh" ? "zh-Hant" : "en"; });
   }
   function setVideo(key, val, focus) {
@@ -1635,6 +1644,10 @@
       try { history.replaceState(null, "", "#video=" + vState.v + "&lang=" + vState.lang); } catch (e) {}
     }
   }
+  document.getElementById("vNudgeBtn").addEventListener("click", function () {
+    var c = vCards.filter(function (x) { return x.getAttribute("data-v") === "whynow"; })[0];
+    setVideo("v", "whynow", c);
+  });
   function radioKeys(items, key, attr) {
     items.forEach(function (el, i) {
       el.addEventListener("click", function () { setVideo(key, el.getAttribute(attr)); });
