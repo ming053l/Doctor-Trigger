@@ -13,7 +13,7 @@ Yu-Chen Liang<sup>3</sup>,
 </p>
 
 <p align="center">
-<sup>1</sup>State University of New York at Albany<br>
+<sup>1</sup>University at Albany, SUNY<br>
 <sup>2</sup>National Yang Ming Chiao Tung University<br>
 <sup>3</sup>National Cheng Kung University
 </p>
