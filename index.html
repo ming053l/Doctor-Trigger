@@ -189,15 +189,40 @@
   .cmp-cap { text-align: center; margin: 12px auto 0; font: 500 15.5px/1.4 var(--display); color: var(--ink); }
   .cmp-cap .m { color: var(--ink-2); font-weight: 400; }
 
-  /* ---------- video tabs ---------- */
-  .tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0 0 14px; }
-  .tabs button {
-    border: 0; background: none; color: var(--accent); padding: 8px 14px; border-radius: 4px;
-    font: 500 15px/1.2 var(--display); cursor: pointer;
+  /* ---------- video chooser ---------- */
+  .vhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .vhead .sec { margin: 0; padding: 0; border: 0; }
+  .vlang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--surface); }
+  .vlang button {
+    min-height: 44px; min-width: 76px; padding: 0 16px; border: 0; border-radius: 999px; background: none;
+    color: var(--ink-2); font: 600 14.5px/1 var(--display); cursor: pointer;
   }
-  .tabs button:hover { background: var(--accent-soft); }
-  .tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
-  .vpanel[hidden] { display: none; }
+  .vlang button[aria-checked="true"] { background: var(--accent); color: #fff; }
+  .vlang button:focus-visible, .vcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .vchoices { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0 14px; }
+  .vcard {
+    display: flex; flex-direction: column; gap: 4px; min-height: 44px; padding: 12px 14px; text-align: left;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); cursor: pointer;
+    font: inherit; transition: border-color .15s ease, background .15s ease;
+  }
+  .vcard:hover { border-color: var(--accent); }
+  .vcard[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+  .vc-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .vc-title { font: 600 15.5px/1.25 var(--display); }
+  .vcard[aria-checked="true"] .vc-title { color: var(--accent-strong); }
+  .vc-dur { font: 500 12.5px/1 var(--mono); color: var(--ink-3); white-space: nowrap; }
+  .vc-desc { font-size: 13.5px; line-height: 1.4; color: var(--ink-3); }
+  .vmeta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 16px; margin-top: 8px; font-size: 13.5px; color: var(--ink-3); }
+  .vdl { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+  .vtm { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-3); }
+  .vtm[hidden] { display: none; }
+  @media (max-width: 640px) {
+    .vchoices {
+      display: flex; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+      margin-left: 0; margin-right: 0; padding: 2px 2px 8px; overscroll-behavior-x: contain;
+    }
+    .vcard { flex: 0 0 72%; scroll-snap-align: start; }
+  }
 
   /* ---------- interactive decision lab ---------- */
   .decision-lab {
@@ -456,8 +481,6 @@
   .play-overlay:hover { transform: scale(1.06); background: var(--accent-strong); }
   .play-overlay[hidden] { display: none; }
   .play-overlay svg { width: 34px; height: 34px; margin-left: 5px; }
-  .vtitle { font-size: 14.5px; color: var(--ink-3); text-align: center; margin: 10px 0 0; }
-  .vtitle b { color: var(--ink); }
 
   /* ---------- bibtex ---------- */
   .bib { position: relative; }
@@ -1041,31 +1064,39 @@
 
   <!-- ===================== VIDEO ===================== -->
   <section id="video">
-    <h2 class="sec">Video</h2>
-    <div class="tabs" role="tablist" aria-label="Choose a video">
-      <button type="button" role="tab" id="vt-promo" aria-controls="vp-promo" aria-selected="true">Short film (83 s)</button>
-      <button type="button" role="tab" id="vt-zh" aria-controls="vp-zh" aria-selected="false" lang="zh-Hant">中文版</button>
-    </div>
-    <div class="vpanel" id="vp-promo" role="tabpanel" aria-labelledby="vt-promo">
-      <div class="video-frame">
-        <video controls preload="metadata" playsinline poster="static/images/promo_poster.jpg">
-          <source src="static/videos/promo_en.mp4" type="video/mp4">
-          Your browser cannot play this video. <a href="static/videos/promo_en.mp4">Open the MP4 file</a>.
-        </video>
-        <button type="button" class="play-overlay" aria-label="Play the short film"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
+    <div class="vhead">
+      <h2 class="sec" id="vHeading">Video</h2>
+      <div class="vlang" role="radiogroup" aria-label="Video language">
+        <button type="button" role="radio" data-lang="en" aria-checked="true">English</button>
+        <button type="button" role="radio" data-lang="zh" aria-checked="false" lang="zh-Hant">中文</button>
       </div>
-      <p class="vtitle"><b>Short film.</b> What Doctor Trigger does, for a general audience, in 83 seconds (English, with sound).</p>
     </div>
-    <div class="vpanel" id="vp-zh" role="tabpanel" aria-labelledby="vt-zh" hidden lang="zh-Hant">
-      <div class="video-frame">
-        <video controls preload="metadata" playsinline poster="static/images/promo_poster.jpg">
-          <source src="static/videos/promo_zh.mp4" type="video/mp4">
-          無法播放影片。<a href="static/videos/promo_zh.mp4">開啟 MP4 檔案</a>。
-        </video>
-        <button type="button" class="play-overlay" aria-label="播放中文版短片"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
-      </div>
-      <p class="vtitle"><b>中文版短片</b>（83 秒）</p>
+    <div class="vchoices" role="radiogroup" aria-labelledby="vHeading" id="vChoices">
+      <button type="button" role="radio" class="vcard" data-v="explainer" aria-checked="true">
+        <span class="vc-top"><span class="vc-title">1-minute explainer</span><span class="vc-dur">1:00</span></span>
+        <span class="vc-desc">What it is and how it works.</span>
+      </button>
+      <button type="button" role="radio" class="vcard" data-v="film" aria-checked="false">
+        <span class="vc-top"><span class="vc-title">Short film</span><span class="vc-dur">1:24</span></span>
+        <span class="vc-desc">The problem, told as a story.</span>
+      </button>
+      <button type="button" role="radio" class="vcard" data-v="whynow" aria-checked="false">
+        <span class="vc-top"><span class="vc-title">Why now</span><span class="vc-dur">1:59</span></span>
+        <span class="vc-desc">How this relates to Apple Reference Image and Google SynthID.</span>
+      </button>
     </div>
+    <div class="video-frame">
+      <video id="vPlayer" controls preload="metadata" playsinline poster="static/images/poster_explainer_en.jpg" aria-label="1-minute explainer (English)">
+        <source id="vSource" src="static/videos/explainer_en.mp4" type="video/mp4">
+        Your browser cannot play this video. <a href="static/videos/explainer_en.mp4">Open the MP4 file</a>.
+      </video>
+      <button type="button" class="play-overlay" id="vOverlay" aria-label="Play the video"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
+    </div>
+    <div class="vmeta">
+      <a id="vDownload" class="vdl" href="static/videos/explainer_en.mp4" download>Download MP4</a>
+      <span id="vAi">All people shown are AI-generated.</span>
+    </div>
+    <p class="vtm" id="vTm" hidden>Apple and iPhone are trademarks of Apple Inc.; Google and SynthID are trademarks of Google LLC. This research is not affiliated with either company.</p>
   </section>
 
   <!-- ===================== FOR RESEARCHERS ===================== -->
@@ -1473,34 +1504,99 @@
 
 <script>
 (function () {
-  // ---- Video tabs and play overlays ----
-  var vtabs = document.querySelectorAll("#video [role=tab]");
-  function selectVideo(tab) {
-    vtabs.forEach(function (t) {
-      var on = t === tab, panel = document.getElementById(t.getAttribute("aria-controls"));
-      t.setAttribute("aria-selected", on ? "true" : "false");
-      t.tabIndex = on ? 0 : -1;
-      panel.hidden = !on;
-      if (!on) panel.querySelector("video").pause();
+  // ---- Video chooser: one player, three videos x two languages ----
+  var VIDS = {
+    explainer: { en: ["1-minute explainer", "What it is and how it works."], zh: ["一分鐘看懂", "它是什麼、怎麼運作。"] },
+    film: { en: ["Short film", "The problem, told as a story."], zh: ["短片", "用一個故事說明問題。"] },
+    whynow: { en: ["Why now", "How this relates to Apple Reference Image and Google SynthID."], zh: ["為什麼是現在", "與 Apple Reference Image、Google SynthID 的關係。"] }
+  };
+  var VTXT = {
+    en: { group: "Choose a video", play: "Play the video", dl: "Download MP4", ai: "All people shown are AI-generated.",
+          tm: "Apple and iPhone are trademarks of Apple Inc.; Google and SynthID are trademarks of Google LLC. This research is not affiliated with either company." },
+    zh: { group: "選擇影片", play: "播放影片", dl: "下載 MP4", ai: "片中所有人物皆為 AI 生成。",
+          tm: "Apple、iPhone 為 Apple Inc. 之商標；Google、SynthID 為 Google LLC 之商標。本研究與上述公司無關。" }
+  };
+  var vState = { v: "explainer", lang: "en" };
+  try { var savedLang = localStorage.getItem("dtVideoLang"); if (savedLang === "en" || savedLang === "zh") vState.lang = savedLang; } catch (e) {}
+  function readVideoHash() {
+    var m = /video=(explainer|film|whynow)/.exec(location.hash), l = /lang=(en|zh)/.exec(location.hash);
+    if (m) vState.v = m[1];
+    if (l) vState.lang = l[1];
+    return !!m;
+  }
+  readVideoHash();
+  var vPlayer = document.getElementById("vPlayer"), vSource = document.getElementById("vSource"),
+      vOverlay = document.getElementById("vOverlay"), vChoices = document.getElementById("vChoices"),
+      vCards = Array.prototype.slice.call(document.querySelectorAll("#vChoices .vcard")),
+      vLangs = Array.prototype.slice.call(document.querySelectorAll(".vlang [role=radio]"));
+  function renderVideo() {
+    var v = vState.v, lang = vState.lang, t = VTXT[lang], src = "static/videos/" + v + "_" + lang + ".mp4";
+    vCards.forEach(function (c) {
+      var on = c.getAttribute("data-v") === v, d = VIDS[c.getAttribute("data-v")][lang];
+      c.setAttribute("aria-checked", on ? "true" : "false"); c.tabIndex = on ? 0 : -1;
+      c.querySelector(".vc-title").textContent = d[0]; c.querySelector(".vc-desc").textContent = d[1];
+      c.lang = lang === "zh" ? "zh-Hant" : "en";
+    });
+    vLangs.forEach(function (b) { var on = b.getAttribute("data-lang") === lang; b.setAttribute("aria-checked", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; });
+    var sel = vCards.filter(function (c) { return c.getAttribute("data-v") === v; })[0];
+    if (sel && vChoices.scrollWidth > vChoices.clientWidth) {
+      var left = sel.offsetLeft, right = left + sel.offsetWidth;
+      if (left < vChoices.scrollLeft || right > vChoices.scrollLeft + vChoices.clientWidth) vChoices.scrollLeft = left - 2;
+    }
+    vChoices.setAttribute("aria-label", t.group); vChoices.removeAttribute("aria-labelledby");
+    if (vSource.getAttribute("src") !== src) {
+      vPlayer.pause();
+      vSource.setAttribute("src", src);
+      vPlayer.poster = "static/images/poster_" + v + "_" + lang + ".jpg";
+      vPlayer.load();
+      vOverlay.hidden = false;
+    }
+    vPlayer.setAttribute("aria-label", VIDS[v][lang][0] + (lang === "zh" ? "（中文）" : " (English)"));
+    vOverlay.setAttribute("aria-label", t.play + ": " + VIDS[v][lang][0]);
+    var dl = document.getElementById("vDownload"); dl.href = src; dl.textContent = t.dl;
+    dl.setAttribute("download", "DoctorTrigger_" + v + "_" + lang + ".mp4");
+    var ai = document.getElementById("vAi"), tm = document.getElementById("vTm");
+    ai.textContent = t.ai; tm.textContent = t.tm; tm.hidden = v !== "whynow";
+    [ai, tm, dl].forEach(function (el) { el.lang = lang === "zh" ? "zh-Hant" : "en"; });
+  }
+  function setVideo(key, val, focus) {
+    vState[key] = val;
+    if (key === "lang") { try { localStorage.setItem("dtVideoLang", val); } catch (e) {} }
+    renderVideo();
+    if (focus) focus.focus();
+    if (/(^|[#&])video=/.test(location.hash) && history.replaceState) {
+      try { history.replaceState(null, "", "#video=" + vState.v + "&lang=" + vState.lang); } catch (e) {}
+    }
+  }
+  function radioKeys(items, key, attr) {
+    items.forEach(function (el, i) {
+      el.addEventListener("click", function () { setVideo(key, el.getAttribute(attr)); });
+      el.addEventListener("keydown", function (e) {
+        var d = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        var next = items[(i + d + items.length) % items.length];
+        setVideo(key, next.getAttribute(attr), next);
+      });
     });
   }
-  vtabs.forEach(function (tab, index) {
-    tab.tabIndex = tab.getAttribute("aria-selected") === "true" ? 0 : -1;
-    tab.addEventListener("click", function () { selectVideo(tab); });
-    tab.addEventListener("keydown", function (event) {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      event.preventDefault();
-      var next = vtabs[(index + (event.key === "ArrowRight" ? 1 : vtabs.length - 1)) % vtabs.length];
-      next.focus(); selectVideo(next);
-    });
+  radioKeys(vCards, "v", "data-v");
+  radioKeys(vLangs, "lang", "data-lang");
+  vOverlay.addEventListener("click", function () { if (vPlayer.paused || vPlayer.ended) vPlayer.play(); else vPlayer.pause(); });
+  vPlayer.addEventListener("play", function () { vOverlay.hidden = true; });
+  vPlayer.addEventListener("pause", function () { vOverlay.hidden = false; });
+  vPlayer.addEventListener("ended", function () { vOverlay.hidden = false; });
+  renderVideo();
+  window.addEventListener("hashchange", function () {
+    if (readVideoHash()) { renderVideo(); document.getElementById("video").scrollIntoView(); }
   });
-  document.querySelectorAll(".video-frame").forEach(function (frame) {
-    var vid = frame.querySelector("video"), ov = frame.querySelector(".play-overlay");
-    ov.addEventListener("click", function () { if (vid.paused || vid.ended) vid.play(); else vid.pause(); });
-    vid.addEventListener("play", function () { ov.hidden = true; });
-    vid.addEventListener("pause", function () { ov.hidden = false; });
-    vid.addEventListener("ended", function () { ov.hidden = false; });
-  });
+  if (/(^|[#&])video=/.test(location.hash)) {
+    var vSec = document.getElementById("video");
+    if (vSec) {
+      setTimeout(function () { vSec.scrollIntoView(); }, 0);
+      window.addEventListener("load", function () { vSec.scrollIntoView(); });
+    }
+  }
 
   // ---- Drag-to-compare ----
   var cmp = document.getElementById("cmp"), cmpRange = document.getElementById("cmpRange");

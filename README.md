@@ -8,11 +8,12 @@ external dependency.
 index.html                       # the whole page
 static/images/fig*.png           # figures cropped from the paper
 static/images/teaser_poster.jpg  # poster frame of the hero teaser
-static/images/promo_poster.jpg   # poster frame of the 83-second short film (shared by EN and ZH)
+static/images/poster_<id>_<lang>.jpg  # poster frame of each Video-section video (id: explainer | film | whynow; lang: en | zh)
 static/images/compare_*.png      # drag-to-compare pair: original / posted (AI-generated face, 512 px)
 static/videos/teaser.*           # 22-second silent looping teaser in the hero band (mp4 + webm)
-static/videos/promo_en.mp4       # 83-second short film, English (main video)
-static/videos/promo_zh.mp4       # 83-second short film, Chinese (中文版 tab)
+static/videos/explainer_{en,zh}.mp4  # 60-second explainer, bright style (default video)
+static/videos/film_{en,zh}.mp4       # 84-second short film, dark dramatic style
+static/videos/whynow_{en,zh}.mp4     # 119-second "Why now" version (Apple Reference Image, Google SynthID)
 static/pdf/paper.pdf             # paper PDF linked from the "Paper" button
 .nojekyll                        # tell GitHub Pages to serve files as-is
 ```
@@ -22,6 +23,9 @@ Preview locally:
 ```bash
 python3 -m http.server 8000   # then open http://localhost:8000
 ```
+
+The Video section has one player; deep links select a video and language, e.g.
+`index.html#video=whynow&lang=zh` (video: explainer | film | whynow; lang: en | zh).
 
 ## Deploy
 
