@@ -13,12 +13,6 @@ benign-channels:
   impl: migrated
   paper: 'appendix Table 10 (benign channels per dataset): full-ring 1-H and the augmented image-only
     detector of that dataset; also the full-ring row of Table 1 (benign columns)'
-defect-audit:
-  cmd: python defect_audit.py
-  cwd: '{repo_root}/experiments'
-  impl: migrated
-  paper: 'appendix E.1 (template source and channel cancellation): side-by-side reproduction of reading
-    the reference from the released image'
 deployment-cost:
   cmd: python {repo_root}/experiments/depcost.py && python {repo_root}/experiments/depcost_ours.py
   cwd: '{peers_root}'
@@ -102,14 +96,6 @@ pipeline-verify:
   cwd: '{repo_root}/workflow'
   impl: migrated
   paper: integrity acceptance of a completed pipeline root
-posthoc-attack:
-  cmd: python posthoc_attack.py
-  cwd: '{repo_root}/experiments'
-  gpu: true
-  impl: migrated
-  output: '{outputs_root}/posthoc_attack.csv'
-  paper: 'appendix Table 11 (post-hoc enrollment attack): never-released originals against each verifier
-    at deployed thresholds'
 record-codec:
   cmd: python record_codec.py
   cwd: '{repo_root}/experiments'
@@ -124,13 +110,6 @@ reference-baselines:
   output: '{outputs_root}/reference_baselines.csv'
   paper: 'Table 3 and appendix Table 7 swap-AUC columns: equally-privileged references (original phase
     H, SSIM, ArcFace)'
-reference-channels:
-  cmd: python reference_channels.py
-  cwd: '{repo_root}/experiments'
-  gpu: true
-  impl: migrated
-  output: '{outputs_root}/reference_channels.csv'
-  paper: 'control: reference baselines (H, SSIM, ArcFace) under the Table 1 benign channels'
 release-evidence:
   cmd: python release_evidence.py
   cwd: '{repo_root}/experiments'
@@ -152,12 +131,6 @@ sensitivity-release:
   impl: migrated
   output: '{outputs_root}/sensitivity/'
   paper: 'appendix Figs 13 and 14 and Table 15: alpha and ring sweeps plus the m sweep'
-subband-fusion:
-  cmd: python subband_fusion.py
-  cwd: '{repo_root}/experiments'
-  gpu: true
-  impl: migrated
-  paper: 'Table 1 fusion row read at the sub-band: max(image-path probability, 1-H) per query'
 subband-table1:
   cmd: python subband_table1.py {part}
   cwd: '{repo_root}/experiments'
@@ -165,21 +138,11 @@ subband-table1:
   impl: migrated
   paper: Table 1 C_B row (part=benign|datasets|engines); part=datasets also gives the Table 2 direct 1-C_B
     row
-subband-freelunch:
-  cmd: python subband_freelunch.py
-  cwd: '{repo_root}/experiments'
-  impl: migrated
-  paper: 'appendix I.1 (readout): cut sweep and per-channel radial-profile weighting'
 subband-readout:
   cmd: python subband_readout.py
   cwd: '{repo_root}/experiments'
   impl: migrated
   paper: the exploratory five-cut FF++ band diagnostic named in the Table 1 caption (appendix G.2)
-subband-side-effects:
-  cmd: python subband_side_effects.py
-  cwd: '{repo_root}/experiments'
-  impl: migrated
-  paper: 'appendix I.1 (readout): key, post-hoc, and attribution behavior of the sub-band reading'
 table4-artifact:
   cmd: python table4_artifact.py all
   cwd: '{repo_root}/experiments'
