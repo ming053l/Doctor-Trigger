@@ -75,6 +75,7 @@
   .authors { font-size: 19px; gap: 2px 0; max-width: 860px; }
   .authors li:not(:last-child)::after { content: ","; color: var(--ink-2); margin-right: .45em; }
   .authors .name { color: var(--accent); }
+  .authors a.name:hover { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 3px; }
   .authors sup, .affils sup { font-size: .62em; margin-left: 1px; }
   .affils { font-size: 16.5px; gap: 2px 18px; margin-top: 6px; color: var(--ink-2); }
   .affils sup { margin-right: 2px; }
@@ -152,6 +153,17 @@
   .cmp .tag.l { left: 12px; } .cmp .tag.r { right: 12px; }
   .cmp input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; margin: 0; }
   .note.center { max-width: 760px; margin-inline: auto; }
+  .cmp-thumbs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 640px; margin: 14px auto 0; padding: 0; list-style: none; }
+  .cmp-thumbs button {
+    display: block; padding: 0; width: 64px; height: 64px; border: 2px solid transparent; border-radius: 6px; overflow: hidden;
+    background: var(--line); cursor: pointer; opacity: .72; transition: opacity .15s, border-color .15s;
+  }
+  .cmp-thumbs button img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .cmp-thumbs button:hover { opacity: 1; }
+  .cmp-thumbs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .cmp-thumbs button[aria-pressed="true"] { opacity: 1; border-color: var(--accent); }
+  .cmp-cap { text-align: center; margin: 12px auto 0; font: 500 15.5px/1.4 var(--display); color: var(--ink); }
+  .cmp-cap .m { color: var(--ink-2); font-weight: 400; }
 
   /* ---------- video tabs ---------- */
   .tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0 0 14px; }
@@ -273,7 +285,7 @@
   .support .table-wrap { margin-top: 14px; }
   .also b { color: var(--ink); }
 
-  /* ---------- interactive key-ring walkthrough (Fig. 10) ---------- */
+  /* ---------- interactive key-ring walkthrough ---------- */
   .rk-explore { margin-top: 26px; }
   .rk-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(200px, 1fr); gap: 18px; align-items: start; }
   .rk-layout .frame { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
@@ -489,12 +501,12 @@
   </h1>
   <p class="subtitle">A Framework for Release-Bound Face Verification</p>
   <ul class="authors" aria-label="Authors">
-    <li><span class="name">Chia-Ming Lee</span><sup>1,2</sup></li>
+    <li><a class="name" href="https://ming053l.github.io/" target="_blank" rel="noopener">Chia-Ming Lee</a><sup>1,2</sup></li>
     <li><span class="name">Chia-Yu Lin</span><sup>3</sup></li>
     <li><span class="name">Hung-Kai Huang</span><sup>2</sup></li>
     <li><span class="name">Yi-Ting Ku</span><sup>3</sup></li>
     <li><span class="name">Yu-Chen Liang</span><sup>3</sup></li>
-    <li><span class="name">Chih-Chung Hsu</span><sup>2</sup></li>
+    <li><a class="name" href="https://cchsu.info/" target="_blank" rel="noopener">Chih-Chung Hsu</a><sup>2</sup></li>
   </ul>
   <ul class="affils" aria-label="Affiliations">
     <li><sup>1</sup>State University of New York at Albany</li>
@@ -679,13 +691,24 @@
   <section id="compare">
     <h2 class="sec">Original vs. posted: drag to compare</h2>
     <div class="cmp" id="cmp">
-      <img src="static/images/compare_posted.png" alt="Posted image, carrying the hidden keyed signal" width="512" height="512">
-      <div class="top"><img src="static/images/compare_original.png" alt="Original image, before the signal is added" width="512" height="512"></div>
+      <img id="cmpPosted" src="static/images/compare/cafe_posted.jpg" alt="Posted image, carrying the hidden keyed signal" width="512" height="512">
+      <div class="top"><img id="cmpOriginal" src="static/images/compare/cafe_original.jpg" alt="Original image, before the signal is added" width="512" height="512"></div>
       <div class="bar"></div><div class="knob" aria-hidden="true">&#8596;</div>
       <span class="tag l">Original</span><span class="tag r">Posted</span>
       <input id="cmpRange" type="range" min="0" max="100" value="50" step="0.5" aria-label="Position of the divider between the original and the posted image">
     </div>
-    <p class="note center"><b>The hidden code is imperceptible.</b> The posted image carries the weak keyed signal, yet it matches the original at <b>51.1 dB</b> PSNR (SSIM 0.998). Enrolled with the public Doctor Trigger code on a 512&nbsp;px face crop. The face is AI-generated and does not show a real person.</p>
+    <p class="cmp-cap" id="cmpCap" aria-live="polite"><span id="cmpLabel">Café selfie</span> <span class="m">· PSNR <b id="cmpPsnr">51.15</b> dB · SSIM <b id="cmpSsim">0.998</b></span></p>
+    <ul class="cmp-thumbs" id="cmpThumbs" aria-label="Choose a sample">
+      <li><button type="button" data-name="cafe" data-label="Café selfie" data-psnr="51.15" data-ssim="0.998" aria-pressed="true" aria-label="Show sample 1: Café selfie" title="Café selfie"><img src="static/images/compare/cafe_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="news" data-label="Press briefing" data-psnr="51.14" data-ssim="0.997" aria-pressed="false" aria-label="Show sample 2: Press briefing" title="Press briefing"><img src="static/images/compare/news_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="travel" data-label="Travel photo" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 3: Travel photo" title="Travel photo"><img src="static/images/compare/travel_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="beauty" data-label="Beauty vlog" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 4: Beauty vlog" title="Beauty vlog"><img src="static/images/compare/beauty_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="market" data-label="Market vendor" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 5: Market vendor" title="Market vendor"><img src="static/images/compare/market_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="shop" data-label="Shop owner" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 6: Shop owner" title="Shop owner"><img src="static/images/compare/shop_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="photographer" data-label="Street photographer" data-psnr="51.14" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 7: Street photographer" title="Street photographer"><img src="static/images/compare/photographer_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+      <li><button type="button" data-name="doctor" data-label="Hospital doctor" data-psnr="51.15" data-ssim="0.998" aria-pressed="false" aria-label="Show sample 8: Hospital doctor" title="Hospital doctor"><img src="static/images/compare/doctor_thumb.jpg" alt="" width="64" height="64" loading="lazy"></button></li>
+    </ul>
+    <p class="note center"><b>The hidden code is imperceptible.</b> Each posted image carries the weak keyed signal, enrolled with the public Doctor Trigger code on a 512&nbsp;px face crop, and stays at about 51&nbsp;dB PSNR from its original. PSNR and SSIM are measured on the lossless PNG images; the images shown here are JPEG-compressed for size. All faces are AI-generated and do not show real people.</p>
   </section>
 
   <!-- ===================== METHOD ===================== -->
@@ -804,12 +827,12 @@
             </tbody>
           </table>
         </div>
-        <p class="note">†: fixed public weights; —: no dataset-specific training (paper Table 2).</p>
+        <p class="note">†: fixed public weights; —: no dataset-specific training.</p>
       </details>
       <p class="also">Also <b>1.000</b> AUC on StarGAN, UniFace, InSwapper and SD inpainting (FF++; the paper marks this comparison as exploratory).</p>
       <figure>
         <div class="frame" style="max-width:760px;margin-inline:auto"><img src="static/images/fig9_examples.png" alt="Released images, JPEG copies and re-rendered faces from FF++ and Celeb-DF with their sub-band template agreement." loading="lazy"></div>
-        <figcaption><b>Examples.</b> Released images and their JPEG copies pass the template check; re-rendered faces fail it. Green and red borders mark acceptance and rejection. Selected rows from paper Fig. 9.</figcaption>
+        <figcaption><b>Examples.</b> Released images and their JPEG copies pass the template check; re-rendered faces fail it. Green and red borders mark acceptance and rejection.</figcaption>
       </figure>
     </article>
 
@@ -834,10 +857,10 @@
           <p><b>99.5%</b> of JPEG-compressed releases still pass, and all tested wrong keys are rejected.</p>
         </div>
       </div>
-      <p class="note">JPEG calibration, paper Table 3.</p>
+      <p class="note">Thresholds calibrated on JPEG copies.</p>
       <figure>
         <div class="frame"><img src="static/images/fig10_key.png" alt="Key sign pattern over the frequency ring, keyed displacement, template, query residual, and sign agreement with the correct and a wrong key." loading="lazy"></div>
-        <figcaption><b>What the key sees</b>, on one FF++ face. (a) The key expands into a sign pattern over the frequency ring. (d) A benign copy's phase residual looks like noise, but its signs follow the key: <b>82%</b> of bins agree with the correct key (e), against <b>49%</b>, chance, with a wrong key (f). Paper Fig. 10.</figcaption>
+        <figcaption><b>What the key sees</b>, on one FF++ face. (a) The key expands into a sign pattern over the frequency ring. (d) A benign copy's phase residual looks like noise, but its signs follow the key: <b>82%</b> of bins agree with the correct key (e), against <b>49%</b>, chance, with a wrong key (f).</figcaption>
       </figure>
 
       <div class="rk-explore" id="rk-widget">
@@ -893,7 +916,7 @@
           </div>
         </div>
         <div class="rk-caption">
-          <p id="rk-captionText"><span class="tag">FIG. 10 &middot; (a) THE KEY</span>A seed expands into a fixed sign pattern over the ring&rsquo;s active bins &mdash; nothing here depends on any image yet. This is the key alone.</p>
+          <p id="rk-captionText"><span class="tag">(a) THE KEY</span>A seed expands into a fixed sign pattern over the ring&rsquo;s active bins &mdash; nothing here depends on any image yet. This is the key alone.</p>
           <p>Panels (a)&ndash;(d) are illustrative reconstructions of the key, its displacement, and how it sits inside a face&rsquo;s own phase &mdash; no real image is Fourier-transformed here. Panels (e)&ndash;(f) use the paper&rsquo;s own reported numbers (82% / 49%).</p>
         </div>
       </div>
@@ -903,7 +926,7 @@
       <article>
         <div class="f-k">Invisible</div>
         <h3>The release looks virtually unchanged.</h3>
-        <p><b>51.2 dB</b> PSNR, compared with 29.9–41.4 dB for the compared watermarking methods on the same face. Across all 7,366 enrollments the average is <b>51.20 dB</b> (minimum 49.3 dB) with SSIM 1.00, and it holds at 128, 256 and 512 px on all three datasets (paper Table 6).</p>
+        <p><b>51.2 dB</b> PSNR, compared with 29.9–41.4 dB for the compared watermarking methods on the same face. Across all 7,366 enrollments the average is <b>51.20 dB</b> (minimum 49.3 dB) with SSIM 1.00, and it holds at 128, 256 and 512 px on all three datasets.</p>
         <figure>
           <div class="frame"><img src="static/images/fig5_fidelity.png" alt="Same FF++ face marked by eight methods with PSNR, and 10x amplified residuals." loading="lazy"></div>
           <figcaption>Residuals amplified 10× below each face. Payload and reference budgets differ across methods.</figcaption>
@@ -932,7 +955,7 @@
             </tbody>
           </table>
         </div>
-        <p class="note">Means over 20 256² crops. ‡ Xeon Gold 6248R CPU; other methods on an A5000 GPU (paper Table 16).</p>
+        <p class="note">Means over 20 256² crops. ‡ Xeon Gold 6248R CPU; other methods on an A5000 GPU.</p>
       </article>
       <article>
         <div class="f-k">Robustness</div>
@@ -956,7 +979,7 @@
           </tbody>
         </table>
       </div>
-        <p class="note">200 FF++ releases; cutoffs target 1% benign rejection. Selected rows from paper Table 4.</p>
+        <p class="note">200 FF++ releases; cutoffs target 1% benign rejection. Selected channels shown.</p>
       </article>
     </div>
   </section>
@@ -1021,6 +1044,20 @@
   var cmp = document.getElementById("cmp"), cmpRange = document.getElementById("cmpRange");
   function setCmp() { cmp.style.setProperty("--pos", cmpRange.value + "%"); }
   cmpRange.addEventListener("input", setCmp); setCmp();
+  var cmpBtns = document.querySelectorAll("#cmpThumbs button");
+  function showSample(i) {
+    var b = cmpBtns[i]; if (!b) return;
+    var n = b.getAttribute("data-name");
+    document.getElementById("cmpOriginal").src = "static/images/compare/" + n + "_original.jpg";
+    document.getElementById("cmpPosted").src = "static/images/compare/" + n + "_posted.jpg";
+    document.getElementById("cmpLabel").textContent = b.getAttribute("data-label");
+    document.getElementById("cmpPsnr").textContent = b.getAttribute("data-psnr");
+    document.getElementById("cmpSsim").textContent = b.getAttribute("data-ssim");
+    for (var k = 0; k < cmpBtns.length; k++) cmpBtns[k].setAttribute("aria-pressed", k === i ? "true" : "false");
+  }
+  Array.prototype.forEach.call(cmpBtns, function (b, i) { b.addEventListener("click", function () { showSample(i); }); });
+  var sampleParam = parseInt(new URLSearchParams(location.search).get("sample"), 10);
+  if (sampleParam >= 1 && sampleParam <= cmpBtns.length) showSample(sampleParam - 1);
 
   // ---- Copy BibTeX ----
   document.getElementById("copyBib").addEventListener("click", function () {
@@ -1236,7 +1273,7 @@
   var SCENARIOS = {
     key: {
       metricLabel: "Key value", metricValue: "±1", metricSub: "sign pattern only",
-      caption: '<span class="tag">FIG. 10 &middot; (a) THE KEY</span>A seed expands into a fixed sign pattern over the ring’s active bins — nothing here depends on any image yet. This is the key alone.',
+      caption: '<span class="tag">(a) THE KEY</span>A seed expands into a fixed sign pattern over the ring’s active bins — nothing here depends on any image yet. This is the key alone.',
       compute: function (bin) {
         var s = hash(bin.seed * 12.9898 + 0.11) < 0.5 ? -1 : 1;
         return { color: s > 0 ? 0xd9730d : 0x1fa393, height: 0.65 };
@@ -1244,7 +1281,7 @@
     },
     displacement: {
       metricLabel: "Phase shift", metricValue: "≤ 0.024 rad", metricSub: "tiny, per bin",
-      caption: '<span class="tag">FIG. 10 &middot; (b) THE DISPLACEMENT</span>(&alpha;,&beta;) turn that sign pattern into an actual phase nudge, at most about <b>0.024 rad</b> per bin — far below what a viewer, or a naive cosine statistic, can see.',
+      caption: '<span class="tag">(b) THE DISPLACEMENT</span>(&alpha;,&beta;) turn that sign pattern into an actual phase nudge, at most about <b>0.024 rad</b> per bin — far below what a viewer, or a naive cosine statistic, can see.',
       compute: function (bin) {
         var v = hash(bin.seed * 12.9898 + 0.11) * 2 - 1;
         return { color: divergingColor(v), height: 0.25 + Math.abs(v) * 0.5 };
@@ -1252,7 +1289,7 @@
     },
     template: {
       metricLabel: "Stored template", metricValue: "host + δ", metricSub: "key barely visible",
-      caption: '<span class="tag">FIG. 10 &middot; (c) THE TEMPLATE</span>Template = host phase + displacement. The face’s own phase structure (illustrative here, not recomputed from a real image) dwarfs the key’s tiny nudge, which is why the released image looks unchanged.',
+      caption: '<span class="tag">(c) THE TEMPLATE</span>Template = host phase + displacement. The face’s own phase structure (illustrative here, not recomputed from a real image) dwarfs the key’s tiny nudge, which is why the released image looks unchanged.',
       compute: function (bin) {
         var host = Math.sin(bin.angle * 3 + 1.3) * 0.55 + Math.sin(bin.angle * 7 - 0.6) * 0.35;
         var v = hash(bin.seed * 12.9898 + 0.11) * 2 - 1;
@@ -1262,7 +1299,7 @@
     },
     residual: {
       metricLabel: "Query residual", metricValue: "looks like noise", metricSub: "no visible structure",
-      caption: '<span class="tag">FIG. 10 &middot; (d) THE RESIDUAL</span>A returning query’s residual against the host, viewed directly, looks like plain noise (illustrative). Nothing here says whether the key survived — that only shows up once you check bin-by-bin agreement with the key’s sign, next.',
+      caption: '<span class="tag">(d) THE RESIDUAL</span>A returning query’s residual against the host, viewed directly, looks like plain noise (illustrative). Nothing here says whether the key survived — that only shows up once you check bin-by-bin agreement with the key’s sign, next.',
       compute: function (bin) {
         var noise = hash(bin.seed * 5.77 + 9.4) * 2 - 1;
         return { color: divergingColor(noise * 0.7), height: 0.45 + Math.abs(noise) * 0.5 };
@@ -1271,7 +1308,7 @@
     release: {
       metricLabel: "Sign agreement", metricValue: "82%", metricSub: "Gs = 1.08",
       legend: '<span><i style="background:#2fae55"></i>agrees with key</span><span><i style="background:#e2554a"></i>disagrees</span>',
-      caption: '<span class="tag">FIG. 10 &middot; CORRECT KEY</span>The same benign copy’s phase residual, projected onto its <b>correct</b> enrolled key. <b>82%</b> of the 180 active bins agree in sign (Gs&nbsp;=&nbsp;1.08), which is why the signed projection concentrates near one.',
+      caption: '<span class="tag">CORRECT KEY</span>The same benign copy’s phase residual, projected onto its <b>correct</b> enrolled key. <b>82%</b> of the 180 active bins agree in sign (Gs&nbsp;=&nbsp;1.08), which is why the signed projection concentrates near one.',
       compute: function (bin) {
         var m = hash(bin.seed * 12.9898 + 1.0) < 0.82;
         return { color: m ? GREEN : RED, height: m ? 1.0 + bin.weight * 0.35 : 0.4 + bin.weight * 0.2 };
@@ -1280,7 +1317,7 @@
     original: {
       metricLabel: "Sign agreement", metricValue: "49%", metricSub: "G = 0.01, chance",
       legend: '<span><i style="background:#2fae55"></i>agrees with key</span><span><i style="background:#e2554a"></i>disagrees</span>',
-      caption: '<span class="tag">FIG. 10 &middot; WRONG KEY</span>Exactly the same copy and the same residual as panel (e) — only the key direction changes. Against an independent wrong key, agreement falls to <b>49%</b>, chance (G&nbsp;=&nbsp;0.01). A cosine statistic cannot tell (e) and (f) apart at this displacement; the signed projection can.',
+      caption: '<span class="tag">WRONG KEY</span>Exactly the same copy and the same residual as panel (e) — only the key direction changes. Against an independent wrong key, agreement falls to <b>49%</b>, chance (G&nbsp;=&nbsp;0.01). A cosine statistic cannot tell (e) and (f) apart at this displacement; the signed projection can.',
       compute: function (bin) {
         var m = hash(bin.seed * 12.9898 + 2.0) < 0.49;
         return { color: m ? GREEN : RED, height: 0.6 + bin.weight * 0.3 };
@@ -1289,7 +1326,7 @@
     edit: {
       metricLabel: "Sign agreement", metricValue: "—", metricSub: "relation disrupted",
       legend: '<span><i style="background:#5b6470"></i>relation disrupted, no key check</span>',
-      caption: '<span class="tag">BEYOND FIG. 10 &middot; RE-RENDER</span>This panel is not in Fig. 10: it is a different copy, a re-rendered face, not the benign original that panels (e) and (f) share. Re-rendering breaks the mid-band relation itself before any key is checked, so there is nothing coherent left to project a key onto.',
+      caption: '<span class="tag">RE-RENDER</span>This panel shows a different copy, a re-rendered face, not the benign original that panels (e) and (f) share. Re-rendering breaks the mid-band relation itself before any key is checked, so there is nothing coherent left to project a key onto.',
       compute: function (bin) {
         var jitter = hash(bin.seed * 3.71 + 5.2);
         return { color: MUTED, height: 0.25 + jitter * 2.1 };
