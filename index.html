@@ -470,6 +470,8 @@
   .name-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .name-cols b { color: var(--accent); font-size: 17px; }
   .name-cols p { margin: 4px 0 0; line-height: 1.55; }
+  .name-lead { margin: 0 0 14px; font-size: 16px; line-height: 1.55; color: var(--ink); }
+  .name-bottom { margin: 16px 0 0; font-weight: 600; color: var(--accent); line-height: 1.5; }
   .name-src { margin: 14px 0 0; font-size: 14px; color: #5b6470; line-height: 1.5; }
   @media (max-width: 600px) { .name-cols { grid-template-columns: 1fr; } .name-note { padding: 16px; } }
   .callout {
@@ -807,10 +809,12 @@
     </div>
     <aside class="name-note" aria-labelledby="nameTitle">
       <h3 id="nameTitle">Why &ldquo;Doctor Trigger&rdquo;?</h3>
+      <p class="name-lead">Your face is yours, and so is the proof. The name describes the part you play.</p>
       <div class="name-cols">
-        <div><b>Doctor</b><p>Like a doctor reading your chart before a diagnosis, the check compares a copy with the history kept for it, then sorts it: fine, needs a closer look, or can&rsquo;t tell yet.</p></div>
-        <div><b>Trigger</b><p>The small, invisible signal placed in the photo before it is posted. It changes nothing you can see, but it is what the check looks for later.</p></div>
+        <div><b>Doctor</b><p>A doctor can only make a sound call because your medical history is on file. Here, that history is the private record you keep when you post. When a copy of your face shows up, the check reads it against <em>your</em> record and sorts it: this is yours, needs a closer look, or can&rsquo;t tell yet. Without your record, no platform or investigator can say for sure.</p></div>
+        <div><b>Trigger</b><p>A tiny, invisible signal you place in your photo before posting. Nobody can see it, but later it is what lets you show &ldquo;this one is mine&rdquo; &mdash; and &ldquo;that one isn&rsquo;t me.&rdquo;</p></div>
       </div>
+      <p class="name-bottom">You keep the history. You set the trigger. That is why your word can finally be backed by evidence.</p>
       <p class="name-src">From the paper: &ldquo;<i>Doctor</i> evokes assessment against a retained history followed by triage; <i>Trigger</i> denotes the weak phase signal added before publication while preserving visual fidelity.&rdquo;</p>
     </aside>
   </section>
