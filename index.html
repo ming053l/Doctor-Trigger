@@ -465,6 +465,13 @@
   .note { font-size: 13.5px; color: var(--ink-3); margin-top: 10px; }
 
 
+  .name-note { max-width: 760px; margin: 28px auto 0; padding: 20px 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--accent-soft); }
+  .name-note h3 { margin: 0 0 12px; font-size: 18px; }
+  .name-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .name-cols b { color: var(--accent); font-size: 17px; }
+  .name-cols p { margin: 4px 0 0; line-height: 1.55; }
+  .name-src { margin: 14px 0 0; font-size: 14px; color: #5b6470; line-height: 1.5; }
+  @media (max-width: 600px) { .name-cols { grid-template-columns: 1fr; } .name-note { padding: 16px; } }
   .callout {
     border-left: 4px solid var(--amber); background: var(--amber-soft); border-radius: 10px;
     padding: 14px 18px; margin-top: 18px; font-size: 15px; color: var(--ink);
@@ -798,6 +805,14 @@
       <p>Photos of faces get reposted, compressed, swapped and edited as they spread online. Platforms and investigators often cannot tell which copy is the one a person actually posted, and the evidence ends up scattered across many places.</p>
       <p>Doctor Trigger hides an invisible code in a photo before it is posted and keeps a small private record. Later, any copy can be checked against that record. The check gives a clear result and a receipt that people can review.</p>
     </div>
+    <aside class="name-note" aria-labelledby="nameTitle">
+      <h3 id="nameTitle">Why &ldquo;Doctor Trigger&rdquo;?</h3>
+      <div class="name-cols">
+        <div><b>Doctor</b><p>Like a doctor reading your chart before a diagnosis, the check compares a copy with the history kept for it, then sorts it: fine, needs a closer look, or can&rsquo;t tell yet.</p></div>
+        <div><b>Trigger</b><p>The small, invisible signal placed in the photo before it is posted. It changes nothing you can see, but it is what the check looks for later.</p></div>
+      </div>
+      <p class="name-src">From the paper: &ldquo;<i>Doctor</i> evokes assessment against a retained history followed by triage; <i>Trigger</i> denotes the weak phase signal added before publication while preserving visual fidelity.&rdquo;</p>
+    </aside>
   </section>
 
   <!-- ===================== GENERAL AUDIENCE: HOW IT WORKS ===================== -->
