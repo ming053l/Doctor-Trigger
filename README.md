@@ -1,8 +1,11 @@
 # Doctor Trigger
 
-Code for **DOCTOR TRIGGER: Private Face Records for Cooperative Content Provenance**.
+Code for **Doctor Trigger: A Framework for Release-Bound Face Verification**.
 
-Anonymous authors (under double-blind review).
+[Chia-Ming Lee](https://ming053l.github.io/)<sup>1,2</sup>, Chia-Yu Lin<sup>3</sup>, Hung-Kai Huang<sup>2</sup>, Yi-Ting Ku<sup>3</sup>, Yu-Chen Liang<sup>3</sup>, [Chih-Chung Hsu](https://cchsu.info/)<sup>2</sup>
+<sup>1</sup>State University of New York at Albany &nbsp; <sup>2</sup>National Yang Ming Chiao Tung University &nbsp; <sup>3</sup>National Cheng Kung University
+
+[Project page](https://ming053l.github.io/Doctor-Trigger/) · [Paper](https://ming053l.github.io/Doctor-Trigger/static/pdf/paper.pdf)
 
 **The idea in three sentences.** When a face image is released, the pipeline files a private
 record of it: the face's own mid-band phase, displaced by a secret key, together with the
@@ -169,3 +172,14 @@ dt/                     path resolution shared by run.py and the evaluations
 
 MIT. See [LICENSE](LICENSE). Datasets, peer checkpoints, and engine weights remain under their
 original licenses and terms.
+
+## Citation
+
+```bibtex
+@misc{lee2026doctortrigger,
+  title  = {Doctor Trigger: A Framework for Release-Bound Face Verification},
+  author = {Lee, Chia-Ming and Lin, Chia-Yu and Huang, Hung-Kai and Ku, Yi-Ting and Liang, Yu-Chen and Hsu, Chih-Chung},
+  year   = {2026},
+  note   = {Under review}
+}
+```
