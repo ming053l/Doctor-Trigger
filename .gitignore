@@ -4,3 +4,5 @@ outputs/
 *.log
 config.yaml
 configs/record_model/*.yaml
+.DS_Store
+quickstart_out/
