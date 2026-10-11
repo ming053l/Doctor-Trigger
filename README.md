@@ -19,10 +19,10 @@ Yu-Chen Liang<sup>3</sup>,
 </p>
 
 <p align="center">
-<a href="https://ming053l.github.io/Doctor-Trigger/"><img alt="Project page" src="https://img.shields.io/badge/Project-page-0b7285"></a>
-<a href="https://ming053l.github.io/Doctor-Trigger/static/pdf/paper.pdf"><img alt="Paper" src="https://img.shields.io/badge/Paper-PDF-b31b1b"></a>
-<a href="https://ming053l.github.io/Doctor-Trigger/#video"><img alt="Video" src="https://img.shields.io/badge/Video-explainer-f08c00"></a>
-<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue"></a>
+<a href="https://ming053l.github.io/Doctor-Trigger/"><img alt="Project page" src="docs/assets/badges/project-page.svg" height="20"></a>
+<a href="https://ming053l.github.io/Doctor-Trigger/static/pdf/paper.pdf"><img alt="Paper" src="docs/assets/badges/paper.svg" height="20"></a>
+<a href="https://ming053l.github.io/Doctor-Trigger/#video"><img alt="Video" src="docs/assets/badges/video.svg" height="20"></a>
+<a href="LICENSE"><img alt="License: MIT" src="docs/assets/badges/license.svg" height="20"></a>
 </p>
 
 <p align="center"><img src="docs/assets/workflow.png" width="900" alt="Doctor Trigger workflow: the publisher enrolls each face and keeps a private record; a requester submits a circulating copy and receives Confirmed, Unconfirmed or Unavailable."></p>
