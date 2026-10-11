@@ -5,11 +5,18 @@ section loads [three.js](https://threejs.org/) from cdnjs at runtime; that is th
 external dependency.
 
 ```
-index.html                # the whole page
-static/images/*.png       # figures cropped from the paper
-static/videos/*.mp4       # 3-minute overview video, plus its poster frame (video_poster.jpg)
-static/pdf/paper.pdf      # paper PDF linked from the "Paper" button
-.nojekyll                 # tell GitHub Pages to serve files as-is
+index.html                       # the whole page
+static/images/fig*.png           # figures cropped from the paper
+static/images/teaser_poster.jpg  # poster frame of the hero teaser
+static/images/promo_poster.jpg   # poster frame of the 83-second short film (shared by EN and ZH)
+static/images/video_poster.jpg   # poster frame of the 3-minute overview
+static/images/compare_*.png      # drag-to-compare pair: original / posted (AI-generated face, 512 px)
+static/videos/teaser.*           # 22-second silent looping teaser in the hero band (mp4 + webm)
+static/videos/promo_en.mp4       # 83-second short film, English (main video)
+static/videos/promo_zh.mp4       # 83-second short film, Chinese (中文版 tab)
+static/videos/doctor_trigger.mp4 # 3-minute overview video
+static/pdf/paper.pdf             # paper PDF linked from the "Paper" button
+.nojekyll                        # tell GitHub Pages to serve files as-is
 ```
 
 Preview locally:
@@ -34,4 +41,4 @@ python3 -m http.server 8000   # then open http://localhost:8000
 3. The site appears at `https://<username>.github.io/doctor-trigger/` after about a minute.
 
 ## To update after de-anonymization
-Search `TODO` in `index.html`: authors/affiliations, OpenReview/arXiv link, code link, BibTeX.
+Search `TODO` in `index.html`: the OpenReview/arXiv link (the disabled pill in the header). Update the BibTeX `note` once there is a venue.
