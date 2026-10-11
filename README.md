@@ -145,6 +145,7 @@ docs/            DATA, REPRODUCE, FAQ and README figures
   title  = {Doctor Trigger: A Framework for Release-Bound Face Verification},
   author = {Lee, Chia-Ming and Lin, Chia-Yu and Huang, Hung-Kai and Ku, Yi-Ting and Liang, Yu-Chen and Hsu, Chih-Chung},
   year   = {2026},
+  url    = {https://ming053l.github.io/Doctor-Trigger/},
   note   = {Under review}
 }
 ```
