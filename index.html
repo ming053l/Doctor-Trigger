@@ -214,6 +214,8 @@
   .vc-desc { font-size: 13.5px; line-height: 1.4; color: var(--ink-3); }
   .vmeta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 16px; margin-top: 8px; font-size: 13.5px; color: var(--ink-3); }
   .vdl { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+  .vlinks { display: inline-flex; flex-wrap: wrap; gap: 0 18px; }
+  .vdl[hidden] { display: none; }
   .vtm { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-3); }
   .vtm[hidden] { display: none; }
   @media (max-width: 640px) {
@@ -473,6 +475,10 @@
     position: relative; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; background: #000;
   }
   .video-frame video { display: block; width: 100%; height: 100%; }
+  .video-frame video[hidden] { display: none; }
+  .yt-box { position: absolute; inset: 0; background: #000; }
+  .yt-box[hidden] { display: none; }
+  .yt-box img, .yt-box iframe { display: block; width: 100%; height: 100%; border: 0; object-fit: cover; }
   .play-overlay {
     position: absolute; inset: 0; margin: auto; width: 76px; height: 76px; border-radius: 50%; border: 0; cursor: pointer;
     display: grid; place-items: center; background: rgba(18, 137, 124, .94); color: #fff;
@@ -1093,10 +1099,14 @@
         <source id="vSource" src="static/videos/explainer_en.mp4" type="video/mp4">
         Your browser cannot play this video. <a href="static/videos/explainer_en.mp4">Open the MP4 file</a>.
       </video>
+      <div class="yt-box" id="vYt" hidden><img id="vYtPoster" alt="" decoding="async"></div>
       <button type="button" class="play-overlay" id="vOverlay" aria-label="Play the video"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
     </div>
     <div class="vmeta">
-      <a id="vDownload" class="vdl" href="static/videos/explainer_en.mp4" download>Download MP4</a>
+      <span class="vlinks">
+        <a id="vYtLink" class="vdl" href="https://www.youtube.com/watch?v=qtT09O2Ib1U" target="_blank" rel="noopener" hidden>Watch on YouTube</a>
+        <a id="vDownload" class="vdl" href="static/videos/explainer_en.mp4" download>Download MP4</a>
+      </span>
       <span id="vAi">All people shown are AI-generated.</span>
     </div>
     <p class="vtm" id="vTm" hidden>Apple and iPhone are trademarks of Apple Inc.; Google and SynthID are trademarks of Google LLC. This research is not affiliated with either company.</p>
@@ -1520,6 +1530,9 @@
     zh: { group: "選擇影片", play: "播放影片", dl: "下載 MP4", ai: "片中所有人物皆為 AI 生成。",
           tm: "Apple、iPhone 為 Apple Inc. 之商標；Google、SynthID 為 Google LLC 之商標。本研究與上述公司無關。" }
   };
+  // "Why now" plays from YouTube (privacy-enhanced embed, click-to-load); the local MP4 stays as the download.
+  var YT = { whynow: { en: "qtT09O2Ib1U", zh: "F8ZLMuwN4hc" } };
+  VTXT.en.yt = "Watch on YouTube"; VTXT.zh.yt = "在 YouTube 觀看";
   var vState = { v: "explainer", lang: "en" };
   try { var savedLang = localStorage.getItem("dtVideoLang"); if (savedLang === "en" || savedLang === "zh") vState.lang = savedLang; } catch (e) {}
   function readVideoHash() {
@@ -1532,7 +1545,23 @@
   var vPlayer = document.getElementById("vPlayer"), vSource = document.getElementById("vSource"),
       vOverlay = document.getElementById("vOverlay"), vChoices = document.getElementById("vChoices"),
       vCards = Array.prototype.slice.call(document.querySelectorAll("#vChoices .vcard")),
-      vLangs = Array.prototype.slice.call(document.querySelectorAll(".vlang [role=radio]"));
+      vLangs = Array.prototype.slice.call(document.querySelectorAll(".vlang [role=radio]")),
+      vYt = document.getElementById("vYt"), vYtPoster = document.getElementById("vYtPoster"),
+      vYtLink = document.getElementById("vYtLink"), vYtId = null;
+  function ytId() { return YT[vState.v] ? YT[vState.v][vState.lang] : null; }
+  function ytUnload() { var f = vYt.querySelector("iframe"); if (f) { f.src = "about:blank"; vYt.removeChild(f); } vYtPoster.hidden = false; }
+  function ytLoad() {
+    var id = ytId(); if (!id) return;
+    ytUnload();
+    var f = document.createElement("iframe");
+    f.title = VIDS[vState.v][vState.lang][0] + " (YouTube)";
+    f.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
+    f.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+    f.setAttribute("allowfullscreen", "");
+    f.src = "https://www.youtube-nocookie.com/embed/" + id + "?rel=0&modestbranding=1&playsinline=1&autoplay=1";
+    vYtPoster.hidden = true; vYt.appendChild(f); vOverlay.hidden = true;
+    try { f.focus(); } catch (e) {}
+  }
   function renderVideo() {
     var v = vState.v, lang = vState.lang, t = VTXT[lang], src = "static/videos/" + v + "_" + lang + ".mp4";
     vCards.forEach(function (c) {
@@ -1548,7 +1577,22 @@
       if (left < vChoices.scrollLeft || right > vChoices.scrollLeft + vChoices.clientWidth) vChoices.scrollLeft = left - 2;
     }
     vChoices.setAttribute("aria-label", t.group); vChoices.removeAttribute("aria-labelledby");
-    if (vSource.getAttribute("src") !== src) {
+    var id = ytId();
+    if (id !== vYtId) {
+      vYtId = id; ytUnload();
+      if (id) {
+        vPlayer.pause(); vPlayer.hidden = true; vYt.hidden = false;
+        vYtPoster.src = "static/images/poster_" + v + "_" + lang + ".jpg";
+        vYtPoster.alt = VIDS[v][lang][0] + (lang === "zh" ? "（中文）" : " (English)");
+        vOverlay.hidden = false;
+      } else {
+        vYt.hidden = true; vPlayer.hidden = false; vOverlay.hidden = !vPlayer.paused;
+      }
+      vYtLink.hidden = !id;
+      if (id) vYtLink.href = "https://www.youtube.com/watch?v=" + id;
+    }
+    vYtLink.textContent = t.yt; vYtLink.lang = lang === "zh" ? "zh-Hant" : "en";
+    if (!id && vSource.getAttribute("src") !== src) {
       vPlayer.pause();
       vSource.setAttribute("src", src);
       vPlayer.poster = "static/images/poster_" + v + "_" + lang + ".jpg";
@@ -1586,9 +1630,9 @@
   }
   radioKeys(vCards, "v", "data-v");
   radioKeys(vLangs, "lang", "data-lang");
-  vOverlay.addEventListener("click", function () { if (vPlayer.paused || vPlayer.ended) vPlayer.play(); else vPlayer.pause(); });
+  vOverlay.addEventListener("click", function () { if (vYtId) { ytLoad(); return; } if (vPlayer.paused || vPlayer.ended) vPlayer.play(); else vPlayer.pause(); });
   vPlayer.addEventListener("play", function () { vOverlay.hidden = true; });
-  vPlayer.addEventListener("pause", function () { vOverlay.hidden = false; });
+  vPlayer.addEventListener("pause", function () { if (!vYtId) vOverlay.hidden = false; });
   vPlayer.addEventListener("ended", function () { vOverlay.hidden = false; });
   renderVideo();
   window.addEventListener("hashchange", function () {
