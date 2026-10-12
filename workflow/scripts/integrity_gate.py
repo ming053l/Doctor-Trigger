@@ -4,9 +4,7 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -16,9 +14,10 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "record_model"))
+sys.path.append(str(ROOT.parent))  # the doctor_trigger package
 
-from src.record_model import feature_columns_for_variant
+from doctor_trigger.manifests import sha256_file
+from doctor_trigger.record_model import feature_columns
 from workflow.paths import require_input_path, require_output_path
 
 
@@ -35,14 +34,6 @@ TEMPLATE_FIELDS = {
     "bands",
     "amplitude_floor_ratio",
 }
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def read_csv(path: Path) -> pd.DataFrame:
@@ -215,7 +206,7 @@ def check_features(path: Path) -> dict[str, Any]:
     assert not frame["sample_id"].duplicated().any(), "duplicate feature sample_id"
     assert {"benign", "swap", "wrong_key"} <= set(frame["protocol"]), "feature protocols incomplete"
     assert split_overlap(frame) == 0, "feature source group crosses splits"
-    selected = feature_columns_for_variant("full_record_model", list(frame.columns))
+    selected = feature_columns("full_record_model", list(frame.columns))
     assert len(selected) == 75, f"expected 75 calibrated full-record-model features, found {len(selected)}"
     values = frame[selected].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=np.float64)
     assert np.isfinite(values).all(), "non-finite selected feature value"

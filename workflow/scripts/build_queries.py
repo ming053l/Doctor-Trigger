@@ -16,18 +16,12 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.append(str(ROOT.parent))  # the doctor_trigger package
 sys.path.insert(0, str(ROOT / "repo"))
 
 from src.simswap_engine import SimSwapConfig, SimSwapEngine, SimSwapRequest
+from doctor_trigger.manifests import sha256_file
 from workflow.paths import require_input_path, require_output_path
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def pair_id(enrollment_id: str, fake_sample_id: str) -> str:

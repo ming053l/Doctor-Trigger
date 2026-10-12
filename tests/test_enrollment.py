@@ -1,8 +1,11 @@
-"""doctor_trigger.enrollment reproduces workflow/scripts/enroll.py and the canonical files."""
+"""doctor_trigger.enrollment reproduces workflow/scripts/enroll.py and the canonical files.
+
+The old script's helpers (stable_key, embed, psnr, alpha_candidates and its alpha loop) are
+compared through their frozen outputs in tests/golden/enroll_script.json (see golden_values.py).
+"""
 
 from __future__ import annotations
 
-import importlib.util
 import io
 import json
 from pathlib import Path
@@ -27,6 +30,7 @@ from doctor_trigger.enrollment import (
 )
 from doctor_trigger.key import Ring
 from doctor_trigger.record import UnitId, save_record, stored_arrays
+from golden_values import digest, load
 
 REPO = Path(__file__).resolve().parents[1]
 CANONICAL_ENROLLMENTS = Path(
@@ -35,15 +39,7 @@ CANONICAL_ENROLLMENTS = Path(
 SUBSET_ENROLLMENTS = Path("/ssd2/ming/refactor_baseline/subset_enrollments.csv")
 
 
-def load_script(name: str):
-    path = REPO / "workflow" / "scripts" / f"{name}.py"
-    module_spec = importlib.util.spec_from_file_location(f"old_{name}", path)
-    module = importlib.util.module_from_spec(module_spec)
-    module_spec.loader.exec_module(module)
-    return module
-
-
-OLD_ENROLL = load_script("enroll")
+OLD_ENROLL = load("enroll_script")
 
 subset = pd.read_csv(SUBSET_ENROLLMENTS)
 ALL_SUBSET_ROWS = pd.read_csv(CANONICAL_ENROLLMENTS).merge(subset[["enrollment_id"]], on="enrollment_id")
@@ -65,22 +61,22 @@ def png_bytes(image: np.ndarray) -> bytes:
 def test_settings_match_enroll_cli_defaults():
     assert SETTINGS == EnrollmentSettings(17, 0.15, Ring(0.10, 0.45), 1e-6, 35.0, 0.98)
     for dataset in ("FF++", "DFDC", "CelebDF", "other"):
-        assert list(alpha_ladder(dataset)) == OLD_ENROLL.alpha_candidates(dataset)
+        assert list(alpha_ladder(dataset)) == OLD_ENROLL["alpha_candidates"][dataset]
 
 
 @pytest.mark.parametrize("alpha", [0.05, 0.015, 0.5])
 @pytest.mark.parametrize("row", ROW_LIST[:2] + ROW_LIST[3:4], ids=lambda row: getattr(row, "enrollment_id", row))
 def test_encode_release_matches_embed(row, alpha, tmp_path):
     original = original_of(row)
-    key = OLD_ENROLL.stable_key(17, str(row.sample_id))
-    old_released, old_record = OLD_ENROLL.embed(original, key, alpha, 0.15, (0.10, 0.45), 1e-6)
+    key = OLD_ENROLL["stable_key"][str(row.sample_id)]
+    old = OLD_ENROLL["embed"][f"{row.enrollment_id}|{alpha}"]
     released, record = encode_release(original, key, alpha, 0.15, Ring(0.10, 0.45), 1e-6)
-    assert released.dtype == np.uint8 and released.tobytes() == old_released.tobytes()
+    assert released.dtype == np.uint8 and digest(released) == old["released"]
     new_arrays = stored_arrays(record)
-    for name, array in old_record.items():
-        assert new_arrays[name].dtype == array.dtype and new_arrays[name].tobytes() == array.tobytes(), name
+    for name, (dtype, array_digest, f_contiguous) in old["record"].items():
+        assert new_arrays[name].dtype.str == dtype and digest(new_arrays[name]) == array_digest, name
         # Memory layout is written into the NPZ header, so it must match too.
-        assert new_arrays[name].flags.f_contiguous == array.flags.f_contiguous, name
+        assert new_arrays[name].flags.f_contiguous == f_contiguous, name
 
 
 @pytest.mark.parametrize("row", list(ALL_SUBSET_ROWS.itertuples(index=False)), ids=lambda row: row.enrollment_id)
@@ -97,47 +93,32 @@ def test_enroll_reproduces_canonical_files(row, tmp_path):
     assert result.ssim == metadata["persisted_ssim"]
     # The old script re-measures fidelity after the PNG round trip; lossless PNG gives the same.
     reread = np.asarray(Image.open(io.BytesIO(png_bytes(result.released))).convert("RGB"), dtype=np.uint8)
-    assert result.psnr == OLD_ENROLL.psnr(original, reread)
+    assert result.psnr == OLD_ENROLL["persisted_psnr"][row.enrollment_id]
     assert result.ssim == float(structural_similarity(original, reread, channel_axis=2, data_range=255))
 
 
-def old_ladder(original, key, alphas, minimum_psnr, minimum_ssim):
-    """The alpha loop of workflow/scripts/enroll.py:process_enrollment."""
-    attempts = []
-    for alpha in alphas:
-        released, template = OLD_ENROLL.embed(original, key, alpha, 0.15, (0.10, 0.45), 1e-6)
-        candidate_psnr = OLD_ENROLL.psnr(original, released)
-        candidate_ssim = float(structural_similarity(original, released, channel_axis=2, data_range=255))
-        attempts.append({"alpha": alpha, "psnr": candidate_psnr, "ssim": candidate_ssim})
-        if candidate_psnr >= minimum_psnr and candidate_ssim >= minimum_ssim:
-            return alpha, released, template, candidate_psnr, candidate_ssim
-    return f"quality_gate_failed:{attempts}"
-
-
 def test_ladder_steps_down_like_enroll_script(tmp_path):
+    # The alpha loop of workflow/scripts/enroll.py:process_enrollment on the ladder below.
     row = ROW_LIST[0]
     original = original_of(row)
-    key = OLD_ENROLL.stable_key(17, str(row.sample_id))
     ladder = (0.9, 0.5, *DEFAULT_ALPHA_LADDER)
-    alpha, released, template, old_psnr, old_ssim = old_ladder(original, key, ladder, 35.0, 0.98)
-    assert alpha != ladder[0]
+    old = OLD_ENROLL["ladder"]
+    assert old["alpha"] != ladder[0]
     result = enroll(original, UnitId(str(row.sample_id)), ladder, SETTINGS)
-    assert result.alpha == alpha and result.psnr == old_psnr and result.ssim == old_ssim
-    assert result.released.tobytes() == released.tobytes()
+    assert result.alpha == old["alpha"] and result.psnr == old["psnr"] and result.ssim == old["ssim"]
+    assert digest(result.released) == old["released"]
     new_arrays = stored_arrays(result.record)
-    for name, array in template.items():
-        assert new_arrays[name].tobytes() == array.tobytes(), name
+    for name, array_digest in old["record"].items():
+        assert digest(new_arrays[name]) == array_digest, name
 
 
 def test_rejection_reason_matches_enroll_script():
     row = ROW_LIST[3]
     original = original_of(row)
-    key = OLD_ENROLL.stable_key(17, str(row.sample_id))
     strict = EnrollmentSettings(minimum_psnr=99.0)
-    expected = old_ladder(original, key, alpha_ladder(row.dataset), 99.0, 0.98)
     with pytest.raises(ValueError) as raised:
         enroll(original, UnitId(str(row.sample_id)), alpha_ladder(row.dataset), strict)
-    assert f"{type(raised.value).__name__}:{raised.value}" == f"ValueError:{expected}"
+    assert f"{type(raised.value).__name__}:{raised.value}" == OLD_ENROLL["rejection"]
 
 
 def test_enroll_many_streams_outcomes():
@@ -158,9 +139,9 @@ def test_fidelity_gate_and_metrics():
     assert not passes_fidelity_gate(34.999, 0.99, SETTINGS)
     assert not passes_fidelity_gate(40.0, 0.979, SETTINGS)
     image = original_of(ROW_LIST[0])
-    assert psnr(image, image) == OLD_ENROLL.psnr(image, image) == 100.0
+    assert psnr(image, image) == OLD_ENROLL["psnr_identical"] == 100.0
     noisy = np.clip(image.astype(int) + 3, 0, 255).astype(np.uint8)
-    assert psnr(image, noisy) == OLD_ENROLL.psnr(image, noisy)
+    assert psnr(image, noisy) == OLD_ENROLL["psnr_noisy"]
     assert ssim(image, noisy) == float(structural_similarity(image, noisy, channel_axis=2, data_range=255))
 
 

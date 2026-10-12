@@ -1,7 +1,8 @@
 """doctor_trigger.channels against the implementations it replaces, on real released/query images.
 
-References: experiments/_snapshot/scripts/benign_channels.transform_image, the quickstart's
-``jpeg``/``resized`` and the Table 4 repost/screenshot resize (copied below verbatim, because
+References: experiments/_snapshot/scripts/benign_channels.transform_image, the quickstart's former
+``jpeg``/``resized`` (frozen outputs in tests/golden/quickstart_copies.json, see golden_values.py)
+and the Table 4 repost/screenshot resize (copied below verbatim, because
 importing table4_artifact.py runs the experiment). Every comparison is exact.
 """
 
@@ -19,6 +20,7 @@ import pytest
 from PIL import Image
 
 from doctor_trigger import channels
+from golden_values import digest, load
 
 REPO = Path(__file__).resolve().parents[1]
 CASES = Path("/ssd2/ming/ttf_run/public_view/common/cases.csv")
@@ -88,15 +90,15 @@ def test_noise_seed_matters(images):
 
 # ---------------------------------------------------------------- quickstart copies
 def test_quickstart_jpeg_and_resize(images):
-    quickstart = import_by_path("old_quickstart", REPO / "examples/quickstart.py")
-    for img in images:
+    expected = load("quickstart_copies")["images"]
+    assert len(expected) == len(images)
+    for img, old in zip(images, expected):
         a = np.asarray(img)
         for q in (70, 75, 80, 85, 90):
-            assert np.array_equal(quickstart.jpeg(a, q), channels.jpeg(a, q))
+            assert digest(channels.jpeg(a, q)) == old["jpeg"][str(q)]
         for s in (0.6, 0.75, 0.9):
-            assert np.array_equal(quickstart.resized(a, s), channels.rescale_round_trip(a, s))
-        assert np.array_equal(quickstart.jpeg(quickstart.resized(a, 0.75), 80),
-                              channels.jpeg(channels.rescale_round_trip(a, 0.75), 80))
+            assert digest(channels.rescale_round_trip(a, s)) == old["resized"][str(s)]
+        assert digest(channels.jpeg(channels.rescale_round_trip(a, 0.75), 80)) == old["jpeg80_resized075"]
 
 
 def test_compose_order(images):

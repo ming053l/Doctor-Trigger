@@ -1,11 +1,12 @@
 """doctor_trigger.record_model against the code it replaces, on the shipped checkpoints.
 
-References (imported by file path):
+References (imported by file path, except where noted):
 * workflow/record_model/src/record_model.py           columns, model, loss
-* workflow/record_model/scripts/train_eval_record_model_matrix.py   standardize, fit, predict
+* the record-model trainer's former standardize, fit and predict (now calls into this module):
+  frozen outputs in tests/golden/record_model_trainer.json (see golden_values.py)
 * experiments/joint_policy.py  load_models / predict  (NaN -> column mean)
 * experiments/copy_ring_canonical.py  predict          (NaN -> 0)
-Every comparison is exact (``np.array_equal`` / ``torch.equal``).
+Every comparison is exact (``np.array_equal`` / ``torch.equal``, or SHA-256 digests of the bytes).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import pytest
 import torch
 
 from doctor_trigger import record_model as rm
+from golden_values import digest, frame_digest, load
 
 REPO = Path(__file__).resolve().parents[1]
 ROOT = Path("/ssd2/ming/ttf_run/public_view")
@@ -55,8 +57,7 @@ def old_lib():
 
 @pytest.fixture(scope="module")
 def old_trainer():
-    return import_by_path("old_record_model_trainer",
-                          REPO / "workflow/record_model/scripts/train_eval_record_model_matrix.py")
+    return load("record_model_trainer")
 
 
 def test_columns(old_lib):
@@ -75,19 +76,12 @@ def test_checkpoint_columns_match_variant():
 
 
 @pytest.mark.parametrize("eval_name", ["ffpp_test", "dfdc_test", "celebdf_test"])
-def test_trainer_predict_bit_identical(old_lib, old_trainer, eval_name):
+def test_trainer_predict_bit_identical(old_trainer, eval_name):
     frame = pd.read_csv(ROOT / f"features/calibrated_features_{eval_name}.csv")
     for ckpt_file in sorted(CALIBRATED_CKPTS.glob("*.pt")):
-        ck = torch.load(ckpt_file, map_location="cpu", weights_only=False)
-        old_model = old_lib.RecordModelMLP(old_lib.RecordModelConfig(
-            variant=ck["variant"], input_dim=len(ck["feature_columns"]),
-            hidden_dim=ck["state_dict"]["encoder.0.weight"].shape[0]))
-        old_model.load_state_dict(ck["state_dict"])
-        old_model.eval()
-        old_scores = old_trainer.predict(old_model, frame, ck["feature_columns"], ck["mean"], ck["std"])
         fitted = rm.load_checkpoint(ckpt_file)
         new_scores = rm.score_table(fitted, frame)
-        pd.testing.assert_frame_equal(old_scores, new_scores, check_exact=True)
+        assert frame_digest(new_scores) == old_trainer["predict"][f"{eval_name}|{ckpt_file.name}"], ckpt_file.name
         # and the score CSV the trainer wrote when the checkpoint was made
         stem = ckpt_file.stem.replace("_calibrated_ffpp_to_all", "")
         stored = pd.read_csv(ROOT / f"results/record_model/scores/calibrated_ffpp_to_all_{stem}_{eval_name}_scores.csv")
@@ -142,8 +136,7 @@ def test_standardize(old_trainer):
     x = rm.feature_matrix(frame, cols)
     x[::13, 2] = np.nan
     x[:, 4] = 1.0  # constant column -> sigma floor
-    for a, b in zip(old_trainer.standardize(x.copy()), rm.standardize(x.copy())):
-        assert a.dtype == b.dtype and np.array_equal(a, b)
+    assert [digest(b) for b in rm.standardize(x.copy())] == old_trainer["standardize"]
 
 
 @pytest.mark.parametrize("variant", ["host_only", "full_record_model"])
@@ -152,17 +145,17 @@ def test_fit_bit_identical(old_trainer, variant):
     threads = torch.get_num_threads()
     torch.set_num_threads(1)
     try:
-        old = old_trainer.fit_model(frame, variant, seed=1, steps=25, hidden_dim=64, lr=1e-3, batch_size=512)
         new = rm.fit_record_model(frame, variant, seed=1, steps=25, hidden_dim=64, lr=1e-3, batch_size=512)
     finally:
         torch.set_num_threads(threads)
+    old = old_trainer["fit"][variant]
     assert old["columns"] == new.feature_columns
-    assert np.array_equal(old["mean"], new.mean) and np.array_equal(old["std"], new.std)
+    assert digest(new.mean) == old["mean"] and digest(new.std) == old["std"]
     assert old["final_loss"] == new.final_loss
-    old_state, new_state = old["model"].state_dict(), new.model.state_dict()
-    assert list(old_state) == list(new_state)
-    for key in old_state:
-        assert torch.equal(old_state[key], new_state[key]), key
+    new_state = new.model.state_dict()
+    assert list(old["state"]) == list(new_state)
+    for key, value in new_state.items():
+        assert digest(value) == old["state"][key], key
 
 
 def test_checkpoint_round_trip(tmp_path):

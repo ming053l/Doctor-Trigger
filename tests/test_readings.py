@@ -1,15 +1,17 @@
 """doctor_trigger.readings is bit-identical to the H / C / G_s copies it replaces (plan Sec. 2.6-2.7).
 
-Old copies are imported by file path where the module can be imported (workflow/scripts/
-extract_features.py, workflow/record_model/src/trigger_conditioned.py). Experiment scripts run at
-import time, so their one-line readers are copied verbatim below with their file and function name.
+workflow/record_model/src/trigger_conditioned.py is imported by file path. The old helpers of
+workflow/scripts/extract_features.py (feature_row, masked_mean, projection, query_phase,
+radial_values, wrong_delta) are compared through their frozen outputs in
+tests/golden/extract_features_script.json (see golden_values.py). Experiment scripts run at
+import time, so their one-line readers are copied verbatim below with their file and function name;
+``wrap`` below is the wrap expression those readers use.
 Data: the 512-query regression subset (/ssd2/ming/refactor_baseline/subset_queries.csv) on public_view.
 """
 
 from __future__ import annotations
 
 import importlib.util
-import math
 import multiprocessing
 import sys
 from pathlib import Path
@@ -22,7 +24,8 @@ import pytest
 from doctor_trigger import readings
 from doctor_trigger.key import wrong_key_query_key, wrong_keys
 from doctor_trigger.record import UnitId, load_record
-from doctor_trigger.spectrum import kappa_grid, subband_b
+from doctor_trigger.spectrum import luminance_phase, subband_b
+from golden_values import digest, features_digest, load
 
 REPO = Path(__file__).resolve().parents[1]
 QUERIES = Path("/ssd2/ming/ttf_run/public_view/manifests/queries.csv")
@@ -38,7 +41,7 @@ def load_by_path(name: str, path: Path):
     return module
 
 
-OLD_FEATURES = load_by_path("old_extract_features", REPO / "workflow/scripts/extract_features.py")
+OLD_FEATURES = load("extract_features_script")
 OLD_TRIGGER = load_by_path("old_trigger_conditioned", REPO / "workflow/record_model/src/trigger_conditioned.py")
 
 
@@ -47,12 +50,13 @@ def subset_queries() -> pd.DataFrame:
     return queries[queries.status == "pass"].merge(pd.read_csv(SUBSET_QUERIES), on="query_id")
 
 
-def identical(old: object, new: object) -> bool:
-    if type(old) is not type(new):
-        return False
-    if isinstance(old, float) and math.isnan(old):
-        return math.isnan(new)
-    return old == new
+def wrap(value: np.ndarray) -> np.ndarray:
+    return (value + np.pi) % (2.0 * np.pi) - np.pi
+
+
+def image_phase(path: str) -> np.ndarray:
+    """extract_features.query_phase: centered luminance phase of an image file."""
+    return luminance_phase(np.asarray(Image.open(path).convert("RGB"), dtype=np.float64), centered=True)
 
 
 # ----------------------------------------------------------------------------- record_features
@@ -60,22 +64,22 @@ SUBSET_LIST = list(subset_queries().itertuples(index=False))
 
 
 def _compare_query(index: int) -> list[str]:
-    """Rows of one query exactly as workflow/scripts/extract_features.py:rows_for_query builds them."""
+    """Rows of one query as workflow/scripts/extract_features.py:rows_for_query built them."""
     query = SUBSET_LIST[index]
-    reference = OLD_FEATURES.query_phase(Path(query.released_path))
-    phase = reference if query.query_path == query.released_path else OLD_FEATURES.query_phase(Path(query.query_path))
+    reference = image_phase(query.released_path)
+    phase = reference if query.query_path == query.released_path else image_phase(query.query_path)
     record = load_record(query.template_artifact)
     keys = [None] + ([wrong_key_query_key(record.key)] if query.protocol == "benign" else [])
+    expected = OLD_FEATURES["feature_rows"][query.query_id]
+    if [row["projection_key"] for row in expected] != keys:
+        return [f"{query.query_id}: projection keys differ"]
     problems = []
-    for projection_key in keys:
-        old, old_key = OLD_FEATURES.feature_row(
-            Path(query.query_path), Path(query.template_artifact), reference_path=Path(query.released_path),
-            projection_key=projection_key, phase_override=phase, reference_phase_override=reference,
-        )
+    for projection_key, old in zip(keys, expected):
         new = readings.record_features(phase, record, reference, projection_key=projection_key)
-        if old_key != record.key or list(old) != list(new):
+        if old["key"] != record.key or list(new) != OLD_FEATURES["feature_columns"]:
             problems.append(f"{query.query_id}/{projection_key}: columns or key differ")
-        problems += [f"{query.query_id}/{projection_key}:{column}" for column in old if not identical(old[column], new[column])]
+        if features_digest(new) != old["features"]:
+            problems.append(f"{query.query_id}/{projection_key}: values differ")
     return problems
 
 
@@ -87,18 +91,15 @@ def test_record_features_equal_feature_row_on_the_512_query_subset():
 
 
 def test_feature_columns_are_the_csv_columns():
-    query = subset_queries().iloc[0]
-    old, _ = OLD_FEATURES.feature_row(Path(query.query_path), Path(query.template_artifact), Path(query.released_path))
-    assert readings.FEATURE_COLUMNS == tuple(old)
+    assert readings.FEATURE_COLUMNS == tuple(OLD_FEATURES["feature_columns"])
     assert len(readings.FEATURE_COLUMNS) == 17 + 8 * 9
 
 
 def test_record_features_without_reference_uses_the_template():
     query = subset_queries().iloc[1]
-    old, _ = OLD_FEATURES.feature_row(Path(query.query_path), Path(query.template_artifact))
-    phase = OLD_FEATURES.query_phase(Path(query.query_path))
+    phase = image_phase(query.query_path)
     new = readings.record_features(phase, load_record(query.template_artifact))
-    assert all(identical(old[column], new[column]) for column in old)
+    assert features_digest(new) == OLD_FEATURES["without_reference"]
 
 
 def test_record_features_shape_mismatch_raises():
@@ -124,22 +125,22 @@ def stored(path: str) -> dict[str, np.ndarray]:
 @pytest.mark.parametrize("query", SAMPLE_LIST, ids=lambda query: query.query_id)
 def test_wrong_key_displacement_and_pixel_radius(query):
     record = load_record(query.template_artifact)
-    for candidate in wrong_keys(record.key, 3):
-        old = OLD_FEATURES.wrong_delta(candidate, record.shape, record.alpha, record.beta, record.active_bins)
-        assert readings.wrong_key_displacement(record, candidate).tobytes() == old.tobytes()
-    assert readings.normalized_pixel_radius(record.shape).tobytes() == OLD_FEATURES.radial_values(record.shape).tobytes()
+    expected = OLD_FEATURES["sample"][query.query_id]
+    for candidate, old in zip(wrong_keys(record.key, 3), expected["wrong_delta"], strict=True):
+        assert digest(readings.wrong_key_displacement(record, candidate)) == old
+    assert digest(readings.normalized_pixel_radius(record.shape)) == expected["radial_values"]
 
 
 @pytest.mark.parametrize("query", SAMPLE_LIST, ids=lambda query: query.query_id)
 def test_pipeline_kernels_match_extract_features(query):
     record = load_record(query.template_artifact)
-    phase = OLD_FEATURES.query_phase(Path(query.query_path))
+    expected = OLD_FEATURES["sample"][query.query_id]
+    phase = image_phase(query.query_path)
     host, weights, active = record.original_phase, record.amplitude_weights, record.active_bins
     drift = readings.phase_drift(phase, host)
-    assert drift.tobytes() == OLD_FEATURES.wrap_phase(phase - host).tobytes()
-    assert readings.spectral_agreement(phase, host, weights, active) == OLD_FEATURES.masked_mean(np.cos(drift), active, weights)
-    assert readings.key_projection(drift, record.displacement, weights, active) == OLD_FEATURES.projection(
-        phase, host, record.displacement, active, weights)
+    assert digest(drift) == expected["drift"]
+    assert readings.spectral_agreement(phase, host, weights, active) == expected["masked_mean_cos_drift"]
+    assert readings.key_projection(drift, record.displacement, weights, active) == expected["projection"]
     assert np.isnan(readings.amplitude_weighted_mean(drift, weights, np.zeros_like(active)))
 
 
@@ -173,7 +174,7 @@ def test_weight_map_forms_match_experiment_copies(query):
     ww = np.where(sup & band, w, 0.0)
     bins = readings.subband_bins(record)
     for reference, record_reference in ((host, record.original_phase), (tmpl, record.template_phase)):
-        old = float(np.sum(np.cos(OLD_FEATURES.wrap_phase(centered_phase - reference)) * ww) / (np.sum(ww) + 1e-12))
+        old = float(np.sum(np.cos(wrap(centered_phase - reference)) * ww) / (np.sum(ww) + 1e-12))
         assert readings.spectral_agreement(centered_phase, record_reference, weights, bins, stabilizer=1e-12,
                                            form=readings.SumForm.WEIGHT_MAP_VALUE_LAYOUT) == old
 
@@ -229,17 +230,18 @@ def test_gathered_forms_match_experiment_copies(query):
 
     # experiments/original_control.py:main (gathered, +1e-12)
     assert readings.spectral_agreement(ph, record.original_phase, weights, record.active_bins, stabilizer=1e-12) \
-        == float(np.sum(w[sup] * np.cos(OLD_FEATURES.wrap_phase(ph - hp))[sup]) / (w[sup].sum() + 1e-12))
+        == float(np.sum(w[sup] * np.cos(wrap(ph - hp))[sup]) / (w[sup].sum() + 1e-12))
     assert readings.spectral_agreement(ph, record.template_phase, weights, record.active_bins, stabilizer=1e-12) \
-        == float(np.sum(w[sup] * np.cos(OLD_FEATURES.wrap_phase(ph - tp))[sup]) / (w[sup].sum() + 1e-12))
-    # experiments/original_control.py: G_s^(template) via extract_features.projection
-    template_scale = max(abs(OLD_FEATURES.projection(tp, hp, delta, sup, w)), 1e-6)
+        == float(np.sum(w[sup] * np.cos(wrap(ph - tp))[sup]) / (w[sup].sum() + 1e-12))
+    # experiments/original_control.py: G_s^(template) via extract_features.projection (frozen values)
+    expected = OLD_FEATURES["sample"][query.query_id]
+    template_scale = max(abs(expected["projection_template_stored"]), 1e-6)
     drift = readings.phase_drift(ph, record.original_phase)
     template_drift = readings.phase_drift(record.template_phase, record.original_phase)
     assert readings.release_normalized(
         readings.key_projection(drift, record.displacement, weights, record.active_bins),
         readings.key_projection(template_drift, record.displacement, weights, record.active_bins),
-    ) == OLD_FEATURES.projection(ph, hp, delta, sup, w) / template_scale
+    ) == expected["projection_query_stored"] / template_scale
 
     # experiments/record_codec.py (gathered on the active bins, G with +1e-6)
     resid = (ph[sup] - hp[sup] + np.pi) % (2 * np.pi) - np.pi
@@ -290,13 +292,9 @@ def test_read_unit_released_query_and_unavailable_cases():
     assert reading.available and reading.release_normalized and reading.subband_kappa_max == 0.15
     # A released crop read against its own release projection is 1 by construction.
     assert reading.key_projection == 1.0
-    phase = OLD_FEATURES.query_phase(Path(query.released_path))
-    bins = record.active_bins & (kappa_grid(record.shape, centered=True) <= 0.15)
-    assert reading.spectral_agreement == OLD_FEATURES.masked_mean(
-        np.cos(OLD_FEATURES.wrap_phase(phase - record.template_phase)), bins, record.amplitude_weights)
+    assert reading.spectral_agreement == OLD_FEATURES["read_unit"]["subband_template"]
     assert readings.read_unit(released, None).unavailable_reason == "record not resolved"
     assert not readings.read_unit(None, record).available
     assert not readings.read_unit(released[1:], record).available
     full_ring = readings.read_unit(released, record, subband_kappa_max=None)
-    assert full_ring.original_reference_agreement == OLD_FEATURES.masked_mean(
-        np.cos(OLD_FEATURES.wrap_phase(phase - record.original_phase)), record.active_bins, record.amplitude_weights)
+    assert full_ring.original_reference_agreement == OLD_FEATURES["read_unit"]["full_ring_original"]

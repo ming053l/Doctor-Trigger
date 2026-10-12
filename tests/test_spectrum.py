@@ -1,8 +1,12 @@
-"""doctor_trigger.spectrum is bit-identical to the workflow scripts it replaces."""
+"""doctor_trigger.spectrum is bit-identical to the workflow scripts it replaces.
+
+The old helpers (enroll.py rgb_to_y / wrap_phase / frequency_radius, extract_features.py
+query_phase / wrap_phase) are compared through their frozen outputs in tests/golden/
+(see golden_values.py).
+"""
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
 import numpy as np
@@ -11,6 +15,7 @@ from PIL import Image
 import pytest
 
 from doctor_trigger import spectrum
+from golden_values import digest, load
 
 REPO = Path(__file__).resolve().parents[1]
 CANONICAL_ENROLLMENTS = Path(
@@ -20,16 +25,8 @@ SUBSET_ENROLLMENTS = Path("/ssd2/ming/refactor_baseline/subset_enrollments.csv")
 SHAPES = [(256, 256), (268, 330), (569, 512), (7, 5), (1, 4)]
 
 
-def load_script(name: str):
-    path = REPO / "workflow" / "scripts" / f"{name}.py"
-    module_spec = importlib.util.spec_from_file_location(f"old_{name}", path)
-    module = importlib.util.module_from_spec(module_spec)
-    module_spec.loader.exec_module(module)
-    return module
-
-
-OLD_ENROLL = load_script("enroll")
-OLD_FEATURES = load_script("extract_features")
+OLD_ENROLL = load("enroll_script")
+OLD_FEATURES = load("extract_features_script")
 
 
 def subset_rows(per_dataset: dict[str, int]) -> pd.DataFrame:
@@ -48,23 +45,21 @@ def row(request):
 
 def test_luminance_matches_rgb_to_y(row):
     image = np.asarray(Image.open(row.aligned_path).convert("RGB"), dtype=np.uint8)
-    expected = OLD_ENROLL.rgb_to_y(image.astype(np.float64))
-    assert np.array_equal(spectrum.luminance(image), expected)
-    assert np.array_equal(spectrum.luminance(image.astype(np.float64)), expected)
+    expected = OLD_ENROLL["rgb_to_y"][row.enrollment_id]
+    assert digest(spectrum.luminance(image)) == expected
+    assert digest(spectrum.luminance(image.astype(np.float64))) == expected
 
 
 def test_luminance_spectrum_matches_enroll(row):
     image = np.asarray(Image.open(row.aligned_path).convert("RGB"), dtype=np.uint8)
-    expected = np.fft.fft2(OLD_ENROLL.rgb_to_y(image.astype(np.float64)))
-    assert np.array_equal(spectrum.luminance_spectrum(image), expected)
+    assert digest(spectrum.luminance_spectrum(image)) == OLD_ENROLL["luminance_fft"][row.enrollment_id]
 
 
 def test_luminance_phase_matches_query_phase(row):
-    expected = OLD_FEATURES.query_phase(Path(row.released_path))
     released = np.asarray(Image.open(row.released_path).convert("RGB"))
     centered = spectrum.luminance_phase(released, centered=True)
-    assert np.array_equal(centered, expected)
-    assert np.array_equal(spectrum.luminance_phase(released, centered=False), np.fft.ifftshift(expected))
+    assert digest(centered) == OLD_FEATURES["query_phase_released"][row.enrollment_id]
+    assert np.array_equal(spectrum.luminance_phase(released, centered=False), np.fft.ifftshift(centered))
 
 
 def test_wrap_phase_matches_both_copies():
@@ -75,15 +70,15 @@ def test_wrap_phase_matches_both_copies():
         ]
     )
     result = spectrum.wrap_phase(values)
-    assert result.tobytes() == OLD_ENROLL.wrap_phase(values).tobytes()
-    assert result.tobytes() == OLD_FEATURES.wrap_phase(values).tobytes()
+    # enroll.py and extract_features.py had byte-identical copies; both gave this digest.
+    assert digest(result) == OLD_ENROLL["wrap_phase"]
 
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_kappa_grid_matches_frequency_radius(shape):
-    expected = OLD_ENROLL.frequency_radius(shape)
-    assert spectrum.kappa_grid(shape, centered=False).tobytes() == expected.tobytes()
-    assert spectrum.kappa_grid(shape, centered=True).tobytes() == np.fft.fftshift(expected).tobytes()
+    expected = OLD_ENROLL["frequency_radius"][str(shape)]
+    assert digest(spectrum.kappa_grid(shape, centered=False)) == expected["radius"]
+    assert digest(spectrum.kappa_grid(shape, centered=True)) == expected["radius_centered"]
 
 
 @pytest.mark.parametrize("shape", SHAPES)
@@ -97,7 +92,7 @@ def test_kappa_grid_centered_matches_shifted_frequencies(shape):
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_subband_b(shape):
-    expected = OLD_ENROLL.frequency_radius(shape) <= 0.15
-    assert np.array_equal(spectrum.subband_b(shape, centered=False), expected)
-    assert np.array_equal(spectrum.subband_b(shape, centered=True), np.fft.fftshift(expected))
+    expected = OLD_ENROLL["frequency_radius"][str(shape)]
+    assert digest(spectrum.subband_b(shape, centered=False)) == expected["subband"]
+    assert digest(spectrum.subband_b(shape, centered=True)) == expected["subband_centered"]
     assert spectrum.SUBBAND_B_KAPPA_MAX == 0.15
