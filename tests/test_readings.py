@@ -1,9 +1,10 @@
 """doctor_trigger.readings is bit-identical to the H / C / G_s copies it replaces (plan Sec. 2.6-2.7).
 
-workflow/record_model/src/trigger_conditioned.py is imported by file path. The old helpers of
+Old helpers are compared through their frozen outputs (see golden_values.py): those of
 workflow/scripts/extract_features.py (feature_row, masked_mean, projection, query_phase,
-radial_values, wrong_delta) are compared through their frozen outputs in
-tests/golden/extract_features_script.json (see golden_values.py). Experiment scripts run at
+radial_values, wrong_delta) in tests/golden/extract_features_script.json, and those of the
+removed trigger_conditioned.py (compute_template_score, compute_trigger_projection,
+compute_host_score) in tests/golden/trigger_conditioned.json. Experiment scripts run at
 import time, so their one-line readers are copied verbatim below with their file and function name;
 ``wrap`` below is the wrap expression those readers use.
 Data: the 512-query regression subset (/ssd2/ming/refactor_baseline/subset_queries.csv) on public_view.
@@ -11,9 +12,7 @@ Data: the 512-query regression subset (/ssd2/ming/refactor_baseline/subset_queri
 
 from __future__ import annotations
 
-import importlib.util
 import multiprocessing
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -27,22 +26,13 @@ from doctor_trigger.record import UnitId, load_record
 from doctor_trigger.spectrum import luminance_phase, subband_b
 from golden_values import digest, features_digest, load
 
-REPO = Path(__file__).resolve().parents[1]
 QUERIES = Path("/ssd2/ming/ttf_run/public_view/manifests/queries.csv")
 SUBSET_QUERIES = Path("/ssd2/ming/refactor_baseline/subset_queries.csv")
 pytestmark = pytest.mark.skipif(not (QUERIES.exists() and SUBSET_QUERIES.exists()), reason="public_view not available")
 
 
-def load_by_path(name: str, path: Path):
-    module_spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(module_spec)
-    sys.modules[name] = module  # dataclasses in the module look themselves up here
-    module_spec.loader.exec_module(module)
-    return module
-
-
 OLD_FEATURES = load("extract_features_script")
-OLD_TRIGGER = load_by_path("old_trigger_conditioned", REPO / "workflow/record_model/src/trigger_conditioned.py")
+OLD_TRIGGER = load("trigger_conditioned")
 
 
 def subset_queries() -> pd.DataFrame:
@@ -200,15 +190,15 @@ def test_weight_map_forms_match_experiment_copies(query):
     # examples/quickstart.py:read_copy -> trigger_conditioned.compute_template_score / compute_trigger_projection
     assert readings.spectral_agreement(uncentered_phase, np.fft.ifftshift(record.template_phase),
                                        np.fft.ifftshift(weights), uncentered_bins, form=readings.SumForm.WEIGHT_MAP) \
-        == OLD_TRIGGER.compute_template_score(ph, tm, weights=w_sub)
+        == OLD_TRIGGER[query.query_id]["compute_template_score"]  # (ph, tm, weights=w_sub)
     host_u, delta_u = np.fft.ifftshift(host), np.fft.ifftshift(delta)
     assert readings.key_projection(readings.phase_drift(uncentered_phase, np.fft.ifftshift(record.original_phase)),
                                    np.fft.ifftshift(record.displacement), np.ones(record.shape), sup_u,
                                    form=readings.SumForm.WEIGHT_MAP) \
-        == OLD_TRIGGER.compute_trigger_projection(ph, host_u, delta_u, support=sup_u)
+        == OLD_TRIGGER[query.query_id]["compute_trigger_projection"]  # (ph, host_u, delta_u, support=sup_u)
     # trigger_conditioned.compute_host_score with a zero-filled weight map
     assert readings.spectral_agreement(ph, host_u, np.fft.ifftshift(weights), sup_u, form=readings.SumForm.WEIGHT_MAP) \
-        == OLD_TRIGGER.compute_host_score(ph, host_u, weights=np.where(sup_u, amp, 0.0))
+        == OLD_TRIGGER[query.query_id]["compute_host_score"]  # (ph, host_u, weights=np.where(sup_u, amp, 0.0))
 
     # experiments/sensitivity_release.py:G_of (uncentered, zero-filled, +1e-6)
     resid = (ph - host_u + np.pi) % (2 * np.pi) - np.pi

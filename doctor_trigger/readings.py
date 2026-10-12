@@ -31,7 +31,7 @@ from functools import lru_cache
 import numpy as np
 from PIL import Image
 
-from .key import WRONG_KEY_COUNT, displacement, sign_pattern, wrong_keys
+from .key import WRONG_KEY_COUNT, displacement, wrong_keys
 from .record import Record, UnitId
 from .spectrum import SUBBAND_B_KAPPA_MAX, luminance_phase, subband_b, wrap_phase
 
@@ -50,8 +50,6 @@ FEATURE_BAND_COUNT = 8
 PIXEL_RADIUS_STABILIZER = 1e-12
 """Added to the largest pixel radius when normalizing it, and to the top band edge so the
 outermost active bin falls inside the last band."""
-SIGN_PATTERN_CACHE_SIZE = 64
-"""Sign patterns kept per process; a record's wrong keys recur across its benign and swap queries."""
 
 
 # ----------------------------------------------------------------------------- query phase
@@ -88,7 +86,14 @@ def query_phase(
 
 # ----------------------------------------------------------------------------- kernels
 class SumForm(Enum):
-    """How a reading sums over its bins (see the module docstring)."""
+    """How a reading sums over its bins (see the module docstring).
+
+    Why there are three: every form computes the same Eq. (5) / Eq. (6) value, but floating-point
+    sums depend on which numbers are added and in what memory order. The paper's tables were
+    produced by scripts that used different (equivalent) expressions, so each caller passes the
+    form its table was computed with and reproduces it to the last bit. New code should use the
+    default, ``GATHERED`` (the feature pipeline's form).
+    """
 
     GATHERED = "gathered"
     """Sum the gathered bins, skipping non-finite entries (``record_features``, ``original_control``)."""
@@ -126,9 +131,10 @@ def amplitude_weighted_mean(
 ) -> float:
     """sum_{k in bins} w_k v_k / sum_{k in bins} w_k, the amplitude-weighted mean of App. D.1.
 
-    With ``stabilizer=None`` a total weight at or below 1e-12 gives NaN; otherwise the stabilizer is
-    added to the denominator. The ``GATHERED`` form skips bins where ``values`` or ``weights`` are
-    not finite; in the weight-map forms a non-finite value propagates, as in the scripts they replace.
+    With ``stabilizer=None`` (the feature pipeline, and the default for new code) a total weight at
+    or below 1e-12 gives NaN; otherwise the stabilizer is added to the denominator, as the scripts
+    behind some tables did (1e-12, 1e-8 or 1e-6), so they keep their exact values. The ``GATHERED`` form skips bins where ``values`` or ``weights`` are
+    not finite; in the weight-map forms a non-finite value propagates into the result.
     """
     if form is SumForm.GATHERED:
         mask = bins & np.isfinite(values) & np.isfinite(weights)
@@ -242,11 +248,28 @@ def subband_bins(record: Record, kappa_max: float = SUBBAND_B_KAPPA_MAX) -> np.n
     return record.active_bins & subband_b(record.shape, centered=True, kappa_max=kappa_max)
 
 
-@lru_cache(maxsize=SIGN_PATTERN_CACHE_SIZE)
-def _centered_sign_pattern(shape: tuple[int, int], key: int) -> np.ndarray:
-    pattern = sign_pattern(shape, key, centered=True)
-    pattern.flags.writeable = False
-    return pattern
+@lru_cache(maxsize=8)
+def _centered_conjugate_indices(shape: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
+    # For each bin of the centered grid, in C order: its flat index in the uncentered grid, and the
+    # flat index of its conjugate bin -k there. fftshift only moves values, so gathering a field at
+    # these indices gives fftshift(field) and fftshift(field(-k)), flattened.
+    flat = np.arange(shape[0] * shape[1]).reshape(shape)
+    conjugate = np.roll(flat[::-1, ::-1], 1, axis=(0, 1))
+    indices = np.fft.fftshift(flat).ravel(), np.fft.fftshift(conjugate).ravel()
+    for array in indices:
+        array.flags.writeable = False
+    return indices
+
+
+def _centered_signs(shape: tuple[int, int], key: int, bins: np.ndarray | None = None) -> np.ndarray:
+    # h_s in record layout, equal to key.sign_pattern(shape, key, centered=True) (flattened, and
+    # restricted to ``bins`` when given): the same standard-normal draw and the same differences
+    # u_s(k) - u_s(-k), which are 0 exactly on self-conjugate bins.
+    standard_normal = np.random.default_rng(key).standard_normal(shape).ravel()
+    positions, conjugates = _centered_conjugate_indices(shape)
+    if bins is not None:
+        positions, conjugates = positions[bins], conjugates[bins]
+    return np.sign(standard_normal[positions] - standard_normal[conjugates])
 
 
 def wrong_key_displacement(record: Record, key: int) -> np.ndarray:
@@ -254,7 +277,18 @@ def wrong_key_displacement(record: Record, key: int) -> np.ndarray:
 
     Uses the record's alpha, beta and K_eff, as the verifier does for each wrong key s^-_j.
     """
-    return displacement(_centered_sign_pattern(record.shape, key), record.alpha, record.beta, record.active_bins)
+    pattern = _centered_signs(record.shape, key).reshape(record.shape)
+    return displacement(pattern, record.alpha, record.beta, record.active_bins)
+
+
+def _displacement_of_signs(signs: np.ndarray, alpha: float, beta: float) -> np.ndarray:
+    """delta_s on bins whose sign h_s is given, by looking up the three possible values.
+
+    delta_s(k) depends only on h_s(k) in {-1, 0, +1}, so ``displacement`` is evaluated once on
+    those three signs and indexed; the values equal the elementwise evaluation exactly.
+    """
+    values = displacement(np.array([-1.0, 0.0, 1.0]), alpha, beta, np.ones(3, dtype=bool))
+    return values[signs.astype(np.intp) + 1]
 
 
 @lru_cache(maxsize=8)
@@ -327,7 +361,8 @@ def record_features(
 
     Every reading is computed on the vector of active bins (gathered once in C order), which is
     the order the gathered sums over the full grid use, so values equal the full-grid computation
-    bit for bit.
+    bit for bit. Per query, r, sin r and cos r are computed once and shared by the enrolled key and
+    the m wrong keys; each wrong key's h_s is drawn once and evaluated on the active bins only.
     """
     if query_phase.shape != record.shape:
         raise ValueError(f"query/template shape mismatch: {query_phase.shape} != {record.shape}")
@@ -345,32 +380,64 @@ def record_features(
     weights = record.amplitude_weights[active]
     enrolled_displacement = record.displacement[active]
 
+    active_positions = np.flatnonzero(active)
+
     def active_displacement(other_key: int) -> np.ndarray:
-        # delta_s of another key, evaluated on the active bins only (elementwise, so identical to
-        # wrong_key_displacement(record, other_key)[active]).
-        pattern = _centered_sign_pattern(record.shape, other_key)[active]
-        return displacement(pattern, record.alpha, record.beta, every_bin)
+        # delta_s of another key on the active bins (equal to wrong_key_displacement(record, other_key)[active]).
+        signs = _centered_signs(record.shape, other_key, active_positions)
+        return _displacement_of_signs(signs, record.alpha, record.beta)
 
     projection_displacement = enrolled_displacement if key == record.key else active_displacement(key)
     drift = phase_drift(query, original)
     reference_drift = phase_drift(reference, original)
     cos_drift = np.cos(drift)
+    sin_drift = np.sin(drift)
+    sin_reference_drift = np.sin(reference_drift)
     cos_reference = np.cos(wrap_phase(query - reference))
-    sin_projection = projection_displacement * np.sin(drift)
+    sin_projection = projection_displacement * sin_drift
+    finite_weights = np.isfinite(weights)
+    finite_query = np.isfinite(drift) & finite_weights
+    finite_reference = np.isfinite(reference_drift) & finite_weights
+
+    def weighted_mean(values: np.ndarray, finite: np.ndarray, bins: np.ndarray) -> float:
+        # amplitude_weighted_mean (GATHERED, no stabilizer) with the finiteness test done once per array.
+        mask = bins & finite
+        w, v = (weights, values) if mask.all() else (weights[mask], values[mask])
+        total = float(np.sum(w))
+        if total <= EMPTY_WEIGHT_LIMIT:
+            return float("nan")
+        return float(np.sum(v * w) / total)
+
+    finite_cos_drift = np.isfinite(cos_drift) & finite_weights
+    finite_cos_reference = np.isfinite(cos_reference) & finite_weights
+    finite_sin_projection = np.isfinite(sin_projection) & finite_weights
+
+    def projection(sin_values: np.ndarray, finite: np.ndarray, key_displacement: np.ndarray, bins: np.ndarray) -> float:
+        # key_projection (GATHERED) with sin r computed once per query instead of once per call.
+        mask = bins & finite & np.isfinite(key_displacement)
+        if mask.all():
+            w, d, s = weights, key_displacement, sin_values
+        else:
+            w, d, s = weights[mask], key_displacement[mask], sin_values[mask]
+        numerator = float(np.sum(w * d * s))
+        denominator = float(np.sum(w * d * d))
+        return numerator / (denominator + PROJECTION_STABILIZER)
+
+    def normalized_projections(bins: np.ndarray, displacements: list[np.ndarray]) -> list[float]:
+        # Release-normalized projection of the query onto each displacement, over ``bins``.
+        scale = max(abs(projection(sin_reference_drift, finite_reference, enrolled_displacement, bins)),
+                    RELEASE_PROJECTION_FLOOR)
+        return [projection(sin_drift, finite_query, key_displacement, bins) / scale for key_displacement in displacements]
+
     wrong_displacements = [active_displacement(candidate) for candidate in wrong_keys(key, wrong_key_count)]
-
-    def projections(bins: np.ndarray) -> tuple[float, list[float]]:
-        scale = max(abs(key_projection(reference_drift, enrolled_displacement, weights, bins)), RELEASE_PROJECTION_FLOOR)
-        enrolled = key_projection(drift, projection_displacement, weights, bins) / scale
-        return enrolled, [key_projection(drift, wrong, weights, bins) / scale for wrong in wrong_displacements]
-
-    values: dict[str, float] = {
-        "H": amplitude_weighted_mean(cos_drift, weights, every_bin),
-        "C": amplitude_weighted_mean(cos_reference, weights, every_bin),
-        "residual_mean": amplitude_weighted_mean(drift, weights, every_bin),
+    agreement_h = weighted_mean(cos_drift, finite_cos_drift, every_bin)
+    features: dict[str, float] = {
+        "H": agreement_h,
+        "C": weighted_mean(cos_reference, finite_cos_reference, every_bin),
+        "residual_mean": weighted_mean(drift, finite_query, every_bin),
         "residual_std": float(np.std(drift)),
-        "sin_projection_mean": amplitude_weighted_mean(sin_projection, weights, every_bin),
-        "cos_consistency_mean": amplitude_weighted_mean(cos_drift, weights, every_bin),
+        "sin_projection_mean": weighted_mean(sin_projection, finite_sin_projection, every_bin),
+        "cos_consistency_mean": agreement_h,
         "valid_count": int(np.sum(active)),
         "valid_fraction": float(np.mean(active)),
         "delta_abs_mean": float(np.mean(np.abs(projection_displacement))),
@@ -378,9 +445,9 @@ def record_features(
             np.mean(np.abs(projection_displacement)) / max(record.alpha * record.beta, STRENGTH_PRODUCT_FLOOR)
         ),
     }
-    enrolled, wrong = projections(every_bin)
+    enrolled, *wrong = normalized_projections(every_bin, [projection_displacement, *wrong_displacements])
     stats = wrong_key_statistics(enrolled, np.asarray(wrong, dtype=np.float64))
-    values.update(
+    features.update(
         {
             "G_s": enrolled,
             "G_wrong_mean": stats.mean,
@@ -395,18 +462,18 @@ def record_features(
     edges = feature_band_edges(radius, band_count)
     for band_index in range(band_count):
         band = (radius >= edges[band_index]) & (radius < edges[band_index + 1])
-        scale = max(abs(key_projection(reference_drift, enrolled_displacement, weights, band)), RELEASE_PROJECTION_FLOOR)
-        band_projection = key_projection(drift, projection_displacement, weights, band) / scale
-        values[f"H_b{band_index}"] = amplitude_weighted_mean(cos_drift, weights, band)
-        values[f"C_b{band_index}"] = amplitude_weighted_mean(cos_reference, weights, band)
-        values[f"G_b{band_index}"] = band_projection
-        values[f"G_margin_b{band_index}"] = band_projection
-        values[f"residual_mean_b{band_index}"] = amplitude_weighted_mean(drift, weights, band)
-        values[f"residual_std_b{band_index}"] = float(np.std(drift[band])) if np.any(band) else float("nan")
-        values[f"sin_projection_mean_b{band_index}"] = amplitude_weighted_mean(sin_projection, weights, band)
-        values[f"cos_consistency_mean_b{band_index}"] = amplitude_weighted_mean(cos_drift, weights, band)
-        values[f"valid_count_b{band_index}"] = int(np.sum(band))
-    return values
+        (band_projection,) = normalized_projections(band, [projection_displacement])
+        band_h = weighted_mean(cos_drift, finite_cos_drift, band)
+        features[f"H_b{band_index}"] = band_h
+        features[f"C_b{band_index}"] = weighted_mean(cos_reference, finite_cos_reference, band)
+        features[f"G_b{band_index}"] = band_projection
+        features[f"G_margin_b{band_index}"] = band_projection
+        features[f"residual_mean_b{band_index}"] = weighted_mean(drift, finite_query, band)
+        features[f"residual_std_b{band_index}"] = float(np.std(drift[band])) if np.any(band) else float("nan")
+        features[f"sin_projection_mean_b{band_index}"] = weighted_mean(sin_projection, finite_sin_projection, band)
+        features[f"cos_consistency_mean_b{band_index}"] = band_h
+        features[f"valid_count_b{band_index}"] = int(np.sum(band))
+    return features
 
 
 # ----------------------------------------------------------------------------- one unit

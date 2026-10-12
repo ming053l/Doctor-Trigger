@@ -1,0 +1,62 @@
+{
+ "db34a90e9c371a07c3339c89": {
+  "compute_template_score": 0.9910597862063902,
+  "compute_trigger_projection": 1.5352005576744467,
+  "compute_host_score": 0.9778592540897075
+ },
+ "fab5082e1fd6c69b10821d03": {
+  "compute_template_score": 0.9898594126120985,
+  "compute_trigger_projection": 1.831067783276072,
+  "compute_host_score": 0.9872840726486498
+ },
+ "45c8161d03f754bb505217d2": {
+  "compute_template_score": 0.9767285610856501,
+  "compute_trigger_projection": 1.3100966391321898,
+  "compute_host_score": 0.9503681252855344
+ },
+ "83e77a5fb3cfc2cd3ae7aebe": {
+  "compute_template_score": 0.9569779381748763,
+  "compute_trigger_projection": 3.4230908925899253,
+  "compute_host_score": 0.9097444070367611
+ },
+ "1dec73becf202bb3a14b9dae": {
+  "compute_template_score": 0.9218832870290943,
+  "compute_trigger_projection": 9.561362593542198,
+  "compute_host_score": 0.9122902331736249
+ },
+ "59c80cff4c8cf05acae27d18": {
+  "compute_template_score": 0.9893377460379023,
+  "compute_trigger_projection": 8.912781278493805,
+  "compute_host_score": 0.9854685216479201
+ },
+ "8fcf1205a5ae0d9eaaf734ba": {
+  "compute_template_score": 0.9612127111702937,
+  "compute_trigger_projection": 13.713739361605835,
+  "compute_host_score": 0.9513494130155833
+ },
+ "d2065ce803f477d80d7c47ff": {
+  "compute_template_score": 0.8832492005591847,
+  "compute_trigger_projection": 11.140016846496156,
+  "compute_host_score": 0.8533488425555604
+ },
+ "74e1cb9e4929ac6e26bb9bbd": {
+  "compute_template_score": 0.9201219807485043,
+  "compute_trigger_projection": 0.9355953290254762,
+  "compute_host_score": 0.8149911950923433
+ },
+ "9db1353bbf94ddef7703a5e0": {
+  "compute_template_score": 0.9030295770853706,
+  "compute_trigger_projection": 0.6658873918783446,
+  "compute_host_score": 0.814592771504288
+ },
+ "dbd385e80e94b6f8472ed92a": {
+  "compute_template_score": 0.9355421495477655,
+  "compute_trigger_projection": 0.9318924015289316,
+  "compute_host_score": 0.8613748070030093
+ },
+ "87a42b21079e3b70fae7df26": {
+  "compute_template_score": 0.9343084603100796,
+  "compute_trigger_projection": 0.9557023911635092,
+  "compute_host_score": 0.8628462084665468
+ }
+}

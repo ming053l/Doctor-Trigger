@@ -1,17 +1,9 @@
-"""doctor_trigger.config against dt/paths.py, the reader it replaces.
-
-dt/paths.py reads ``<its repo>/config.yaml`` at import, so each reference config is placed in a
-scratch copy of the repository layout (``tmp/dt/paths.py`` + ``tmp/config.yaml``) and the new
-reader is pointed at the same file with the same ``repo_root``. Every key must resolve to the
-identical string, and the DT_* environment map must match ``export_env``.
-"""
+"""doctor_trigger.config: reading config.yaml, filling {placeholders}, dotted keys, DT_* export."""
 
 from __future__ import annotations
 
-import importlib.util
 import os
-import shutil
-import sys
+import re
 from pathlib import Path
 
 import pytest
@@ -19,75 +11,130 @@ import pytest
 from doctor_trigger import config
 
 REPO = Path(__file__).resolve().parents[1]
-REFERENCE_CONFIGS = [
-    REPO / "config.example.yaml",
-    Path("/ssd2/ming/DT_repo_public/config.yaml"),
-    REPO / "config.yaml",
-]
 
 
-def import_by_path(name: str, file: Path):
-    spec = importlib.util.spec_from_file_location(name, file)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
+def write(tmp_path: Path, text: str, name: str = "config.yaml") -> Path:
+    file = tmp_path / name
+    file.write_text(text)
+    return file
 
 
-def leaf_keys(node, prefix=""):
-    for key, value in node.items():
-        dotted = f"{prefix}{key}"
-        if isinstance(value, dict):
-            yield from leaf_keys(value, dotted + ".")
-        else:
-            yield dotted
+def test_placeholders_fill_through_chains_and_repo_root(tmp_path):
+    file = write(tmp_path, (
+        "canonical_root: '{repo_root}/../canonical'\n"
+        "cases_csv: '{canonical_root}/common/cases.csv'\n"
+        "features_csv: '{cases_csv}.features'\n"
+    ))
+    cfg = config.Config(file=file, raw=config.load_config(file).raw, repo_root=Path("/r"))
+    assert cfg.path("canonical_root") == "/r/../canonical"
+    assert cfg.path("cases_csv") == "/r/../canonical/common/cases.csv"
+    assert cfg.path("features_csv") == "/r/../canonical/common/cases.csv.features"
+    assert cfg.value("cases_csv") == "{canonical_root}/common/cases.csv"
 
 
-@pytest.mark.parametrize("source", REFERENCE_CONFIGS, ids=lambda p: str(p))
-def test_paths_identical_to_dt_paths(tmp_path, source, monkeypatch):
-    if not source.exists():
-        pytest.skip(f"{source} not present")
-    (tmp_path / "dt").mkdir()
-    shutil.copy(REPO / "dt/paths.py", tmp_path / "dt/paths.py")
-    shutil.copy(source, tmp_path / "config.yaml")
-    old = import_by_path(f"old_dt_paths_{abs(hash(str(source)))}", tmp_path / "dt/paths.py")
+def test_default_repo_root_is_this_checkout(tmp_path):
+    cfg = config.load_config(write(tmp_path, "outputs_root: '{repo_root}/outputs'\n"))
+    assert cfg.path("outputs_root") == f"{REPO}/outputs"
 
-    new = config.Config(file=tmp_path / "config.yaml", raw=config.load_config(tmp_path / "config.yaml").raw,
-                        repo_root=tmp_path)
-    keys = list(leaf_keys(old._CFG))
-    assert keys
-    for key in keys:
-        assert new.path(key) == old.P(key), key
 
-    for name in config.ENVIRONMENT_KEYS:
-        monkeypatch.delenv(name, raising=False)
-    old.export_env()
-    assert new.environment() == {name: os.environ[name] for name in old._ENV_MAP}
-    assert config.ENVIRONMENT_KEYS == old._ENV_MAP
+def test_nested_keys_with_dots_and_non_string_values(tmp_path):
+    cfg = config.load_config(write(tmp_path, (
+        "ckpts_root: /ckpts\n"
+        "checkpoints:\n"
+        "  image_detector: '{ckpts_root}/plain'\n"
+        "workers: 8\n"
+    )))
+    assert cfg.path("checkpoints.image_detector") == "/ckpts/plain"
+    assert cfg.path("workers") == 8
+    assert cfg.value("checkpoints") == {"image_detector": "{ckpts_root}/plain"}
+    with pytest.raises(KeyError):
+        cfg.path("checkpoints.image_detector_aug")
+    with pytest.raises(KeyError):
+        cfg.path("ckpts_root.anything")
+
+
+def test_nested_values_are_not_placeholders(tmp_path):
+    cfg = config.load_config(write(tmp_path, "group:\n  inner: /x\nuses: '{inner}/y'\n"))
+    with pytest.raises(KeyError):
+        cfg.path("uses")
+
+
+def test_relative_paths_are_returned_as_written(tmp_path):
+    cfg = config.load_config(write(tmp_path, "outputs_root: outputs/results\n"))
+    assert cfg.path("outputs_root") == "outputs/results"
+
+
+def test_placeholder_cycle_raises(tmp_path):
+    cfg = config.load_config(write(tmp_path, "a: '{b}x'\nb: '{a}y'\n"))
+    with pytest.raises(ValueError):
+        cfg.path("a")
+
+
+def test_fill_placeholders_unknown_name():
+    with pytest.raises(KeyError):
+        config.fill_placeholders("{missing}/x", {"present": "/p"})
+    assert config.fill_placeholders("/plain/path", {}) == "/plain/path"
 
 
 def test_default_queries_csv(tmp_path):
-    file = tmp_path / "config.yaml"
-    file.write_text("canonical_root: /data/root\n")
-    cfg = config.load_config(file)
-    assert cfg.path("queries_csv") == "/data/root/manifests/queries.csv"
+    file = write(tmp_path, "canonical_root: /data/root\n")
+    assert config.load_config(file).path("queries_csv") == "/data/root/manifests/queries.csv"
     file.write_text("canonical_root: /data/root\nqueries_csv: '{canonical_root}/manifests_queries.csv'\n")
     assert config.load_config(file).path("queries_csv") == "/data/root/manifests_queries.csv"
 
 
-def test_missing_key_and_file(tmp_path):
-    file = tmp_path / "config.yaml"
-    file.write_text("canonical_root: /x\n")
-    with pytest.raises(KeyError):
-        config.load_config(file).path("checkpoints.image_detector")
-    with pytest.raises(FileNotFoundError):
+def test_missing_file_names_the_example(tmp_path):
+    with pytest.raises(FileNotFoundError, match="config.example.yaml"):
         config.load_config(tmp_path / "absent.yaml")
 
 
-def test_env_override_and_module_path(tmp_path, monkeypatch):
-    file = tmp_path / "other.yaml"
-    file.write_text("canonical_root: /elsewhere\ncases_csv: '{canonical_root}/common/cases.csv'\n")
+def test_empty_file_is_an_empty_config(tmp_path):
+    cfg = config.load_config(write(tmp_path, ""))
+    assert cfg.raw == {}
+    with pytest.raises(KeyError):
+        cfg.path("canonical_root")
+
+
+def test_example_config_resolves_every_key_and_marks_every_environment_key():
+    example = REPO / "config.example.yaml"
+    cfg = config.load_config(example)
+    environment = cfg.environment()
+    assert set(environment) == set(config.ENVIRONMENT_KEYS)
+    for name, value in environment.items():
+        assert "{" not in value, name
+    marked = set(re.findall(r"\[(DT_[A-Z_]+)\]", example.read_text()))
+    assert marked == set(config.ENVIRONMENT_KEYS)
+
+
+def test_environment_maps_each_variable_to_its_key(tmp_path):
+    nested: dict[str, list[str]] = {}
+    top: list[str] = []
+    for key in config.ENVIRONMENT_KEYS.values():
+        head, _, tail = key.partition(".")
+        if tail:
+            nested.setdefault(head, []).append(f"  {tail}: /v/{key}")
+        else:
+            top.append(f"{head}: /v/{key}")
+    text = "\n".join(top + [f"{head}:\n" + "\n".join(items) for head, items in nested.items()]) + "\n"
+    cfg = config.load_config(write(tmp_path, text))
+    assert cfg.environment() == {name: f"/v/{key}" for name, key in config.ENVIRONMENT_KEYS.items()}
+
+
+def test_export_environment_keeps_variables_already_set(tmp_path, monkeypatch):
+    for name in config.ENVIRONMENT_KEYS:
+        monkeypatch.delenv(name, raising=False)
+    cfg = config.load_config(REPO / "config.example.yaml")
+    monkeypatch.setenv("DT_OUTPUTS", "/already/set")
+    config.export_environment(cfg)
+    assert os.environ["DT_OUTPUTS"] == "/already/set"
+    assert os.environ["DT_CANON_ROOT"] == cfg.path("canonical_root")
+
+
+def test_environment_variable_selects_the_config_file(tmp_path, monkeypatch):
+    file = write(tmp_path, "canonical_root: /elsewhere\ncases_csv: '{canonical_root}/common/cases.csv'\n", "other.yaml")
     monkeypatch.setenv(config.CONFIG_ENV, str(file))
     assert config.config_file() == file
     assert config.path("cases_csv") == "/elsewhere/common/cases.csv"
     assert config.current().path("canonical_root") == "/elsewhere"
+    monkeypatch.delenv(config.CONFIG_ENV)
+    assert config.config_file() == REPO / "config.yaml"

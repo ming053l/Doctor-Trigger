@@ -1,9 +1,10 @@
 """doctor_trigger.record_model against the code it replaces, on the shipped checkpoints.
 
-References (imported by file path, except where noted):
-* workflow/record_model/src/record_model.py           columns, model, loss
+References (frozen outputs, see golden_values.py):
+* the former workflow/record_model/src/record_model.py: variant columns, in
+  tests/golden/record_model_library.json
 * the record-model trainer's former standardize, fit and predict (now calls into this module):
-  frozen outputs in tests/golden/record_model_trainer.json (see golden_values.py)
+  tests/golden/record_model_trainer.json
 * experiments/joint_policy.py load_models / predict (NaN -> column mean) and
   experiments/copy_ring_canonical.py predict (NaN -> 0), now calls into this module: frozen outputs
   in tests/golden/experiment_record_model.json
@@ -12,8 +13,6 @@ Every comparison is exact (``np.array_equal`` / ``torch.equal``, or SHA-256 dige
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -24,7 +23,6 @@ import torch
 from doctor_trigger import record_model as rm
 from golden_values import digest, frame_digest, load
 
-REPO = Path(__file__).resolve().parents[1]
 ROOT = Path("/ssd2/ming/ttf_run/public_view")
 OUTPUTS = Path("/ssd2/ming/ttf_run/public_view_outputs")
 CALIBRATED_CKPTS = ROOT / "results/record_model/checkpoints"
@@ -34,25 +32,9 @@ RECORDSCALAR_FEATURES = OUTPUTS / "features_record_scalar"
 pytestmark = pytest.mark.skipif(not CALIBRATED_CKPTS.exists(), reason="public_view checkpoints not available")
 
 
-def import_by_path(name: str, file: Path, extra_path: Path | None = None):
-    for mod in [m for m in sys.modules if m == "src" or m.startswith("src.")]:
-        del sys.modules[mod]
-    if extra_path is not None:
-        sys.path.insert(0, str(extra_path))
-    try:
-        spec = importlib.util.spec_from_file_location(name, file)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[name] = module
-        spec.loader.exec_module(module)
-    finally:
-        if extra_path is not None:
-            sys.path.remove(str(extra_path))
-    return module
-
-
 @pytest.fixture(scope="module")
 def old_lib():
-    return import_by_path("old_record_model", REPO / "workflow/record_model/src/record_model.py")
+    return load("record_model_library")
 
 
 @pytest.fixture(scope="module")
@@ -64,8 +46,8 @@ def test_columns(old_lib):
     for csv in (ROOT / "features/calibrated_features_ffpp_test.csv", RECORDSCALAR_FEATURES / "recordscalar_features_ffpp_test.csv"):
         cols = list(pd.read_csv(csv, nrows=1).columns)
         for variant in rm.VARIANTS:
-            assert rm.feature_columns(variant, cols) == old_lib.feature_columns_for_variant(variant, cols)
-    assert rm.AGREEMENT_COLUMNS == old_lib.HOST_COLUMNS and rm.KEY_COLUMNS == old_lib.TRIGGER_COLUMNS
+            assert rm.feature_columns(variant, cols) == old_lib["feature_columns_for_variant"][csv.name][variant]
+    assert rm.AGREEMENT_COLUMNS == old_lib["HOST_COLUMNS"] and rm.KEY_COLUMNS == old_lib["TRIGGER_COLUMNS"]
 
 
 def test_checkpoint_columns_match_variant():

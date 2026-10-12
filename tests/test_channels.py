@@ -1,17 +1,16 @@
 """doctor_trigger.channels against the implementations it replaces, on real released/query images.
 
-References: experiments/_snapshot/scripts/benign_channels.transform_image, the quickstart's former
-``jpeg``/``resized`` (frozen outputs in tests/golden/quickstart_copies.json, see golden_values.py)
+References (frozen outputs, see golden_values.py): the former benign_channels.transform_image
+(tests/golden/benign_channels.json), the quickstart's former ``jpeg``/``resized``
+(tests/golden/quickstart_copies.json)
 and the Table 4 repost/screenshot resize (copied below verbatim, because
 importing table4_artifact.py runs the experiment). Every comparison is exact.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import io
 import shutil
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -22,19 +21,10 @@ from PIL import Image
 from doctor_trigger import channels
 from golden_values import digest, load
 
-REPO = Path(__file__).resolve().parents[1]
 CASES = Path("/ssd2/ming/ttf_run/public_view/common/cases.csv")
 
 
-def import_by_path(name: str, file: Path):
-    spec = importlib.util.spec_from_file_location(name, file)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-old_channels = import_by_path("old_benign_channels", REPO / "experiments/_snapshot/scripts/benign_channels.py")
+OLD_CHANNELS = load("benign_channels")
 
 
 @pytest.fixture(scope="module")
@@ -60,15 +50,16 @@ CODEC_NAMES = ["x264_crf30", "x264_crf35", "x264_crf40", "x265_crf30"]
 def test_transform_image_bit_identical(images, name):
     if name in CODEC_NAMES and shutil.which("ffmpeg") is None:
         pytest.skip("ffmpeg not on PATH")
-    for k, img in enumerate(images):
+    expected = OLD_CHANNELS["transform_image"][name]
+    assert len(expected) == len(images)
+    for k, (img, old) in enumerate(zip(images, expected)):
         seed = (k + 17) * 1009
-        old = np.asarray(old_channels.transform_image(img, name, seed=seed))
         new_pil = channels.apply_channel(name, img, seed)
         new_arr = channels.apply_channel(name, np.asarray(img), seed)
         assert isinstance(new_pil, Image.Image) and isinstance(new_arr, np.ndarray)
-        assert np.array_equal(old, np.asarray(new_pil)), (name, k)
-        assert np.array_equal(old, new_arr), (name, k)
-        assert new_arr.dtype == np.uint8 and new_arr.shape == old.shape
+        assert digest(np.asarray(new_pil)) == old, (name, k)
+        assert digest(new_arr) == old, (name, k)
+        assert new_arr.dtype == np.uint8 and new_arr.shape == np.asarray(img).shape
 
 
 def test_registry_and_parametric_names(images):
@@ -76,8 +67,7 @@ def test_registry_and_parametric_names(images):
         assert channels.get_channel(name) is channels.CHANNELS[name]
     img = images[0]
     for q in (60, 95):  # not in CHANNELS: parsed like transform_image did
-        assert np.array_equal(np.asarray(old_channels.transform_image(img, f"jpeg_q{q}", 0)),
-                              channels.apply_channel(f"jpeg_q{q}", np.asarray(img), 0))
+        assert digest(channels.apply_channel(f"jpeg_q{q}", np.asarray(img), 0)) == OLD_CHANNELS["parametric_jpeg"][str(q)]
     with pytest.raises(ValueError):
         channels.apply_channel("nope", np.asarray(img), 0)
 

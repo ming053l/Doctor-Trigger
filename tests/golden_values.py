@@ -1,7 +1,8 @@
 """Frozen outputs of the workflow scripts' old helper functions, for the bit-identity tests.
 
 The old helpers (workflow/scripts/enroll.py, extract_features.py, the record-model trainer's
-standardize/fit/predict, the quickstart's jpeg/resized) were replaced by calls into
+standardize/fit/predict, the quickstart's jpeg/resized, trigger_conditioned.py's H / C / G_s
+readers) were replaced by calls into
 ``doctor_trigger``. Their outputs on the test inputs were saved before the removal, as SHA-256
 digests of the exact bytes (arrays), exact JSON values (scalars) or digests of feature rows,
 in ``tests/golden/<name>.json``. ``digest`` here is the function the goldens were made with.

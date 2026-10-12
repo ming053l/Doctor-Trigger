@@ -11,6 +11,7 @@ Functions that can return either take ``centered=`` explicitly; nothing guesses.
 
 from __future__ import annotations
 
+from functools import lru_cache
 import math
 
 import numpy as np
@@ -47,17 +48,40 @@ def wrap_phase(angle: np.ndarray) -> np.ndarray:
     return (angle + np.pi) % (2.0 * np.pi) - np.pi
 
 
+GRID_CACHE_SIZE = 16
+"""Fourier-grid shapes whose kappa grid and sub-band masks are kept per process (one per crop size)."""
+
+
 def kappa_grid(shape: tuple[int, int], centered: bool) -> np.ndarray:
     """Normalized radius kappa(k) = sqrt(fx^2 + fy^2) / sqrt(0.5^2 + 0.5^2) of every bin.
 
     fx, fy are in cycles per pixel, so kappa is 0 at DC and 1 at the (0.5, 0.5) corner.
+    The grid depends only on the shape, so it is computed once per shape and returned read-only.
     """
+    return _kappa_grid(tuple(int(n) for n in shape), bool(centered))
+
+
+@lru_cache(maxsize=GRID_CACHE_SIZE)
+def _kappa_grid(shape: tuple[int, int], centered: bool) -> np.ndarray:
     fy = np.fft.fftfreq(shape[0]).reshape(-1, 1)
     fx = np.fft.fftfreq(shape[1]).reshape(1, -1)
     kappa = np.sqrt(fy * fy + fx * fx) / math.sqrt(0.5**2 + 0.5**2)
-    return np.fft.fftshift(kappa) if centered else kappa
+    if centered:
+        kappa = np.fft.fftshift(kappa)
+    kappa.flags.writeable = False
+    return kappa
 
 
 def subband_b(shape: tuple[int, int], centered: bool, kappa_max: float = SUBBAND_B_KAPPA_MAX) -> np.ndarray:
-    """Boolean mask of the retained sub-band B = {k : kappa(k) <= kappa_max} (default 0.15)."""
-    return kappa_grid(shape, centered=centered) <= kappa_max
+    """Boolean mask of the retained sub-band B = {k : kappa(k) <= kappa_max} (default 0.15).
+
+    Computed once per (shape, layout, kappa_max) and returned read-only.
+    """
+    return _subband_b(tuple(int(n) for n in shape), bool(centered), float(kappa_max))
+
+
+@lru_cache(maxsize=GRID_CACHE_SIZE)
+def _subband_b(shape: tuple[int, int], centered: bool, kappa_max: float) -> np.ndarray:
+    mask = _kappa_grid(shape, centered) <= kappa_max
+    mask.flags.writeable = False
+    return mask

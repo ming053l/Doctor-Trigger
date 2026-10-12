@@ -40,14 +40,12 @@ def sign_pattern(shape: tuple[int, int], key: int, centered: bool = False) -> np
     (k = -k) get 0. ``centered=True`` returns the pattern in record layout (``fftshift``).
     """
     standard_normal = np.random.default_rng(key).standard_normal(shape)
-    conjugate_rows = np.mod(-np.arange(shape[0]), shape[0])
-    conjugate_cols = np.mod(-np.arange(shape[1]), shape[1])
-    conjugate = standard_normal[np.ix_(conjugate_rows, conjugate_cols)]
+    # u_s(-k): index -i mod n is i reversed and shifted by one (0 -> 0, 1 -> n-1, ...).
+    conjugate = np.roll(standard_normal[::-1, ::-1], 1, axis=(0, 1))
     pattern = np.sign(standard_normal - conjugate)
-    self_conjugate_rows = np.arange(shape[0]) == conjugate_rows
-    self_conjugate_cols = np.arange(shape[1]) == conjugate_cols
+    self_conjugate_rows = np.arange(shape[0]) == np.mod(-np.arange(shape[0]), shape[0])
+    self_conjugate_cols = np.arange(shape[1]) == np.mod(-np.arange(shape[1]), shape[1])
     pattern[np.ix_(self_conjugate_rows, self_conjugate_cols)] = 0.0
-    pattern = pattern.astype(np.float64)
     return np.fft.fftshift(pattern) if centered else pattern
 
 

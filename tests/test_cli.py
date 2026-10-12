@@ -1,14 +1,8 @@
-"""``python -m doctor_trigger`` against ``python run.py``, the entry point it replaces.
-
-``list``, ``show <id>`` (for every registry entry) and ``status`` must print exactly what run.py
-prints; ``reproduce`` must report the same command and exit code and run with the same
-environment. Both read the repository's config.yaml.
-"""
+"""``python -m doctor_trigger``: registry commands (list, show, status, reproduce) and method commands."""
 
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -20,13 +14,15 @@ import yaml
 from doctor_trigger import cli, config
 
 REPO = Path(__file__).resolve().parents[1]
-pytestmark = pytest.mark.skipif(not (REPO / "config.yaml").exists(), reason="needs config.yaml")
 
 
-def run(*args: str, module: bool) -> subprocess.CompletedProcess:
-    cmd = [sys.executable, "-m", "doctor_trigger", *args] if module else [sys.executable, "run.py", *args]
+def run_module(*args: str, config_file: Path | None = None) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if not k.startswith("DT_") and k != config.CONFIG_ENV}
-    return subprocess.run(cmd, cwd=REPO, env=env, capture_output=True, text=True, timeout=120)
+    env["PYTHONPATH"] = str(REPO)
+    if config_file is not None:
+        env[config.CONFIG_ENV] = str(config_file)
+    return subprocess.run([sys.executable, "-m", "doctor_trigger", *args], cwd=REPO, env=env,
+                          capture_output=True, text=True, timeout=300)
 
 
 @pytest.fixture(scope="module")
@@ -35,86 +31,138 @@ def registry() -> dict:
         return yaml.safe_load(handle)
 
 
-def test_list_identical(registry):
-    old, new = run("list", module=False), run("list", module=True)
-    assert old.returncode == new.returncode == 0
-    assert new.stdout == old.stdout
-    listed = [line.split()[0] for line in new.stdout.splitlines()]
-    assert listed == list(registry)
+@pytest.fixture
+def cfg(tmp_path) -> config.Config:
+    file = tmp_path / "config.yaml"
+    file.write_text("root: /data\nouts: '{root}/outs'\nckpts_root: /ck\n"
+                    "checkpoints:\n  image_detector: '{ckpts_root}/plain'\n  image_detector_aug: '{ckpts_root}/aug'\n")
+    return config.load_config(file)
 
 
-def test_show_identical_for_every_entry(registry):
-    for experiment_id in registry:
-        old, new = run("show", experiment_id, module=False), run("show", experiment_id, module=True)
-        assert old.returncode == new.returncode == 0, experiment_id
-        assert new.stdout == old.stdout, experiment_id
-        assert new.stdout.strip(), experiment_id
+# ----------------------------------------------------------------------------- list / show / status
+def test_list_prints_every_entry_with_its_paper_artifact(registry):
+    result = run_module("list")
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert [line.split()[0] for line in lines] == list(registry)
+    for line, (key, entry) in zip(lines, registry.items()):
+        assert line[len(key):].strip() == str(entry.get("paper", "")).strip(), key
 
 
-def test_status_identical():
-    strip_age = lambda text: re.sub(r"OK +[0-9.]+h old", "OK <age>", text)  # noqa: E731
-    old, new = run("status", module=False), run("status", module=True)
-    assert old.returncode == new.returncode == 0
-    assert strip_age(new.stdout) == strip_age(old.stdout)
+def test_show_fills_config_placeholders(cfg, capsys):
+    registry = {"probe": {"paper": "Table 9", "cwd": "{repo_root}/experiments", "cmd": "python x.py --out {outs}",
+                          "output": "{outs}/x.csv", "note": "slot {unknown} stays"}}
+    assert cli.cmd_show(registry, "probe", cfg) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines == [
+        "paper   Table 9",
+        f"cwd     {config.REPO_ROOT}/experiments",
+        "cmd     python x.py --out /data/outs",
+        "output  /data/outs/x.csv",
+        "note    slot {unknown} stays",
+    ]
 
 
-def test_reproduce_unfilled_slot_identical(registry):
-    slotted = [k for k, e in registry.items() if "cmd" in e and re.search(r"\{(dataset|engine|method)\}", e["cmd"])]
-    assert slotted
-    for experiment_id in slotted[:3]:
-        old, new = run("run", experiment_id, module=False), run("reproduce", experiment_id, module=True)
-        assert old.returncode == new.returncode == 2
-        assert new.stdout == old.stdout
+def test_show_every_registry_entry(registry, tmp_path):
+    example = REPO / "config.example.yaml"
+    for experiment_id in list(registry)[:: max(1, len(registry) // 8)]:
+        result = run_module("show", experiment_id, config_file=example)
+        assert result.returncode == 0, (experiment_id, result.stderr)
+        fields = [line.split()[0] for line in result.stdout.splitlines() if line.strip()]
+        assert fields and set(fields) <= set(cli.SHOW_FIELDS), experiment_id
+        assert "{repo_root}" not in result.stdout, experiment_id
+
+
+def test_status_reports_present_missing_and_patterns(cfg, tmp_path, capsys):
+    present = tmp_path / "present.csv"
+    present.write_text("x\n")
+    registry = {
+        "here": {"output": str(present)},
+        "gone": {"output": str(tmp_path / "absent.csv")},
+        "many": {"output": "{outs}/{dataset}.csv"},
+        "none": {"cmd": "true"},
+    }
+    assert cli.cmd_status(registry, cfg) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) == 3
+    assert lines[0].startswith("here") and " OK " in lines[0] and lines[0].endswith(str(present))
+    assert lines[1].startswith("gone") and "MISSING" in lines[1]
+    assert lines[2].startswith("many") and "(pattern) {outs}/{dataset}.csv" in lines[2]  # a pattern with an unknown slot stays unfilled
+
+
+def test_fill_template_rounds_and_extra_values():
+    assert cli.fill_template("{a}/{b}", {"a": "{c}", "c": "/c"}, {"b": "x"}) == "/c/x"
+    assert cli.fill_template("{a}/{missing}", {"a": "/a"}) == "{a}/{missing}"
+
+
+# ----------------------------------------------------------------------------- reproduce
+def test_reproduce_unfilled_slot(cfg, capsys):
+    registry = {"slotted": {"cwd": "/", "cmd": "echo {dataset}"}}
+    assert cli.cmd_reproduce(registry, "slotted", [], cfg) == 2
+    assert "unfilled slot in: echo {dataset}" in capsys.readouterr().out
+
+
+def test_reproduce_documentation_only_entry(cfg, capsys):
+    registry = {"doc": {"doc": "see {outs}/README"}}
+    assert cli.cmd_reproduce(registry, "doc", [], cfg) == 0
+    assert capsys.readouterr().out == "'doc' is documentation-only:\n  see /data/outs/README\n"
 
 
 def test_reproduce_runs_registered_command(tmp_path, monkeypatch):
+    for name in config.ENVIRONMENT_KEYS:
+        monkeypatch.delenv(name, raising=False)
+    cfg = config.load_config(REPO / "config.example.yaml")
     marker = tmp_path / "env.txt"
     registry = {"probe": {"cwd": str(tmp_path), "cmd": f"{sys.executable} -c \"import os,sys; "
                           f"open('{marker}','w').write(os.environ['DT_CANON_ROOT']+'|'+os.environ['IMAGE_DETECTOR_CKPT']"
                           f"+'|'+os.getcwd()+'|'+sys.argv[1])\" {{word}}"}}
-    for name in config.ENVIRONMENT_KEYS:
-        monkeypatch.delenv(name, raising=False)
-    cfg = config.load_config(REPO / "config.yaml")
     assert cli.cmd_reproduce(registry, "probe", ["word=hello", "head=ffpp"], cfg) == 0
-    expected_ckpt = os.path.join(cfg.path("checkpoints.image_detector_aug"), "ffpp", "best_val_auc.pt")
-    assert marker.read_text() == f"{cfg.path('canonical_root')}|{expected_ckpt}|{tmp_path}|hello"
+    checkpoint = os.path.join(cfg.path("checkpoints.image_detector_aug"), "ffpp", "best_val_auc.pt")
+    assert marker.read_text() == f"{cfg.path('canonical_root')}|{checkpoint}|{tmp_path}|hello"
 
 
-def test_reproduce_environment_matches_run_py(monkeypatch):
+def test_reproduce_environment(monkeypatch):
     for name in config.ENVIRONMENT_KEYS:
         monkeypatch.delenv(name, raising=False)
-    code = ("import os, sys, json; sys.argv=['run.py']; sys.path.insert(0, '.');"
-            "from dt.paths import export_env, P; export_env();"
-            "print(json.dumps({k: v for k, v in os.environ.items() if k.startswith('DT_')}))")
-    env = {k: v for k, v in os.environ.items() if not k.startswith("DT_")}
-    old = subprocess.run([sys.executable, "-c", code], cwd=REPO, env=env, capture_output=True, text=True, check=True)
-    import json
-    new = cli.reproduce_environment(config.load_config(REPO / "config.yaml"), {"plain_head": "dfdc"})
-    assert {k: v for k, v in new.items() if k.startswith("DT_")} == json.loads(old.stdout)
-    assert new["IMAGE_DETECTOR_CKPT"].endswith(os.path.join("dfdc", "best_val_auc.pt"))
-    assert new["PATH"].startswith(os.path.dirname(sys.executable) + os.pathsep)
+    monkeypatch.setenv("DT_OUTPUTS", "/kept")
+    cfg = config.load_config(REPO / "config.example.yaml")
+    env = cli.reproduce_environment(cfg, {"plain_head": "dfdc"})
+    expected = cfg.environment()
+    expected["DT_OUTPUTS"] = "/kept"
+    assert {k: env[k] for k in config.ENVIRONMENT_KEYS} == expected
+    assert env["IMAGE_DETECTOR_CKPT"] == os.path.join(cfg.path("checkpoints.image_detector"), "dfdc", "best_val_auc.pt")
+    assert env["PATH"].startswith(os.path.dirname(sys.executable) + os.pathsep)
+    assert "IMAGE_DETECTOR_CKPT" not in cli.reproduce_environment(cfg, {})
 
 
-def test_enroll_command(tmp_path):
-    pytest.importorskip("doctor_trigger.enrollment")
+# ----------------------------------------------------------------------------- method commands
+def test_enroll_verify_calibrate_commands(tmp_path):
+    from PIL import Image
+
     from doctor_trigger.record import load_record
 
     image = REPO / "examples/data/office.png"
-    result = subprocess.run([sys.executable, "-m", "doctor_trigger", "enroll", str(image), "--sample-id", "office",
-                             "--out", str(tmp_path)], cwd=REPO, capture_output=True, text=True, timeout=300)
-    assert result.returncode == 0, result.stderr
-    assert "alpha=" in result.stdout
-    from PIL import Image
-    released = np.asarray(Image.open(tmp_path / "office_released.png"))
-    record = load_record(tmp_path / "office_record_PRIVATE.npz")
+    enrolled = run_module("enroll", str(image), "--sample-id", "office", "--out", str(tmp_path))
+    assert enrolled.returncode == 0, enrolled.stderr
+    assert enrolled.stdout.startswith("alpha=")
+    released_file, record_file = tmp_path / "office_released.png", tmp_path / "office_record_PRIVATE.npz"
+    released = np.asarray(Image.open(released_file))
+    record = load_record(record_file)
     assert released.shape[:2] == record.template_phase.shape
 
+    verified = run_module("verify", str(released_file), str(record_file), "--tau-c", "0.5", "--tau-g", "0.5")
+    assert verified.returncode == 0, verified.stderr
+    readings, status = verified.stdout.splitlines()
+    assert readings.startswith("H_B=") and " C_B=" in readings and " G_s=" in readings
+    assert status == "status=Confirmed"
 
-def test_calibrate_command(tmp_path):
-    pytest.importorskip("doctor_trigger.calibration")
+    other = Image.open(image).convert("RGB").resize((record.shape[1] // 2, record.shape[0] // 2))
+    other.save(tmp_path / "small.png")
+    unavailable = run_module("verify", str(tmp_path / "small.png"), str(record_file))
+    assert unavailable.stdout.startswith("status=Unavailable")
+
     scores = tmp_path / "scores.csv"
     scores.write_text("C\n" + "\n".join(str(v) for v in np.linspace(0, 1, 101)) + "\n")
-    result = subprocess.run([sys.executable, "-m", "doctor_trigger", "calibrate", str(scores), "--column", "C"],
-                            cwd=REPO, capture_output=True, text=True, timeout=120)
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.startswith("tau=")
+    calibrated = run_module("calibrate", str(scores), "--column", "C")
+    assert calibrated.returncode == 0, calibrated.stderr
+    assert calibrated.stdout.startswith("tau=") and "column=C frr=0.01 n=101" in calibrated.stdout

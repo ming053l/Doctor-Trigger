@@ -6,9 +6,9 @@ to other top-level string values and to ``{repo_root}`` with ``{placeholder}`` s
 ``cases_csv: "{canonical_root}/common/cases.csv"``. Nested keys are addressed with dots:
 ``path("checkpoints.image_detector_aug")``.
 
-Resolution is the same as the earlier ``dt/paths.py`` (``P(key)``): placeholders are filled from
-the top-level string values plus ``repo_root``, repeatedly, until nothing changes. Relative paths
-are returned as written (they resolve against the caller's working directory, as before).
+Placeholders are filled from the top-level string values plus ``repo_root``, repeatedly, until
+nothing changes (a value may name another value that itself has placeholders). Relative paths are
+returned as written, so they resolve against the caller's working directory.
 
 The config file is ``<repo_root>/config.yaml`` unless the environment variable
 ``DOCTOR_TRIGGER_CONFIG`` names another file. Nothing is read at import time.
@@ -149,6 +149,6 @@ def path(key: str) -> str:
 
 
 def export_environment(config: Config | None = None) -> None:
-    """Set every ``DT_*`` variable that is not already set (as ``run.py`` did before each run)."""
+    """Set every ``DT_*`` variable that is not already set, for subprocesses that read paths from it."""
     for env, value in (config or current()).environment().items():
         os.environ.setdefault(env, value)

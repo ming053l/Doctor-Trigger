@@ -1,15 +1,14 @@
 """doctor_trigger.metrics equals the metric helpers it replaces (plan Sec. 2.11), on the key-pure
 pairs of experiments/key_pure_canonical.py (calibrated features, test split).
 
-workflow/record_model/src/record_model.py is imported by file path; the experiment helpers run code
+The old record-model library's safe_auc / tpr_at_fpr / safe_eer are compared through their frozen
+outputs on these pairs (tests/golden/record_model_library.json); the experiment helpers run code
 at import time, so they are copied verbatim below.
 """
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
-import sys
 
 import numpy as np
 import pandas as pd
@@ -17,22 +16,14 @@ import pytest
 from sklearn.metrics import roc_auc_score, roc_curve
 
 from doctor_trigger.metrics import equal_error_rate, robust_z, roc_auc, tpr_at_fpr
+from golden_values import load
 
-REPO = Path(__file__).resolve().parents[1]
 FEATURES = Path("/ssd2/ming/ttf_run/public_view/features/calibrated_features.csv")
 pytestmark = pytest.mark.skipif(not FEATURES.exists(), reason="public_view not available")
 SCORES = ["H", "C", "G_s", "G_margin", "G_z", "G_wrong_mean", "G_wrong_max"]
 
 
-def load_by_path(name: str, path: Path):
-    module_spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(module_spec)
-    sys.modules[name] = module
-    module_spec.loader.exec_module(module)
-    return module
-
-
-OLD_RECORD_MODEL = load_by_path("old_record_model", REPO / "workflow/record_model/src/record_model.py")
+OLD_RECORD_MODEL = load("record_model_library")
 
 
 # experiments/key_pure_canonical.py:tpr_at (= operating_points.py:tpr_at) and :eer
@@ -67,12 +58,13 @@ PAIRS = list(key_pure_pairs())
 
 
 def test_roc_metrics_match_record_model_and_key_pure():
-    for y, scores in PAIRS:
-        assert roc_auc(y, scores) == roc_auc_score(y, scores) == OLD_RECORD_MODEL.safe_auc(y, scores)
-        for max_fpr in (1e-2, 1e-3, 1e-4):
+    assert len(PAIRS) == len(OLD_RECORD_MODEL["safe_auc"])
+    for index, (y, scores) in enumerate(PAIRS):
+        assert roc_auc(y, scores) == roc_auc_score(y, scores) == OLD_RECORD_MODEL["safe_auc"][index]
+        for max_fpr, old_tpr in zip((1e-2, 1e-3, 1e-4), OLD_RECORD_MODEL["tpr_at_fpr"][index], strict=True):
             assert tpr_at_fpr(y, scores, max_fpr) == key_pure_tpr_at(y, scores, max_fpr)
-            assert tpr_at_fpr(y, scores, max_fpr) == OLD_RECORD_MODEL.tpr_at_fpr(y, scores, max_fpr)
-        assert equal_error_rate(y, scores) == OLD_RECORD_MODEL.safe_eer(y, scores)
+            assert tpr_at_fpr(y, scores, max_fpr) == old_tpr
+        assert equal_error_rate(y, scores) == OLD_RECORD_MODEL["safe_eer"][index]
 
 
 def test_equal_error_rate_matches_key_pure_eer():

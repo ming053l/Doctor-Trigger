@@ -11,10 +11,9 @@ Every channel here works on one RGB image held as an ``(H, W, 3)`` uint8 array a
 
 ``CHANNELS`` maps the channel labels used in the experiments and the paper tables ("jpeg_q90",
 "blur_k7", "x264_crf30", ...) to channels; ``apply_channel(name, image, seed)`` applies one by
-name, ``compose(*names)`` chains several. The pixel operations are moved verbatim from the
-earlier ``benign_channels.transform_image`` (and from the JPEG/resize copies in the quickstart and
-the Table 4 script), so every output is bit-identical to those implementations, including
-``transform_image(img, name, seed) == apply_channel(name, img, seed)``.
+name, ``compose(*names)`` chains several. The pixel operations are the ones every experiment table
+was computed with (PIL JPEG defaults, PIL bicubic resampling, float32 noise), so applying a channel
+here reproduces the stored channel outputs bit for bit.
 
 Labels follow the paper's notation table: "blur k7" is a channel label, the blur is a Gaussian of
 radius 3 (App. A, "JPEG q90, blur k7"); "scale_0.5" halves each side with bicubic resampling and
@@ -83,8 +82,8 @@ def resize(image: np.ndarray, factor: float) -> np.ndarray:
 def rescale_round_trip(image: np.ndarray, factor: float) -> np.ndarray:
     """Bicubic shrink of each side by ``factor``, then bicubic resize back to the original geometry.
 
-    The reduced side is ``max(1, int(side * factor))``; for ``factor = 0.5`` this equals
-    ``side // 2``, as in the earlier ``scale_0.5`` channel.
+    The reduced side is ``max(1, int(side * factor))``; for ``factor = 0.5`` (the ``scale_0.5``
+    channel) this is ``side // 2``.
     """
     pil = _to_pil(image)
     w, h = pil.size
@@ -200,7 +199,7 @@ def apply_channel(name: str, image: np.ndarray | Image.Image, seed: int) -> np.n
     """Apply the channel ``name`` to one image with ``numpy.random.default_rng(seed)``.
 
     Accepts an RGB uint8 array or a PIL image and returns the same kind (PIL input is converted to
-    RGB first, as the earlier ``transform_image`` did).
+    RGB first).
     """
     channel = get_channel(name)
     rng = np.random.default_rng(seed)

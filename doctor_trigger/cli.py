@@ -10,10 +10,11 @@
 
 ``experiments/registry.yaml`` maps each experiment id to its paper artifact (``paper``), working
 directory (``cwd``), shell command (``cmd``), outputs and notes; ``{placeholders}`` are filled from
-config.yaml (``doctor_trigger.config``) and from ``k=v`` arguments. ``reproduce`` behaves exactly
-like the earlier ``run.py run``: it exports the ``DT_*`` path variables, puts this Python first on
-PATH, maps ``head=<tag>`` / ``plain_head=<tag>`` to ``IMAGE_DETECTOR_CKPT`` and runs the command
-through the shell in its working directory. ``run`` is accepted as another name for ``reproduce``.
+config.yaml (``doctor_trigger.config``) and from ``k=v`` arguments. ``reproduce`` exports the
+``DT_*`` path variables (for the workflow shell scripts and peer subprocesses that read paths from
+the environment), puts this Python first on PATH, maps ``head=<tag>`` / ``plain_head=<tag>`` to
+``IMAGE_DETECTOR_CKPT`` (the image-only detector checkpoint) and runs the command through the shell
+in its working directory. ``run`` is accepted as another name for ``reproduce``.
 """
 
 from __future__ import annotations
@@ -44,8 +45,9 @@ def load_registry(file: str | Path = REGISTRY_FILE) -> dict[str, dict[str, Any]]
 def fill_template(template: str, values: Mapping[str, Any], extra: Mapping[str, str] | None = None) -> str:
     """Fill registry ``{slots}`` from config values and ``k=v`` arguments.
 
-    Best effort, as run.py did: up to six rounds of ``str.format``; if any slot is unknown the
-    template is returned with the rounds done so far (so ``show`` prints unfilled slots verbatim).
+    Best effort: up to six rounds of ``str.format`` (a value may itself contain slots); if any slot
+    is unknown the template is returned with the rounds done so far, so ``show`` prints unfilled
+    slots as written and ``reproduce`` can name them.
     """
     merged = {**values, **(extra or {})}
     out = template
