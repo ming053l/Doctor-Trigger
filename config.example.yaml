@@ -1,41 +1,49 @@
-# Copy to config.yaml and fill in your local paths. config.yaml is gitignored;
-# every experiment reads paths through dt/paths.py, nothing else may hardcode them.
+# Copy to config.yaml and fill in the paths on this machine; config.yaml is gitignored.
+# It is read only by doctor_trigger/config.py (``config.path("key")``, nested keys with dots).
+# Another file can be used by pointing $DOCTOR_TRIGGER_CONFIG at it.
+#
+# Values may name other top-level values and {repo_root} (this checkout) as {placeholders}.
+# A relative path is used as written, so it resolves against the working directory of whatever
+# reads it (registry entries run in experiments/ or workflow/); prefer "{repo_root}/..." or an
+# absolute path on your machine.
+#
+# `python -m doctor_trigger reproduce ID` (or `python run.py run ID`) also exports the keys marked
+# [DT_*] as environment variables for the workflow shell scripts and peer subprocesses.
 
-canonical_root: /path/to/canonical_workflow      # the enrollment/query pipeline output (see README: Data)
-cases_csv:      "{canonical_root}/common/cases.csv"
-features_csv:   "{canonical_root}/features/calibrated_features.csv"
-templates_dir:  "{canonical_root}/private/templates"
+# --- the finished enrollment/query pipeline (workflow/run_workflow.sh; see README: Data) ---
+canonical_root: "{repo_root}/../canonical_workflow"         # [DT_CANON_ROOT]
+cases_csv:      "{canonical_root}/common/cases.csv"         # one row per query: release, record, protocol, targets
+queries_csv:    "{canonical_root}/manifests/queries.csv"    # query-stage manifest (default if omitted: this value)
+features_csv:   "{canonical_root}/features/calibrated_features.csv"   # pipeline feature rows (fig-signal, fig-release-residual)
 
-model_snapshot: "{repo_root}/experiments/_snapshot"   # trimmed model code the experiments import; ships with this repository
-model_config:   "{model_snapshot}/config_ffpp_std_dfd_resnet50.yaml"
+# --- code shipped with this repository ---
+model_snapshot: "{repo_root}/experiments/_snapshot"         # [DT_MODEL_SNAPSHOT] model code the experiments import
+model_config:   "{model_snapshot}/config_ffpp_std_dfd_resnet50.yaml"  # image-only detector architecture
 
-outputs_root:   ./outputs/results
-logs_root:      ./outputs/logs
-record_model_runs:      ./outputs/record_model_runs   # record-model training runs (configs/record_model/*.yaml)
+# --- where results go ---
+outputs_root:      "{repo_root}/outputs/results"            # [DT_OUTPUTS] experiment CSVs/JSON and figures/
+record_model_runs: "{repo_root}/outputs/record_model_runs"  # [DT_RECORD_MODEL_RUNS] record-model training runs (configs/record_model/*.yaml)
+engine_cache:      "{repo_root}/outputs/engine_cache"       # [DT_ENGINE_CACHE] swapped images per face-manipulation engine
 
-ckpts_root:     /path/to/ckpts
-legacy_outputs: /path/to/legacy_outputs
-legacy_trigger_glob: /path/to/trigger_json/**/*_trigger.json   # earlier trigger renders; only the deployment-cost and imperceptibility experiments read them
-
+# --- checkpoints ---
+ckpts_root: "{repo_root}/../ckpts"                          # [DT_CKPTS_ROOT] peer checkpoints trained on the canonical split
 checkpoints:
-  image_detector_aug: /path/to/image_detector_aug    # {ds}/best_val_auc.pt, deployed-recipe augmentation
-  image_detector:    /path/to/image_detector                # {ds}/best_val_auc.pt
-  record_model:         "{canonical_root}/results/record_model"
+  image_detector_aug: "{ckpts_root}/image_detector_aug"     # [DT_IMAGE_DETECTOR_AUG] {ffpp,dfdc,celebdf}/best_val_auc.pt, deployed augmentation recipe
+  image_detector:     "{ckpts_root}/image_detector"         # [DT_IMAGE_DETECTOR] {ffpp,dfdc,celebdf}/best_val_auc.pt, no augmentation
+  record_model:       "{canonical_root}/results/record_model"   # record-model checkpoints written by the pipeline
 
-peers_root:     /path/to/peer_methods             # third-party repos cloned side by side (see README: Peers)
-peers:
-  stegastamp_canon: "{peers_root}/ckpts/stegastamp_canon"
-  lidmark_canon:    "{peers_root}/ckpts/lidmark_canon"
-  sepmark_official: "{peers_root}/SepMark/pretrained/.../EC_90.pth"
-  kadnet_official:  "{peers_root}/KAD-Net/results/FD/256/models/EC_100.pth"
+# --- third-party code (see README: Peers) ---
+peers_root:   "{repo_root}/../peer_methods"                 # [DT_PEERS_ROOT] peer watermark repos cloned side by side
+engines_root: "{peers_root}/engines"                        # one directory per face-manipulation engine
+simswap_root: "{repo_root}/../SimSwap"                      # [DT_SIMSWAP_ROOT] SimSwap checkout
 
-engines_root:   "{peers_root}/engines"
-engine_cache:   ./outputs/engine_cache
-simswap_root:   /path/to/SimSwap
+# --- earlier runs (read by the deployment-cost and imperceptibility experiments only) ---
+legacy_outputs:      "{repo_root}/../legacy_outputs"        # [DT_LEGACY_OUTPUTS]
+legacy_trigger_glob: "{legacy_outputs}/trigger/**/*_trigger.json"   # [DT_LEGACY_TRIGGER_GLOB] earlier trigger renders
+paper_repo:          "{repo_root}/../paper"                 # [DT_PAPER_REPO] exported but read by no script
 
-paper_repo:     /path/to/paper                    # only needed for fig-* targets
-
-source_manifests:            # stage-0 outputs (workflow/scripts/make_source_manifest.py)
-  ffpp:    /path/to/ffpp_manifest.csv
-  dfdc:    /path/to/dfdc_manifest.csv
-  celebdf: /path/to/celebdf_manifest.csv
+# --- stage-0 source manifests (workflow/scripts/make_source_manifest.py) ---
+source_manifests:
+  ffpp:    "{repo_root}/../source_manifests/ffpp_manifest.csv"      # [DT_MANIFEST_FFPP]
+  dfdc:    "{repo_root}/../source_manifests/dfdc_manifest.csv"      # [DT_MANIFEST_DFDC]
+  celebdf: "{repo_root}/../source_manifests/celebdf_manifest.csv"   # [DT_MANIFEST_CELEBDF]

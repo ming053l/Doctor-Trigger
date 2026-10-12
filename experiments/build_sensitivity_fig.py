@@ -1,20 +1,27 @@
-"""Build the 2x4 sensitivity figure, the m-sweep appendix figure, and the ring table."""
-import os as _dtos
-def _dt(env, rest=""):
-    v = _dtos.environ.get(env)
-    assert v, f"{env} unset"
-    return v + rest
+"""Build the 2x4 sensitivity figure, the m-sweep appendix figure, and the ring table.
+
+Paths from config.yaml (doctor_trigger.config): outputs_root. Reads the sweep CSVs in
+<outputs_root>/sensitivity (sensitivity_release.py), writes <outputs_root>/figures/fig_sensitivity.pdf
+and fig_sensitivity_m.pdf, and prints the ring table rows.
+"""
 import glob
+import sys
+from pathlib import Path
 import numpy as np, pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_auc_score
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repository root holds doctor_trigger
+from doctor_trigger import config
+from doctor_trigger.calibration import lower_tail_threshold
+from doctor_trigger.key import displacement
+
 mpl.rcParams.update({"font.family": "Liberation Serif",
                      "mathtext.fontset": "dejavuserif", "pdf.fonttype": 42})
-SENS = _dt("DT_OUTPUTS", "/sensitivity")
-OUT = _dt("DT_OUTPUTS", "/figures")
-import os as _os; _os.makedirs(OUT, exist_ok=True)
+SENS = config.path("outputs_root") + "/sensitivity"
+OUT = config.path("outputs_root") + "/figures"
+Path(OUT).mkdir(parents=True, exist_ok=True)
 BETA = 0.15
 ALPHAS = [0.005, 0.01, 0.015, 0.02, 0.03, 0.05, 0.07]
 BANDS = ["0.05-0.45", "0.10-0.45", "0.15-0.45", "0.20-0.45",
@@ -24,13 +31,14 @@ COLORS = {"FF++": "#2166ac", "DFDC": "#b2182b", "CelebDF": "#1a7837"}
 MARKS = {"FF++": "o", "DFDC": "s", "CelebDF": "^"}
 
 def deff(alpha):
-    return abs(np.angle((1 - BETA) + BETA * np.exp(1j * alpha * np.pi)))
+    """|delta_eff|: the displacement of one active bin with h_s = +1 at (alpha, BETA) (Eq. 3)."""
+    return abs(float(displacement(np.float64(1.0), alpha, BETA, True)))
 
 def tag(spec):
     return spec.replace(":", "_").replace(".", "p").replace("-", "_")
 
 def metrics(d):
-    tau_g = np.quantile(d.G_ben_j90, 0.01)
+    tau_g = lower_tail_threshold(d.G_ben_j90)
     margin = float(tau_g - d.G_orig.max())
     tau_h = np.quantile(1 - d.H_ben_j90, 0.99)
     tpr = float(((1 - d.H_swap_j90) >= tau_h).mean())
@@ -86,8 +94,7 @@ for ds in DSETS:
 for c in range(4):
     ax = axes[1, c]
     ax.set_xticks(xt)
-    ax.set_xticklabels([f"[{b.split('-')[0][1:]},{b.split('-')[1][1:]}]".replace("0.", ".")
-                        if False else f"[{b.replace('-', ',')}]".replace("0.", ".") for b in BANDS],
+    ax.set_xticklabels([f"[{b.replace('-', ',')}]".replace("0.", ".") for b in BANDS],
                        rotation=45, fontsize=5.5, ha="right")
     ax.axvline(1, color="0.45", ls=":", lw=1.1)
     ax.set_xlabel(r"ring $[\kappa_{\min},\kappa_{\max}]$", fontsize=7)

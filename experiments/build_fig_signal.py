@@ -10,9 +10,12 @@ PNG-read-back benign queries; test split):
 Every annotation is computed from the data; the distributions overlap in 1-H,
 and the figure shows that rather than a synthetic split line.
 
-Env: DT_CANON_ROOT, DT_OUTPUTS; optional DT_FEATURES_CSV (default: the pipeline feature CSV).
-Writes $DT_OUTPUTS/figures/fig_signal.{pdf,png}.
+Paths from config.yaml (doctor_trigger.config): features_csv, cases_csv, outputs_root; the
+environment variable DT_FEATURES_CSV, when set, replaces features_csv.
+Writes <outputs_root>/figures/fig_signal.{pdf,png}.
 """
+import os
+import sys
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -20,16 +23,24 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repository root holds doctor_trigger
+from doctor_trigger import config, manifests
+from doctor_trigger.key import wrong_keys
+from doctor_trigger.metrics import roc_auc
+from doctor_trigger.readings import (SumForm, phase_drift, release_normalized, spectral_agreement,
+                                     wrong_key_displacement)
+from doctor_trigger.record import load_record
+from doctor_trigger.spectrum import luminance_phase
 
 mpl.rcParams.update({"font.family": "Liberation Serif",
                      "mathtext.fontset": "dejavuserif", "pdf.fonttype": 42})
 INK = "#17202B"; MUTED = "#5E6D82"; HAIRLINE = "#C8CED7"
 GOLD = "#A87400"; BLUE = "#2B6CB0"; RED = "#B63E30"; TEAL = "#0C5E59"
 
-import os
-R = os.environ["DT_CANON_ROOT"]
-F = os.environ.get("DT_FEATURES_CSV", f"{R}/features/calibrated_features.csv")
-OUT = Path(os.environ["DT_OUTPUTS"]) / "figures"
+F = os.environ.get("DT_FEATURES_CSV") or config.path("features_csv")
+OUT = Path(config.path("outputs_root")) / "figures"
 OUT.mkdir(parents=True, exist_ok=True)
 rng = np.random.default_rng(0)
 cols = ["dataset", "split", "protocol", "y_fake", "H", "G_s", "G_wrong_max", "G_margin", "G_z"]
@@ -40,54 +51,33 @@ ffpp = d[d.dataset == "FF++"]; cdf = d[d.dataset == "CelebDF"]; dfdc = d[d.datas
 
 # ---------------- wrong-key before/after, computed from the archived NPZ ----------------
 EPS = 1e-12
-def wrap(v): return (v + np.pi) % (2*np.pi) - np.pi
-def code_of(shape, key):
-    r = np.random.default_rng(key).standard_normal(shape)
-    rows = np.mod(-np.arange(shape[0]), shape[0]); cols = np.mod(-np.arange(shape[1]), shape[1])
-    c = np.sign(r - r[np.ix_(rows, cols)])
-    c[np.ix_(np.arange(shape[0]) == rows, np.arange(shape[1]) == cols)] = 0.0
-    return c
-def wrong_key_of(key):
-    rng = np.random.default_rng((key ^ 0x9E3779B97F4A7C15) & ((1 << 64) - 1))
-    while True:
-        cand = int(rng.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
-        if cand != key: return cand
-def mmean(v, sup, w):
-    m = sup & np.isfinite(v); t = float(np.sum(w[m]))
-    return float(np.sum(v[m] * w[m]) / (t + EPS))
 
-from PIL import Image
-cases = pd.read_csv(f"{R}/common/cases.csv")
-cb = cases[(cases.split == "test") & (cases.dataset == "FF++") & (cases.protocol == "benign")].head(250)
-def qphase(path):
-    rgb = np.asarray(Image.open(path).convert("RGB"), np.float64)
-    lum = 0.299*rgb[:,:,0] + 0.587*rgb[:,:,1] + 0.114*rgb[:,:,2]
-    return np.fft.fftshift(np.angle(np.fft.fft2(lum)))
+
+def projection(drift, delta, weights, bins):
+    """G_s (Eq. 6) on the gathered bins, with the denominator written sum w (delta^2) as this figure
+    always was; key_projection's sum (w delta) delta differs from it in the last bits."""
+    w, dl = weights[bins], delta[bins]
+    return float(np.sum(w * dl * np.sin(drift[bins])) / (np.sum(w * dl ** 2) + EPS))
+
+
+cb = manifests.read_cases(dataset="FF++", split="test", protocol="benign").head(250)
 cosC, cosW, gC, gW = [], [], [], []
 for r in cb.itertuples():
-    with np.load(r.doctor_trigger_template_path) as rec:
-        tp = rec["template_phase"].astype(np.float64); hp = rec["host_phase"].astype(np.float64)
-        dl = rec["delta"].astype(np.float64); sup = rec["support"].astype(bool)
-        w = rec["host_amplitude"].astype(np.float64)
-        key = int(rec["key"][0]); alpha = float(rec["alpha"][0]); beta = float(rec["beta"][0])
-    ph = qphase(r.input_path)
-    if ph.shape != hp.shape: continue
-    wk = wrong_key_of(key)
-    pre = alpha * np.pi * np.fft.fftshift(code_of(hp.shape, wk)) * sup
-    dw = np.angle((1.0 - beta) + beta * np.exp(1j * pre)) * sup
-    cosC.append(mmean(np.cos(wrap(ph - hp)), sup, w))
+    record = load_record(r.doctor_trigger_template_path)
+    ph = luminance_phase(np.asarray(Image.open(r.input_path).convert("RGB")), centered=True)
+    if ph.shape != record.shape: continue
+    hp, sup, w = record.original_phase, record.active_bins, record.amplitude_weights
+    dw = wrong_key_displacement(record, wrong_keys(record.key, 1)[0])
+    cosC.append(spectral_agreement(ph, hp, w, sup, stabilizer=EPS))
     cosW.append(cosC[-1])  # Paired projection-key test holds the original-phase reference fixed.
-    res = wrap(ph - hp)
-    tres = wrap(tp - hp)
-    # release projection: the released copy's own projection, stored in the record at enrollment
-    ref = float(np.sum(w[sup]*dl[sup]*np.sin(res[sup])) / (np.sum(w[sup]*dl[sup]**2) + EPS))
-    ref = max(abs(ref), 1e-6)
-    gC.append(float(np.sum(w[sup]*dl[sup]*np.sin(res[sup])) / (np.sum(w[sup]*dl[sup]**2) + EPS)) / ref)
-    gW.append(float(np.sum(w[sup]*dw[sup]*np.sin(res[sup])) / (np.sum(w[sup]*dw[sup]**2) + EPS)) / ref)
+    res = phase_drift(ph, hp)
+    # normalizer: the query's own correct-key projection, so the correct-key strip sits at +-1
+    ref = projection(res, record.displacement, w, sup)
+    gC.append(release_normalized(projection(res, record.displacement, w, sup), ref))
+    gW.append(release_normalized(projection(res, dw, w, sup), ref))
 cosC, cosW, gC, gW = map(np.array, (cosC, cosW, gC, gW))
-from sklearn.metrics import roc_auc_score
-auc_before = roc_auc_score([1]*len(cosC)+[0]*len(cosW), np.concatenate([cosC, cosW]))
-auc_after = roc_auc_score([1]*len(gC)+[0]*len(gW), np.concatenate([gC, gW]))
+auc_before = roc_auc([1]*len(cosC)+[0]*len(cosW), np.concatenate([cosC, cosW]))
+auc_after = roc_auc([1]*len(gC)+[0]*len(gW), np.concatenate([gC, gW]))
 
 TS, LS = 21.0, 20.0
 FLOOR = 2e-4

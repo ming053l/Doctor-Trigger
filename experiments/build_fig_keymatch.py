@@ -5,49 +5,43 @@ What the key writes and the verifier reads: (a) the key's sign pattern, (b) the 
 of that residual with the correct key (e) and with a wrong key (f), central region of the shifted
 spectrum, bins outside the active support in gray.
 
-Env: DT_CANON_ROOT, DT_OUTPUTS. Writes $DT_OUTPUTS/figures/fig_keymatch.pdf.
+Paths from config.yaml (doctor_trigger.config): cases_csv, outputs_root.
+Writes <outputs_root>/figures/fig_keymatch.pdf.
 """
-import os
 import sys
 from pathlib import Path
 import numpy as np
 import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
-import pandas as pd
 from PIL import Image
 mpl.rcParams.update({"font.family": "Liberation Serif",
                      "mathtext.fontset": "dejavuserif", "pdf.fonttype": 42})
-R = os.environ["DT_CANON_ROOT"]
-OUT = Path(os.environ["DT_OUTPUTS"]) / "figures"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repository root holds doctor_trigger
+from doctor_trigger import config, manifests
+from doctor_trigger.key import displacement, wrong_keys
+from doctor_trigger.readings import SumForm, key_projection, phase_drift, wrong_key_displacement
+from doctor_trigger.record import load_record
+from doctor_trigger.spectrum import luminance_phase
+
+OUT = Path(config.path("outputs_root")) / "figures"
 OUT.mkdir(parents=True, exist_ok=True)
-sys.path.insert(0, R)
-from scripts.extract_features import wrong_keys, wrong_delta
 
-cases = pd.read_csv(f"{R}/common/cases.csv")
-q = cases[(cases.dataset == "FF++") & (cases.split == "test") & (cases.protocol == "benign")].iloc[7]
-with np.load(q.doctor_trigger_template_path) as rec:
-    tmpl_s = rec["template_phase"].astype(np.float64)
-    host_s = rec["host_phase"].astype(np.float64)
-    delta_s = rec["delta"].astype(np.float64)
-    sup_s = rec["support"].astype(bool)
-    amp_s = rec["host_amplitude"].astype(np.float64)
-    code_s = rec["code"].astype(np.float64)
-    key = int(rec["key"][0]); alpha = float(rec["alpha"][0]); beta = float(rec["beta"][0])
-deff = abs(np.angle((1-beta) + beta*np.exp(1j*alpha*np.pi)))
+q = manifests.read_cases(dataset="FF++", split="test", protocol="benign").iloc[7]
+record = load_record(q.doctor_trigger_template_path)
+tmpl_s, host_s, delta_s = record.template_phase, record.original_phase, record.displacement
+sup_s, amp_s, code_s = record.active_bins, record.amplitude_weights, record.sign_pattern
+# delta_eff: the displacement of one active bin with h_s = +1 (Eq. 3)
+deff = abs(float(displacement(np.float64(1.0), record.alpha, record.beta, True)))
 
-def phase_of(pil):
-    a = np.asarray(pil, dtype=np.float64)
-    lum = 0.299*a[:,:,0] + 0.587*a[:,:,1] + 0.114*a[:,:,2]
-    return np.fft.fftshift(np.angle(np.fft.fft2(lum)))
+ph_q = luminance_phase(np.asarray(Image.open(q.input_path).convert("RGB")), centered=True)
+resid = phase_drift(ph_q, host_s)
+wd = wrong_key_displacement(record, wrong_keys(record.key, 1)[0])
 
-ph_q = phase_of(Image.open(q.input_path).convert("RGB"))
-resid = (ph_q - host_s + np.pi) % (2*np.pi) - np.pi
-wd = wrong_delta(wrong_keys(key, 1)[0], tmpl_s.shape, alpha, beta, sup_s)
 
 def G(delta):
-    w = np.where(sup_s, amp_s, 0.0)
-    return float(np.sum(w*delta*np.sin(resid)) / (np.sum(w*delta*delta) + 1e-12))
+    """G_s (Eq. 6) on the active bins, whole-grid weight map, eps_0 = 1e-12."""
+    return key_projection(resid, delta, amp_s, sup_s, form=SumForm.WEIGHT_MAP)
 g_ok, g_wrong = G(delta_s), G(wd)
 
 H0, W0 = tmpl_s.shape

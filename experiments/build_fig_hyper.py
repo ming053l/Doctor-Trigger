@@ -3,21 +3,27 @@
 calibration-set size, and the record-model key-loss weight.
 
 Draws the JSON written by the hyperparam_sensitivity entry.
-Env: DT_OUTPUTS; optional DT_HYPER_JSON (default $DT_OUTPUTS/recordscalar_hyper/hyper_sensitivity.json).
-Writes $DT_OUTPUTS/figures/fig_hyper.{pdf,png}.
+Paths from config.yaml (doctor_trigger.config): outputs_root. The environment variable
+DT_HYPER_JSON, when set, names the sweep JSON (default
+<outputs_root>/recordscalar_hyper/hyper_sensitivity.json).
+Writes <outputs_root>/figures/fig_hyper.{pdf,png}.
 """
 from pathlib import Path
-import json, os
+import json, os, sys
 import numpy as np
 import matplotlib; matplotlib.use("Agg")
 import matplotlib as mpl, matplotlib.pyplot as plt
 mpl.rcParams.update({"font.family": "Liberation Serif",
                      "mathtext.fontset": "dejavuserif", "pdf.fonttype": 42})
 INK = "#17202B"; MUTED = "#5E6D82"; GOLD = "#A87400"; BLUE = "#2B6CB0"; TEAL = "#0C5E59"
-OUT = Path(os.environ["DT_OUTPUTS"]) / "figures"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repository root holds doctor_trigger
+from doctor_trigger import config
+
+OUTPUTS = Path(config.path("outputs_root"))
+OUT = OUTPUTS / "figures"
 OUT.mkdir(parents=True, exist_ok=True)
-d = json.load(open(os.environ.get("DT_HYPER_JSON",
-                                  os.path.join(os.environ["DT_OUTPUTS"], "recordscalar_hyper", "hyper_sensitivity.json"))))
+with open(os.environ.get("DT_HYPER_JSON", OUTPUTS / "recordscalar_hyper" / "hyper_sensitivity.json")) as handle:
+    d = json.load(handle)
 TS, LS, TK = 15.0, 13.0, 11.5
 fig, axes = plt.subplots(1, 3, figsize=(8.9, 2.55))
 plt.subplots_adjust(left=0.075, right=0.99, top=0.86, bottom=0.24, wspace=0.42)

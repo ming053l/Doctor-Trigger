@@ -1,23 +1,26 @@
-import os as _dtos
-def _dt(env, rest=""):
-    v = _dtos.environ.get(env)
-    assert v, f"{env} unset: run through run.py, or export it (see config.example.yaml)"
-    return v + rest
 """Qualitative imperceptibility figure: clean | watermarked (per method) | 10x residual.
-Uses a real DT-enrolled trigger pair as the base face; peers embed on the same clean source."""
+Uses a real DT-enrolled trigger pair as the base face; peers embed on the same clean source.
+
+Paths from config.yaml (doctor_trigger.config): legacy_trigger_glob, peers_root, outputs_root.
+Writes <outputs_root>/figures/fig_imperceptibility.{pdf,png}.
+"""
 import sys, glob, json, os, numpy as np
+from pathlib import Path
 import matplotlib; matplotlib.use("Agg")
 matplotlib.rcParams["font.family"]="Times New Roman"
 matplotlib.rcParams["mathtext.fontset"]="stix"
 import matplotlib.pyplot as plt
 from PIL import Image
-import torch, torchvision.transforms as T
 
-dev="cuda:0"; OUT=_dt("DT_OUTPUTS", "/figures")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repository root holds doctor_trigger
+from doctor_trigger import config
+
+OUT = config.path("outputs_root") + "/figures"
+PEERS_ROOT = config.path("peers_root")
 os.makedirs(OUT, exist_ok=True)
 
 # --- pick a DT trigger pair (clean source + DT-watermarked) ---
-js=sorted(glob.glob(_dt("DT_LEGACY_TRIGGER_GLOB"),recursive=True))
+js=sorted(glob.glob(config.path("legacy_trigger_glob"),recursive=True))
 pick=None
 for j in js:
     d=json.load(open(j))
@@ -35,7 +38,7 @@ def resid(wm):
 # so they cannot be imported into one interpreter; every peer goes through the
 # same isolated helper for consistency.
 import subprocess, tempfile
-_TMP = tempfile.mkdtemp(prefix="fig4_")
+_TMP = tempfile.mkdtemp(prefix="fig_imperceptibility_")
 clean.save(f"{_TMP}/clean.png")
 
 def peer(name):
@@ -43,9 +46,9 @@ def peer(name):
     script = "eg_embed_one.py" if name == "editguard" else "embed_one.py"
     args = ([f"{_TMP}/clean.png", out, "256"] if name == "editguard"
             else [name, f"{_TMP}/clean.png", out])
-    cwd = _dt("DT_PEERS_ROOT", "/EditGuard/code") if name == "editguard" else None
+    cwd = PEERS_ROOT + "/EditGuard/code" if name == "editguard" else None
     subprocess.run([sys.executable,
-                    _dt("DT_PEERS_ROOT") + f"/{script}"] + args,
+                    PEERS_ROOT + f"/{script}"] + args,
                    check=True, capture_output=True, cwd=cwd)
     return Image.open(out).convert("RGB").resize((256, 256))
 

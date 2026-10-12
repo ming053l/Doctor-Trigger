@@ -6,61 +6,64 @@ and its SimSwap re-rendering, with the relation H measured against that asset's 
 corpus cutoff (the 1% quantile of H on 100 train benign queries of that corpus). Drawn at the text
 width so the paper includes it without scaling.
 
-Env: DT_CANON_ROOT, DT_OUTPUTS. Writes $DT_OUTPUTS/figures/fig_channel_samples.pdf.
+Paths from config.yaml (doctor_trigger.config): queries_csv, outputs_root.
+Writes <outputs_root>/figures/fig_channel_samples.{pdf,png}.
 """
-import io, os
+import sys
 from pathlib import Path
 
-import numpy as np, pandas as pd
+import numpy as np
 import matplotlib; matplotlib.use("Agg")
 import matplotlib as mpl, matplotlib.pyplot as plt
 from PIL import Image
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repository root holds doctor_trigger
+from doctor_trigger import config, manifests
+from doctor_trigger.calibration import lower_tail_threshold
+from doctor_trigger.channels import jpeg
+from doctor_trigger.readings import SumForm, spectral_agreement
+from doctor_trigger.record import load_record
+from doctor_trigger.spectrum import luminance_phase, subband_b
+
 mpl.rcParams.update({"font.family": "Liberation Serif", "mathtext.fontset": "dejavuserif", "pdf.fonttype": 42})
-R = os.environ["DT_CANON_ROOT"]; OUT = Path(os.environ["DT_OUTPUTS"]) / "figures"; OUT.mkdir(parents=True, exist_ok=True)
+OUT = Path(config.path("outputs_root")) / "figures"; OUT.mkdir(parents=True, exist_ok=True)
 INK, GOOD, BAD = "#17202B", "#0C5E59", "#B63E30"
 ROWS = [("FF++", 7), ("FF++", 21), ("CelebDF", 5), ("DFDC", 9)]     # corpus, index among test pairs
 
 
-def phase(img):
-    a = np.asarray(img.convert("RGB"), dtype=np.float64)
-    lum = 0.299 * a[:, :, 0] + 0.587 * a[:, :, 1] + 0.114 * a[:, :, 2]
-    return np.angle(np.fft.fft2(lum))
+def rgb(path):
+    return np.asarray(Image.open(path).convert("RGB"))
 
 
-def relation(img, tp):
-    """Deployed reading: amplitude-weighted cosine against the stored template on the sub-band."""
-    with np.load(tp) as z:
-        tm = np.fft.ifftshift(z["template_phase"].astype(np.float64))
-        sup = np.fft.ifftshift(z["support"].astype(bool))
-        amp = np.fft.ifftshift(z["host_amplitude"].astype(np.float64))
-    fy = np.fft.fftfreq(tm.shape[0])[:, None]; fx = np.fft.fftfreq(tm.shape[1])[None, :]
-    w = np.where(sup & (np.sqrt(fy * fy + fx * fx) / np.sqrt(0.5) <= 0.15), amp, 0.0)
-    r = np.cos((phase(img) - tm + np.pi) % (2 * np.pi) - np.pi)
-    return float((r * w).sum() / (w.sum() + 1e-8))
+def relation(image, record_path):
+    """Deployed reading C_B: amplitude-weighted cosine against the stored template on K_eff and
+    sub-band B (Eq. 5), summed over the uncentered grid with stabilizer 1e-8, as the paper figure."""
+    record = load_record(record_path)
+    template = np.fft.ifftshift(record.template_phase)
+    bins = np.fft.ifftshift(record.active_bins) & subband_b(record.shape, centered=False)
+    return spectral_agreement(luminance_phase(image, centered=False), template,
+                              np.fft.ifftshift(record.amplitude_weights), bins,
+                              stabilizer=1e-8, form=SumForm.WEIGHT_MAP)
 
 
-def jpeg(img, q=85):
-    b = io.BytesIO(); img.convert("RGB").save(b, "JPEG", quality=q); b.seek(0); return Image.open(b)
-
-
-man = pd.read_csv(f"{R}/manifests/queries.csv"); man = man[man.status == "pass"]
+man = manifests.read_queries()
 tau = {}
 for ds in {d for d, _ in ROWS}:
-    tr = man[(man.dataset == ds) & (man.split == "train") & (man.protocol == "benign")].head(100)
-    tau[ds] = float(np.quantile([relation(Image.open(q.released_path), q.template_artifact) for q in tr.itertuples()], 0.01))
+    tr = manifests.select(man, dataset=ds, split="train", protocol="benign").head(100)
+    tau[ds] = float(lower_tail_threshold([relation(rgb(q.released_path), q.template_artifact) for q in tr.itertuples()]))
 print("cutoffs:", {k: round(v, 4) for k, v in tau.items()})
 
 fig, axes = plt.subplots(len(ROWS), 3, figsize=(5.5, 1.95 * len(ROWS)))
 titles = ["released image", "benign channel: JPEG", "face re-rendering"]
 for r, (ds, idx) in enumerate(ROWS):
-    te = man[(man.dataset == ds) & (man.split == "test")]
+    te = manifests.select(man, dataset=ds, split="test")
     swap_q = te[te.protocol == "swap"].iloc[idx]
     ben = te[(te.protocol == "benign") & (te.enrollment_id == swap_q.enrollment_id)].iloc[0]
-    rel = Image.open(ben.released_path).convert("RGB")
+    rel, swapped = rgb(ben.released_path), rgb(swap_q.query_path)
+    rel_jpeg = jpeg(rel, 85)
     panels = [(rel, relation(rel, ben.template_artifact)),
-              (jpeg(rel), relation(jpeg(rel), ben.template_artifact)),
-              (Image.open(swap_q.query_path).convert("RGB"), relation(Image.open(swap_q.query_path), swap_q.template_artifact))]
+              (rel_jpeg, relation(rel_jpeg, ben.template_artifact)),
+              (swapped, relation(swapped, swap_q.template_artifact))]
     for c, (img, h) in enumerate(panels):
         ax = axes[r, c]; ax.imshow(img); ax.set_xticks([]); ax.set_yticks([])
         ok = h >= tau[ds]
