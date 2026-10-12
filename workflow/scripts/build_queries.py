@@ -1,35 +1,37 @@
 #!/usr/bin/env python3
-"""Build collision-free benign and SimSwap swap queries; failures are quarantined."""
+"""Stage 4: build the queries J of every enrollment.
+
+A benign query is the released image itself. A swap query is SimSwap applied to the release with
+an aligned fake face of the same dataset and split as identity source (FF++ manipulation types
+rotate across enrollments). Query ids are hashes of (enrollment, source face), so paths never
+collide. A failed swap is retried with other source faces of the same class, then once at the
+lower detector threshold; any swap that still fails is quarantined and fails the stage.
+"""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-import sys
-import os
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-sys.path.append(str(ROOT.parent))  # the doctor_trigger package
-sys.path.insert(0, str(ROOT / "repo"))
-
-from src.simswap_engine import SimSwapConfig, SimSwapEngine, SimSwapRequest
 from doctor_trigger.manifests import sha256_file
-from workflow.paths import require_input_path, require_output_path
+from workflow.pipeline_paths import WORKFLOW_ROOT, require_input_path, require_output_path, simswap_root
+from workflow.repo.src.simswap_engine import SimSwapConfig, SimSwapEngine, SimSwapRequest
 
 
 def pair_id(enrollment_id: str, fake_sample_id: str) -> str:
+    """Swap query id: first 24 hex digits of SHA-256 over (enrollment, source face, "simswap")."""
     payload = f"query-v1\x1f{enrollment_id}\x1f{fake_sample_id}\x1fsimswap".encode("utf-8")
     return hashlib.sha256(payload).hexdigest()[:24]
 
 
 def choose_fake_candidates(enrollments: pd.DataFrame, alignment: pd.DataFrame, pairs_per_enrollment: int) -> pd.DataFrame:
+    """One identity-source fake face per (enrollment, pair), chosen by hash within dataset and split."""
     fakes = alignment[(alignment["class"] != "Real") & (alignment["status"] == "pass")].copy()
     fakes = fakes.sort_values(["dataset", "split", "class", "video_id", "sample_id"])
     rows = []
@@ -42,9 +44,8 @@ def choose_fake_candidates(enrollments: pd.DataFrame, alignment: pd.DataFrame, p
         class_digest = hashlib.sha256(f"class-cycle-v1\x1f{enrollment.enrollment_id}".encode()).digest()
         class_start = int.from_bytes(class_digest[:8], "big") % len(classes)
         for offset in range(max(1, pairs_per_enrollment)):
-            # A one-pair run must not collapse FF++ to the alphabetically
-            # first manipulation.  Stable per-enrollment rotation gives a
-            # deterministic, approximately balanced manipulation mixture.
+            # Start the class cycle at a hashed offset per enrollment, so a one-pair run mixes
+            # the FF++ manipulation types instead of always taking the first one.
             fake_class = classes[(class_start + offset) % len(classes)]
             class_pool = pool[pool["class"] == fake_class].reset_index(drop=True)
             digest = hashlib.sha256(f"{enrollment.enrollment_id}\x1f{fake_class}\x1f{offset}".encode()).digest()
@@ -67,6 +68,7 @@ def finalize_results(
     pending: list[dict[str, Any]],
     errors: list[str | None],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split swap attempts into accepted rows (decodable output, receipt written) and rejected rows."""
     accepted: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     for record, error in zip(pending, errors):
@@ -102,10 +104,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--enrollments", type=Path, required=True)
     parser.add_argument("--alignment-manifest", type=Path, required=True)
-    parser.add_argument("--output-root", type=Path, default=ROOT / "artifacts/queries")
-    parser.add_argument("--output-manifest", type=Path, default=ROOT / "manifests/queries.csv")
-    parser.add_argument("--quarantine", type=Path, default=ROOT / "manifests/query_quarantine.csv")
-    parser.add_argument("--simswap-dir", type=Path, default=Path(os.environ.get("DT_SIMSWAP_ROOT", "SimSwap")))
+    parser.add_argument("--output-root", type=Path, default=WORKFLOW_ROOT / "artifacts/queries")
+    parser.add_argument("--output-manifest", type=Path, default=WORKFLOW_ROOT / "manifests/queries.csv")
+    parser.add_argument("--quarantine", type=Path, default=WORKFLOW_ROOT / "manifests/query_quarantine.csv")
+    parser.add_argument("--simswap-dir", type=Path, default=None, help="SimSwap checkout (default: simswap_root in config.yaml)")
     parser.add_argument("--det-thresh", type=float, default=0.3)
     parser.add_argument("--crop-size", type=int, default=224)
     parser.add_argument("--batch-size", type=int, default=4)
@@ -122,7 +124,7 @@ def main() -> int:
 
     enrollments_path = require_input_path(args.enrollments)
     alignment_path = require_input_path(args.alignment_manifest)
-    simswap_dir = require_input_path(args.simswap_dir)
+    simswap_dir = require_input_path(args.simswap_dir or simswap_root())
     output_root = require_output_path(args.output_root)
     output_manifest = require_output_path(args.output_manifest)
     quarantine_path = require_output_path(args.quarantine)
@@ -210,9 +212,8 @@ def main() -> int:
     accepted, rejected = finalize_results(pending, errors)
     records.extend(accepted)
 
-    # A detector can occasionally reject a particular already-aligned fake.
-    # Retry with deterministic alternatives from the same dataset/split/class;
-    # never substitute the target, full frame, class, or split.
+    # SimSwap's detector can reject a particular aligned fake. Retry with the next source faces of
+    # the same dataset, split and class; the target, class and split are never substituted.
     fakes = alignment[(alignment["class"] != "Real") & (alignment["status"] == "pass")].copy()
     fakes = fakes.sort_values(["dataset", "split", "class", "video_id", "sample_id"])
     for attempt in range(1, max(0, int(args.fallback_candidates)) + 1):
@@ -276,9 +277,8 @@ def main() -> int:
         retry_accepted, rejected = finalize_results(retry_pending, retry_errors)
         records.extend(retry_accepted)
 
-    # If the released target (not the fake source) is the low-confidence
-    # detection, retry the original pair at an explicitly recorded lower
-    # SimSwap detector threshold.  The aligned/released bytes are unchanged.
+    # When the release (the target) is the low-confidence detection, retry the first pair at the
+    # lower detector threshold, recorded in simswap_det_thresh. No input image changes.
     if rejected and float(args.fallback_det_thresh) < float(args.det_thresh):
         low_engine = SimSwapEngine(
             SimSwapConfig(

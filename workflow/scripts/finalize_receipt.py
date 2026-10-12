@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
-"""Create the final reproducibility/deployment receipt from completed workflow outputs."""
+"""Write FINAL_RECEIPT.json/.md: row counts, SHA-256 of every manifest, contract and code file,
+the integrity report, the record-model metric summary and package versions.
+
+Refuses to run unless the integrity report says PASS and no swap query was quarantined.
+verify_workflow.py re-checks a finished run against this receipt.
+"""
 
 from __future__ import annotations
 
 import argparse
 import importlib.metadata
 import json
+import os
 import platform
-import sys
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-sys.path.append(str(ROOT.parent))  # the doctor_trigger package
-
+from doctor_trigger.config import REPO_ROOT
 from doctor_trigger.manifests import sha256_file
-from workflow.paths import require_input_path, require_output_path
+from workflow.pipeline_paths import WORKFLOW_ROOT, require_input_path, require_output_path
+
+METHOD_MODULES = ("config", "spectrum", "key", "record", "enrollment", "readings", "manifests", "metrics", "record_model")
+"""doctor_trigger modules the pipeline runs; their hashes go into the receipt."""
 
 
 def csv_or_empty(path: Path) -> pd.DataFrame:
@@ -55,8 +60,8 @@ def main() -> int:
     parser.add_argument("--common-cases", type=Path, required=True)
     parser.add_argument("--peer-contract", type=Path)
     parser.add_argument("--workflow-contract", type=Path)
-    parser.add_argument("--output-json", type=Path, default=ROOT / "FINAL_RECEIPT.json")
-    parser.add_argument("--output-md", type=Path, default=ROOT / "FINAL_RECEIPT.md")
+    parser.add_argument("--output-json", type=Path, default=WORKFLOW_ROOT / "FINAL_RECEIPT.json")
+    parser.add_argument("--output-md", type=Path, default=WORKFLOW_ROOT / "FINAL_RECEIPT.md")
     args = parser.parse_args()
 
     tables = {
@@ -102,17 +107,17 @@ def main() -> int:
         for name, path in interface_paths.items()
         if path is not None
     }
-    code_paths = sorted((ROOT / "scripts").glob("*.py")) + [
-        ROOT / "workflow/paths.py",
-        ROOT / "record_model/src/record_model.py",
-        ROOT / "record_model/scripts/train_eval_record_model_matrix.py",
-        ROOT / "configs/record_model.yaml",
-        ROOT / "run_workflow.sh",
-        ROOT / "requirements-workflow.txt",
-        ROOT / "ENVIRONMENT.md",
-        ROOT / "WORKFLOW.md",
-    ]
-    code = {str(path.relative_to(ROOT)): hash_record(path) for path in code_paths}
+    code_paths = sorted((WORKFLOW_ROOT / "scripts").glob("*.py")) + [
+        WORKFLOW_ROOT / "pipeline_paths.py",
+        WORKFLOW_ROOT / "record_model/train_record_model.py",
+        WORKFLOW_ROOT / "configs/record_model.yaml",
+        WORKFLOW_ROOT / "run_workflow.sh",
+        WORKFLOW_ROOT / "requirements-workflow.txt",
+        WORKFLOW_ROOT / "ENVIRONMENT.md",
+        WORKFLOW_ROOT / "WORKFLOW.md",
+    ] + [REPO_ROOT / "doctor_trigger" / f"{name}.py" for name in METHOD_MODULES]
+    # Keys are relative to the workflow directory ("../doctor_trigger/..." for the package).
+    code = {os.path.relpath(path, WORKFLOW_ROOT): hash_record(path) for path in code_paths}
 
     alignment_quarantine = tables["alignment_quarantine"]
     metrics = tables["metrics"]
@@ -125,8 +130,8 @@ def main() -> int:
     receipt = {
         "receipt_version": "doctor-trigger-calibrated-1.0",
         "status": "PASS",
-        "workflow_root": str(ROOT),
-        "write_boundary": str(ROOT),
+        "workflow_root": str(WORKFLOW_ROOT),
+        "write_boundary": str(WORKFLOW_ROOT),
         "source_inputs_read_only": {
             "FF++": "site-local FF++ frame store (see config)",
             "DFDC": "site-local DFDC frame store (see config)",
@@ -175,9 +180,9 @@ def main() -> int:
         "",
         "Status: **PASS**",
         "",
-        f"Write boundary: `{ROOT}`",
+        f"Write boundary: `{WORKFLOW_ROOT}`",
         "",
-        "The SSD dataset/model trees were read-only inputs. All generated files are under the write boundary.",
+        "The source datasets and SimSwap weights were read-only inputs. All generated files are under the write boundary.",
         "",
         "| Artifact table | Rows | SHA-256 |",
         "|---|---:|---|",

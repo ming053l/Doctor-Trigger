@@ -1,34 +1,30 @@
 # Quick start without datasets
 
-`quickstart.py` enrolls one face and verifies a few copies of it, on the CPU, in a few seconds.
-It imports the repository's own code and does not re-implement the method:
+`quickstart.py` enrolls one face and verifies a few copies of it, on the CPU, in a few seconds,
+with the `doctor_trigger` package:
 
-- **enroll**: `stable_key()` and `embed()` from [`workflow/scripts/enroll.py`](../workflow/scripts/enroll.py),
+- **enroll**: `doctor_trigger.enrollment.enroll()` derives the key s, applies the sign pattern h_s
+  (±1 on the active ring bins) to the face's phase and returns the release and the private record R,
   with the pipeline's default settings and fidelity gate (PSNR ≥ 35 dB, SSIM ≥ 0.98).
-- **verify**: `compute_template_score()` (face consistency `C`, read on the sub-band κ ≤ 0.15, the
-  paper's C_B) and `compute_trigger_projection()` (release signal `G_s`) from
-  [`workflow/record_model/src/trigger_conditioned.py`](../workflow/record_model/src/trigger_conditioned.py).
-- **decide**: Confirmed if `C ≥ τ_C` and `G_s ≥ τ_G`; Unconfirmed otherwise; Unavailable if the
-  check cannot run (here: the copy's geometry does not match the record).
+- **verify**: `spectral_agreement()` against the template T_I on the sub-band κ ≤ 0.15 (face
+  consistency `C`, the paper's C_B) and `key_projection()` of the phase drift onto δ_s (release
+  signal `G_s`), from `doctor_trigger.readings`. The quickstart reads `G_s` with unit weights and
+  without release normalization, so a release reads about 1.5 rather than about 1.
+- **decide**: `doctor_trigger.decision.unit_status()`: Confirmed if `C ≥ τ_C` and `G_s ≥ τ_G`;
+  Unconfirmed otherwise; Unavailable if the check cannot run (here: the copy's geometry does not
+  match the record).
 
 ## Requirements
 
-Python ≥ 3.9 with
-
-```
-numpy>=1.24
-Pillow>=9
-scikit-image>=0.20
-pandas>=1.5        # imported by workflow/scripts/enroll.py
-```
+Python ≥ 3.10 with numpy, Pillow and scikit-image. From the repository root:
 
 ```bash
-pip install numpy Pillow scikit-image pandas
+pip install -e .                 # or: export PYTHONPATH=.
 python examples/quickstart.py
 ```
 
-Tested with Python 3.10, numpy 1.26.4, Pillow 10.4.0, scikit-image 0.25.2, pandas 2.3.3. No GPU,
-no model weights, no dataset.
+Tested with Python 3.10, numpy 1.26.4, Pillow 10.4.0, scikit-image 0.25.2. No GPU, no model
+weights, no dataset.
 
 ## Output (real run)
 
@@ -71,8 +67,13 @@ python examples/quickstart.py --image my_face.png        # a square, face-centre
 python examples/quickstart.py --out quickstart_out       # also save the images and the private record
 ```
 
-`--out` writes `record_PRIVATE.npz`: the record is image-derived (its phase reveals coarse facial
-structure), so keep it private.
+`--out` writes `record_PRIVATE.npz` in the pipeline's record format, so the package CLI can read it:
+
+```bash
+python -m doctor_trigger verify quickstart_out/copy1.png quickstart_out/record_PRIVATE.npz
+```
+
+The record is image-derived (its phase reveals coarse facial structure), so keep it private.
 
 ## Sample images
 

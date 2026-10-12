@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-"""Fail-closed integrity checks for the canonical Doctor Trigger workflow."""
+"""Integrity gate: check every stage's manifest and files before the record model is trained.
+
+Checks unique ids, no video group in two splits, detector agreement, the fidelity gate, file
+hashes, complete record NPZs, no quarantined swap query, and 75 finite record-model features.
+The first failed check raises AssertionError; otherwise a JSON and a Markdown report are written.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-sys.path.append(str(ROOT.parent))  # the doctor_trigger package
-
 from doctor_trigger.manifests import sha256_file
 from doctor_trigger.record_model import feature_columns
-from workflow.paths import require_input_path, require_output_path
+from workflow.pipeline_paths import WORKFLOW_ROOT, require_input_path, require_output_path
 
 
-TEMPLATE_FIELDS = {
+RECORD_FIELDS = {
     "template_phase",
     "host_phase",
     "delta",
@@ -44,9 +44,10 @@ def read_csv(path: Path) -> pd.DataFrame:
 
 
 def generated_path(path: object) -> Path:
+    """A path written by the pipeline; it must lie inside the workflow directory."""
     resolved = Path(str(path)).expanduser().resolve()
     try:
-        resolved.relative_to(ROOT.resolve())
+        resolved.relative_to(WORKFLOW_ROOT)
     except ValueError as exc:
         raise AssertionError(f"generated path escapes workflow root: {resolved}") from exc
     return resolved
@@ -129,25 +130,25 @@ def check_enrollment(path: Path, quarantine_path: Path | None) -> dict[str, Any]
     )
     assert not frame.empty, "enrollment manifest is empty"
     assert not frame["enrollment_id"].duplicated().any(), "duplicate enrollment_id"
-    assert not frame["template_artifact"].duplicated().any(), "template artifact reused by multiple enrollments"
+    assert not frame["template_artifact"].duplicated().any(), "record reused by multiple enrollments"
     assert (frame["status"] == "pass").all(), "non-pass row in enrollment manifest"
     assert (pd.to_numeric(frame["persisted_psnr"]) >= 35.0).all(), "released image fails PSNR gate"
     assert (pd.to_numeric(frame["persisted_ssim"]) >= 0.98).all(), "released image fails SSIM gate"
     assert split_overlap(frame) == 0, "enrollment group crosses splits"
     for row in frame.itertuples(index=False):
         released = generated_path(row.released_path)
-        template = generated_path(row.template_artifact)
+        record = generated_path(row.template_artifact)
         assert released.is_file(), f"missing released image: {released}"
-        assert template.is_file(), f"missing template: {template}"
+        assert record.is_file(), f"missing record: {record}"
         assert sha256_file(released) == row.released_sha256, f"released hash mismatch: {released}"
-        assert sha256_file(template) == row.template_sha256, f"template hash mismatch: {template}"
-        with np.load(template) as data:
-            assert TEMPLATE_FIELDS <= set(data.files), f"incomplete formal template: {template}"
+        assert sha256_file(record) == row.template_sha256, f"record hash mismatch: {record}"
+        with np.load(record) as data:
+            assert RECORD_FIELDS <= set(data.files), f"incomplete record: {record}"
             shape = data["template_phase"].shape
-            assert len(shape) == 2 and min(shape) > 0, f"invalid template dimensions: {template}"
+            assert len(shape) == 2 and min(shape) > 0, f"invalid record dimensions: {record}"
             for key in ("host_phase", "delta", "host_amplitude", "support", "code"):
-                assert data[key].shape == shape, f"template field shape mismatch {key}: {template}"
-            assert np.isfinite(data["template_phase"]).all(), f"non-finite template: {template}"
+                assert data[key].shape == shape, f"record field shape mismatch {key}: {record}"
+            assert np.isfinite(data["template_phase"]).all(), f"non-finite template phase: {record}"
     quarantine = read_csv(quarantine_path) if quarantine_path else pd.DataFrame()
     return {
         "rows": len(frame),
@@ -180,15 +181,15 @@ def check_queries(path: Path, quarantine_path: Path | None) -> dict[str, Any]:
         assert split_overlap(swap, "fake_source_group_id") == 0, "query fake source group crosses splits"
     for row in frame.itertuples(index=False):
         query = generated_path(row.query_path)
-        template = generated_path(row.template_artifact)
+        record = generated_path(row.template_artifact)
         assert query.is_file(), f"missing query image: {query}"
-        assert template.is_file(), f"missing query template: {template}"
+        assert record.is_file(), f"missing query record: {record}"
         assert sha256_file(query) == row.query_sha256, f"query hash mismatch: {query}"
     quarantine = read_csv(quarantine_path) if quarantine_path else pd.DataFrame()
     assert quarantine.empty, f"canonical query run has {len(quarantine)} quarantined rows"
     return {
         "rows": len(frame),
-        "ttf_rows": len(swap),
+        "swap_rows": len(swap),
         "benign_rows": int((frame["protocol"] == "benign").sum()),
         "quarantine_rows": 0,
         "source_group_split_overlap": 0,
@@ -244,8 +245,8 @@ def main() -> int:
 
     report = {
         "status": "PASS",
-        "workflow_root": str(ROOT),
-        "write_boundary": str(ROOT),
+        "workflow_root": str(WORKFLOW_ROOT),
+        "write_boundary": str(WORKFLOW_ROOT),
         "checks": checks,
     }
     output_json = require_output_path(args.output_json)
@@ -258,7 +259,7 @@ def main() -> int:
         "",
         "Status: **PASS**",
         "",
-        f"All generated artifacts are confined to `{ROOT}`.",
+        f"All generated artifacts are confined to `{WORKFLOW_ROOT}`.",
         "",
         "| Stage | Rows | Quarantine | Group split overlap |",
         "|---|---:|---:|---:|",

@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+REPO_ROOT=$(dirname "$ROOT")
 PYTHON_BIN=${PYTHON_BIN:-python}
 MODE=run
 GPU_ID=""
@@ -10,8 +11,9 @@ usage() {
   printf '%s\n' \
     "Usage: ./run_workflow.sh [--gpu ID] [--python PATH] [--verify-only]" \
     "" \
-    "The caller must activate/create the Python/CUDA environment first." \
-    "Existing canonical artifacts are reused and then verified; source datasets are read-only."
+    "Activate the Python/CUDA environment first (see ENVIRONMENT.md). Paths to the source" \
+    "manifests and SimSwap come from <repo>/config.yaml. A stage whose output already exists is" \
+    "reused; the integrity gate, comparison interface, receipt and acceptance check always run."
 }
 
 while [[ $# -gt 0 ]]; do
@@ -40,7 +42,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ ! -d "$ROOT/scripts" || ! -d "$ROOT/workflow" ]]; then
+if [[ ! -d "$ROOT/scripts" || ! -f "$ROOT/pipeline_paths.py" || ! -d "$REPO_ROOT/doctor_trigger" ]]; then
   printf 'Incomplete workflow root: %s\n' "$ROOT" >&2
   exit 2
 fi
@@ -48,6 +50,9 @@ if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   printf 'Python executable not found: %s\n' "$PYTHON_BIN" >&2
   exit 2
 fi
+
+# The scripts import doctor_trigger and workflow.* from the repository root.
+export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 if [[ "$MODE" == verify ]]; then
   exec "$PYTHON_BIN" "$ROOT/scripts/verify_workflow.py" --full
@@ -133,48 +138,48 @@ mark_done generated
 run_if_missing base_manifest "$ROOT/manifests/base_samples.csv" \
   "$PYTHON_BIN" "$ROOT/scripts/build_base_manifest.py" --output "$ROOT/manifests/base_samples.csv"
 
-run_if_missing alignment "$ROOT/manifests_alignment.csv" \
+run_if_missing alignment "$ROOT/manifests/alignment.csv" \
   "$PYTHON_BIN" "$ROOT/scripts/align_faces.py" \
     --manifest "$ROOT/manifests/base_samples.csv" \
     --output-root "$ROOT/artifacts/aligned" \
-    --output-manifest "$ROOT/manifests_alignment.csv" \
-    --quarantine "$ROOT/manifests_alignment_quarantine.csv" \
+    --output-manifest "$ROOT/manifests/alignment.csv" \
+    --quarantine "$ROOT/manifests/alignment_quarantine.csv" \
     --skip-existing
 
-run_if_missing enrollment "$ROOT/manifests_enrollments.csv" \
+run_if_missing enrollment "$ROOT/manifests/enrollments.csv" \
   "$PYTHON_BIN" "$ROOT/scripts/enroll.py" \
-    --alignment-manifest "$ROOT/manifests_alignment.csv" \
+    --alignment-manifest "$ROOT/manifests/alignment.csv" \
     --released-root "$ROOT/artifacts/released" \
-    --template-root "$ROOT/private/templates" \
-    --output-manifest "$ROOT/manifests_enrollments.csv" \
-    --quarantine "$ROOT/manifests_enrollment_quarantine.csv" \
+    --record-root "$ROOT/private/templates" \
+    --output-manifest "$ROOT/manifests/enrollments.csv" \
+    --quarantine "$ROOT/manifests/enrollment_quarantine.csv" \
     --skip-existing
 
-run_if_missing queries "$ROOT/manifests_queries.csv" \
+run_if_missing queries "$ROOT/manifests/queries.csv" \
   "$PYTHON_BIN" "$ROOT/scripts/build_queries.py" \
-    --enrollments "$ROOT/manifests_enrollments.csv" \
-    --alignment-manifest "$ROOT/manifests_alignment.csv" \
+    --enrollments "$ROOT/manifests/enrollments.csv" \
+    --alignment-manifest "$ROOT/manifests/alignment.csv" \
     --output-root "$ROOT/artifacts/queries" \
-    --output-manifest "$ROOT/manifests_queries.csv" \
-    --quarantine "$ROOT/manifests_query_quarantine.csv" \
+    --output-manifest "$ROOT/manifests/queries.csv" \
+    --quarantine "$ROOT/manifests/query_quarantine.csv" \
     --batch-size 4 \
     --resume-existing
 
 run_if_missing calibrated_features "$ROOT/features/calibrated_features.csv" \
   "$PYTHON_BIN" "$ROOT/scripts/extract_features.py" \
-    --queries "$ROOT/manifests_queries.csv" \
+    --queries "$ROOT/manifests/queries.csv" \
     --output "$ROOT/features/calibrated_features.csv"
 
 CURRENT_STEP=integrity_gate
 write_state running
 "$PYTHON_BIN" "$ROOT/scripts/integrity_gate.py" \
   --base "$ROOT/manifests/base_samples.csv" \
-  --alignment "$ROOT/manifests_alignment.csv" \
-  --alignment-quarantine "$ROOT/manifests_alignment_quarantine.csv" \
-  --enrollments "$ROOT/manifests_enrollments.csv" \
-  --enrollment-quarantine "$ROOT/manifests_enrollment_quarantine.csv" \
-  --queries "$ROOT/manifests_queries.csv" \
-  --query-quarantine "$ROOT/manifests_query_quarantine.csv" \
+  --alignment "$ROOT/manifests/alignment.csv" \
+  --alignment-quarantine "$ROOT/manifests/alignment_quarantine.csv" \
+  --enrollments "$ROOT/manifests/enrollments.csv" \
+  --enrollment-quarantine "$ROOT/manifests/enrollment_quarantine.csv" \
+  --queries "$ROOT/manifests/queries.csv" \
+  --query-quarantine "$ROOT/manifests/query_quarantine.csv" \
   --features "$ROOT/features/calibrated_features.csv" \
   --output-json "$ROOT/reports/calibrated_integrity.json" \
   --output-md "$ROOT/reports/calibrated_integrity.md"
@@ -183,26 +188,26 @@ mark_done generated
 CURRENT_STEP=common_interface
 write_state running
 "$PYTHON_BIN" "$ROOT/scripts/export_common_interface.py" \
-  --queries "$ROOT/manifests_queries.csv" \
-  --enrollments "$ROOT/manifests_enrollments.csv" \
-  --alignment-manifest "$ROOT/manifests_alignment.csv" \
+  --queries "$ROOT/manifests/queries.csv" \
+  --enrollments "$ROOT/manifests/enrollments.csv" \
+  --alignment-manifest "$ROOT/manifests/alignment.csv" \
   --output-dir "$ROOT/common"
 mark_done generated
 
 METRICS="$ROOT/results/record_model/metrics/record_model_release_calibrated_ffpp_to_all_metrics.csv"
 run_if_missing train_eval "$METRICS" \
-  "$PYTHON_BIN" "$ROOT/record_model/scripts/train_eval_record_model_matrix.py" --config "$ROOT/configs/record_model.yaml"
+  "$PYTHON_BIN" "$ROOT/record_model/train_record_model.py" --config "$ROOT/configs/record_model.yaml"
 
 CURRENT_STEP=final_receipt
 write_state running
 "$PYTHON_BIN" "$ROOT/scripts/finalize_receipt.py" \
   --base "$ROOT/manifests/base_samples.csv" \
-  --alignment "$ROOT/manifests_alignment.csv" \
-  --alignment-quarantine "$ROOT/manifests_alignment_quarantine.csv" \
-  --enrollments "$ROOT/manifests_enrollments.csv" \
-  --enrollment-quarantine "$ROOT/manifests_enrollment_quarantine.csv" \
-  --queries "$ROOT/manifests_queries.csv" \
-  --query-quarantine "$ROOT/manifests_query_quarantine.csv" \
+  --alignment "$ROOT/manifests/alignment.csv" \
+  --alignment-quarantine "$ROOT/manifests/alignment_quarantine.csv" \
+  --enrollments "$ROOT/manifests/enrollments.csv" \
+  --enrollment-quarantine "$ROOT/manifests/enrollment_quarantine.csv" \
+  --queries "$ROOT/manifests/queries.csv" \
+  --query-quarantine "$ROOT/manifests/query_quarantine.csv" \
   --features "$ROOT/features/calibrated_features.csv" \
   --integrity "$ROOT/reports/calibrated_integrity.json" \
   --metrics "$METRICS" \
@@ -221,4 +226,4 @@ mark_done generated
 CURRENT_STEP=complete
 FINISHED=1
 write_state complete
-printf '%s\n' 'Canonical workflow completed successfully.'
+printf '%s\n' 'Workflow completed.'

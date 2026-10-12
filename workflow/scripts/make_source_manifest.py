@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Stage 0: build a source manifest CSV from a directory of extracted frames.
 
-The canonical workflow consumes one manifest per dataset with columns
+The pipeline reads one manifest per dataset with columns
     split,class,video_id,frame_path
 Point this script at a frame tree laid out as
     <frames_root>/<split>/<class>/<video_id>/<frame>.png
 (the standard layout produced by ffmpeg extraction of FF++ / Celeb-DF / DFDC),
-and it writes the manifest the pipeline expects.  Any per-dataset frame
+and it writes that manifest. Any per-dataset frame
 sampling policy (frames per video, sampling stride) is applied upstream when
 you extract the frames; this script only records what exists.
 """

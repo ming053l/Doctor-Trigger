@@ -1,76 +1,99 @@
-# Doctor Trigger canonical workflow
+# The pipeline
 
-This directory is the isolated implementation and output root for the FF++,
-DFDC, and CelebDF workflow requested for method comparison.  The source data
-and SimSwap weights under SSD mounts are read-only inputs.  No workflow stage
-writes outside the workflow root (this directory).
+`run_workflow.sh` turns extracted dataset frames (FF++, DFDC, Celeb-DF) into releases, private
+records, queries, record features and a trained record model. Source frames and SimSwap weights
+are read-only inputs, named in `<repo>/config.yaml` (`source_manifests`, `simswap_root`). Every
+stage writes only inside this directory (`pipeline_paths.py` refuses any other output path).
 
-## Data flow
+## Stages
 
-1. `scripts/build_base_manifest.py` normalizes the three source manifests and
-   assigns immutable sample and video-group identifiers.  CelebDF is
-   deterministically re-split by video group because its legacy view crossed
-   train/val/test; FF++ and DFDC retain their source protocol splits.
-2. `scripts/align_faces.py` runs SCRFD as the primary detector and records
-   YuNet and Haar validation.  A sample needs at least two agreeing detectors.
-   The crop uses face ratios 0.224/0.334, no padding, no resize, and lossless
-   PNG.  Detection failures are quarantined; there is no full-image fallback.
-3. `scripts/enroll.py` embeds the deterministic phase code in each aligned
-   real enrollment image.  It writes the released image and a formal private
-   NPZ template containing `template_phase`, `host_phase`, `delta`, normalized
-   `host_amplitude`, `support`, `code`, key, alpha, beta, bands, and amplitude
-   floor.  PSNR/SSIM are computed from the PNG read back from disk.
-4. `scripts/build_queries.py` selects a same-dataset, same-split aligned fake
-   and applies SimSwap to the released target.  FF++ manipulation types are
-   deterministically rotated across enrollments.  Query IDs and paths are
-   collision-free.  Swap failures are quarantined and fail the canonical run.
-   Resume is permitted only with a sidecar whose input/output hashes match.
-5. `scripts/extract_features.py` reads the explicit private template and emits
-   benign, swap, and wrong-key feature rows.  The calibrated full record model uses 75 selected
-   host, trigger-conditioned, and radial-band features; template-size and
-   embedding-strength constants remain in the CSV for audit but are excluded
-   from the cross-dataset model input.
-6. `scripts/integrity_gate.py` verifies paths, hashes, template fields, quality
-   gates, detector agreement, unique IDs, finite features, zero group leakage,
-   and zero SimSwap quarantine before training/evaluation.
-7. RecordModel trains on FF++ train only and produces checkpoints, per-case scores,
-   and FF++/DFDC/CelebDF test metrics.  Smoke metrics are wiring checks and are
-   never presented as final experimental results.
+| # | Script | Writes |
+|---|---|---|
+| 0 | `scripts/make_source_manifest.py FRAMES_ROOT OUT.csv` (run by hand, once per dataset) | source manifest `split,class,video_id,frame_path` |
+| 1 | `scripts/build_base_manifest.py` | `manifests/base_samples.csv` |
+| 2 | `scripts/align_faces.py` | `artifacts/aligned/`, `manifests/alignment.csv`, `manifests/alignment_quarantine.csv` |
+| 3 | `scripts/enroll.py` | `artifacts/released/`, `private/templates/`, `manifests/enrollments.csv`, `manifests/enrollment_quarantine.csv` |
+| 4 | `scripts/build_queries.py` | `artifacts/queries/`, `manifests/queries.csv`, `manifests/query_quarantine.csv` |
+| 5 | `scripts/extract_features.py` | `features/calibrated_features.csv` (+ one file per dataset and split) |
+| 6 | `scripts/integrity_gate.py` | `reports/calibrated_integrity.{json,md}` |
+| 7 | `scripts/export_common_interface.py` | `common/cases.csv`, `common/peer_score_contract.json`, `common/workflow_contract.json` |
+| 8 | `record_model/train_record_model.py --config configs/record_model.yaml` | `results/record_model/{checkpoints,scores,metrics,matrix}/` |
+| 9 | `scripts/finalize_receipt.py`, then `scripts/verify_workflow.py` | `FINAL_RECEIPT.{json,md}` |
 
-## Template formation
+1. **Base manifest.** Merges the three source manifests and gives every frame a sample id and a
+   video-group id. A dataset whose source splits put one video in two splits (Celeb-DF) is
+   re-split by video group (70/15/15, by hash); FF++ and DFDC keep their source splits.
+2. **Alignment.** SCRFD finds the face; YuNet and a Haar cascade validate it, and at least two of
+   the three must agree (IoU ≥ 0.2). The crop keeps the face at width/height ratios 0.224/0.334,
+   with no padding and no resize, saved as PNG. A frame that fails is quarantined; there is no
+   full-frame fallback.
+3. **Enrollment.** For each aligned real face: derive the key s from the master seed and the
+   sample id, build the sign pattern h_s (±1 on each active bin of the luminance ring
+   κ ∈ [0.10, 0.45], 0 on self-conjugate bins; the same pattern is applied to all three color
+   channels), shift the phase by απh_s, blend with β = 0.15 and save the released image I′. α is
+   the first value of the ladder (0.050, 0.030, 0.015; DFDC 0.015, 0.010, 0.005) whose release passes the
+   fidelity gate (PSNR ≥ 35 dB, SSIM ≥ 0.98), checked again on the PNG read back from disk.
+   The private record R is one NPZ per face; its format is below.
+4. **Queries.** Each enrollment gets a benign query (the release itself) and a swap query: SimSwap
+   applied to the release with an aligned fake face of the same dataset and split as identity
+   source (FF++ manipulation types rotate across enrollments). Query ids are hashes, so paths never
+   collide. A failed swap is retried with other source faces of the same class, then at a lower
+   detector threshold (recorded in `simswap_det_thresh`); a swap that still fails stops the run.
+   A finished query is reused only when its sidecar receipt matches the input and output hashes.
+5. **Record features.** For each query J, the 75 record-model inputs x = Φ(J, R) (H, C, G_s, the
+   wrong-key statistics over m = 8 wrong keys, residual statistics, and 8 radial bands). Key
+   projections are divided by the release's own projection (read from `released_path`). Each benign
+   query also gives a wrong-key row (labels y_rel = 1, y_key = 0; column `y_keycorr`).
+6. **Integrity gate.** Unique ids, no video group in two splits, detector agreement, the fidelity
+   gate, file hashes, complete records, no quarantined swap query, 75 finite features. Any failure
+   stops the run before training.
+7. **Comparison interface.** See below.
+8. **Record model.** f_θ is trained on FF++ train rows only, for four input variants and three
+   seeds, and scored on the FF++, DFDC and Celeb-DF test rows (`configs/record_model.yaml`).
+9. **Receipt.** Row counts and SHA-256 of every manifest, contract and code file, the integrity
+   report, metric means and package versions. `verify_workflow.py` re-checks a finished run
+   without writing anything (`--full` also re-runs the integrity checks).
 
-The enrollment template is not an omitted pretrained file.  It is formed per
-enrollment from the aligned real image and a stable secret key.  The key creates
-a signed Hermitian phase code in the configured frequency ring.  Embedding
-modifies phase while retaining Fourier magnitude, blends it at beta, and saves
-the released image.  The private NPZ stores the expected enrolled phase and the
-host/delta/support records needed to compare a later query.  Consequently the
-template must be generated by the enrollment stage; using the triggered image
-alone as an implicit template is not the canonical interface.
+## Record format
 
-## Fair method interface
+`private/templates/<dataset>/<split>/<enrollment_id>.npz`, read and written by
+`doctor_trigger.record` (`load_record`, `save_record`). Arrays are on the centered (fftshift) grid.
 
-`scripts/export_common_interface.py` writes `common/cases.csv` and a
-stage contract. Detector-only comparisons receive the exact same finalized
-query bytes. End-to-end proactive comparisons receive the exact same aligned
-enrollment bytes and attack-source bytes, then create their own release/private
-state before applying the recorded attack. Peer methods return one row per
-query following `peer_score_contract.json`; `score_fake` is the common
-detection score, while relation/key scores are optional method-specific
-outputs. Failed cases must be reported rather than replaced by a different crop.
+| NPZ key | Paper | dtype |
+|---|---|---|
+| `template_phase` | template T_I (Eq. 4) | float16 |
+| `host_phase` | original phase φ̂_I | float16 |
+| `delta` | displacement δ_s (Eq. 3) | float16 |
+| `host_amplitude` | amplitude weights w_k = A_I / max A_I | float16 |
+| `support` | active bins K_eff | uint8 |
+| `code` | sign pattern h_s (−1, 0, +1) | int8 |
+| `key`, `alpha`, `beta` | key s, strengths α, β | uint64, float32, float32 |
+| `bands` | ring [κ_min, κ_max] | float32 |
+| `amplitude_floor_ratio` | A_min / max A_I | float32 |
 
-## Run and monitor
+The record is image-derived (its phase reveals coarse facial structure): keep it private. The
+JSON sidecar next to each NPZ repeats the enrollment row (paths, α, PSNR, SSIM, hashes).
 
-After creating/activating the environment described in `ENVIRONMENT.md`, run
-`./run_workflow.sh --gpu ID`. It records stage markers, a PID, status JSON, a
-30-second heartbeat, and `logs/runner.log`.  It is restartable at stage
-boundaries; alignment/enrollment use verified per-item metadata and query resume
-requires hash receipts. Independent reviewers should use
-`python scripts/verify_workflow.py` so the canonical package remains read-only.
+## Comparison interface
 
-The final cross-dataset release uses
-`features/calibrated_features.csv` and `configs/record_model.yaml`.
-Enrollment-reference projection normalization removes alpha/resolution scale
-from query scores, and the 75-feature selector excludes template-size and
-embedding-strength constants.  Uncalibrated intermediate features are
-retained as diagnostics and are not the final reported metrics.
+`common/cases.csv` has one row per query with the exact bytes every method uses, each with its
+SHA-256: the query (`input_path`), the aligned enrollment input, the swap identity source, and the
+Doctor Trigger release and record. Detector-only methods score `input_path` unchanged. End-to-end
+methods enroll `enrollment_input_path` themselves and apply the recorded swap with
+`attack_source_path`. A peer method returns one row per query as described in
+`peer_score_contract.json` (`score_fake` is required; relation and key scores are optional).
+Failed cases are reported, never replaced by another crop.
+
+## Run
+
+From the repository root, after setting up the environment (`ENVIRONMENT.md`) and `config.yaml`:
+
+```bash
+workflow/run_workflow.sh --gpu 0          # run, or resume, the pipeline
+workflow/run_workflow.sh --verify-only    # read-only check of a finished run (no GPU)
+```
+
+The runner writes `logs/runner.log`, `state/status.json`, a heartbeat every 30 s and one marker
+per stage (`state/markers/`). A stage whose output file exists is reused; alignment and
+enrollment also skip faces whose files and sidecars exist. The scripts can be run one at a time
+with `PYTHONPATH=<repo>` (the runner sets it).

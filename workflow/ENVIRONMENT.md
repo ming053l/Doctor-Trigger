@@ -1,48 +1,31 @@
-# Environment contract
+# Pipeline environment
 
-The Python/CUDA environment is deliberately not bundled in this release. A
-virtual environment that inherits a particular user's Conda libraries is not
-portable. The workflow instead uses whichever Python environment the caller
-has activated.
+The pipeline uses whatever Python environment is active; it never activates one itself.
 
 ## Setup
 
-Create and activate a Python 3.10 environment. Install a PyTorch 2.5 build that
-matches the server driver/CUDA runtime, then install `requirements-workflow.txt`.
-The exact versions used for the completed release are also recorded in
-`FINAL_RECEIPT.json`.
-
-Do not copy another user's virtual environment. The source dataset manifests
-and SimSwap weights are read-only external inputs; point the `DT_MANIFEST_*`
-and `DT_SIMSWAP_ROOT` environment variables at your local copies.
+1. Create a Python 3.10 environment. Install a PyTorch 2.5 build that matches your driver and
+   CUDA runtime, then `pip install -r workflow/requirements-workflow.txt` and, from the repository
+   root, `pip install -e .` (the `doctor_trigger` package). The versions of the paper's run are
+   in `requirements-workflow.txt`; a finished run records its own in `FINAL_RECEIPT.json`.
+2. Copy `config.example.yaml` to `config.yaml` at the repository root and set
+   `source_manifests.{ffpp,dfdc,celebdf}` (stage-0 manifests, see `WORKFLOW.md`) and
+   `simswap_root` (a SimSwap checkout with its weights). The pipeline reads both as read-only
+   inputs.
 
 ## Preflight
 
-From the workflow root:
-
 ```bash
-python scripts/preflight.py
-python scripts/preflight.py --require-gpu
+PYTHONPATH=. python workflow/scripts/preflight.py                # packages and input files
+PYTHONPATH=. python workflow/scripts/preflight.py --require-gpu  # also CUDA for PyTorch and ONNX Runtime
 ```
 
-The first command validates packages and external files. The second also
-requires PyTorch CUDA and ONNX Runtime's CUDA provider. SimSwap uses `cuda:0`
-inside the process, so select a physical GPU through `CUDA_VISIBLE_DEVICES` or
+SimSwap runs on `cuda:0` inside the process; pick the physical GPU with `CUDA_VISIBLE_DEVICES` or
 the runner's `--gpu` option.
 
 ## Run
 
 ```bash
-./run_workflow.sh --gpu 0
-```
-
-The runner never activates a hard-coded environment or sets a user-specific
-library path. Existing canonical artifacts are reused, then the integrity gate,
-common comparison interface, final receipt, and acceptance checks are rebuilt.
-
-Independent read-only verification does not need a GPU:
-
-```bash
-python scripts/verify_workflow.py
-python scripts/verify_workflow.py --full
+workflow/run_workflow.sh --gpu 0
+workflow/run_workflow.sh --verify-only     # read-only check of a finished run, no GPU
 ```

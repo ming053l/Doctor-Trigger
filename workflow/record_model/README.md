@@ -1,26 +1,28 @@
-# Phase-Relation RecordModel Code Pack
+# Record model training
 
-This is the RecordModel component of the release. It contains the trigger-conditioned
-feature extractor, RecordModel model/training/evaluation scripts, variant configs, and
-unit tests needed to reproduce RecordModel experiments from existing templates, keys,
-frames, and feature CSVs.
-
-Excluded by design:
-
-- no old TCH / V0 checkpoint package
-- no image-detector or passive-backbone weights
-- no paper data or private server paths
-- no generated score dumps
-- no author/user names or machine-specific paths
-
-Typical usage:
+`train_record_model.py` trains the record model f_θ (`doctor_trigger.record_model`) on one
+record-feature table and scores it on others. The model maps the 75 features x = Φ(J, R) to three
+scores: S_rel (relation to the enrolled face), S_key (enrolled key present) and S_fake.
 
 ```bash
-python -m pytest tests/test_trigger_conditioned_features.py
-python scripts/extract_record_model_features.py --config configs/record_model_feature_extraction.yaml
-python scripts/train_eval_record_model_matrix.py --config configs/record_model_train_eval.yaml
+PYTHONPATH=. python workflow/record_model/train_record_model.py --config workflow/configs/record_model.yaml
 ```
 
-Input manifests should be supplied under `data/manifests/` or configured via
-the YAML files. This pack does not rebuild datasets and does not embed new
-triggers.
+The YAML config names the training table (`train_features_csv`), the tables to score
+(`eval_feature_csvs`), the input variants, the seeds and the training settings (`train.steps`,
+`batch_size`, `hidden_dim`, `lr`). Relative paths resolve against the config file.
+
+| Variant | Inputs |
+|---|---|
+| `host_only` | agreement readings: H, C, residual mean/std, mean cos r |
+| `trigger_only` | key readings: G_s, wrong-key statistics, mean δ sin r, and all per-band columns |
+| `host_plus_trigger` | both |
+| `full_record_model` | both, plus context columns (`detector_score`, `alignment_quality`, `D_face_context`) when the table has them; the pipeline's tables do not, so this is the 75 features |
+
+Outputs under `output_dir`: `checkpoints/<variant>_seed<k>_<run>.pt`,
+`scores/<run>_<variant>_seed<k>_<eval>_scores.csv` (S_fake, S_rel, S_key and the targets per query),
+`metrics/record_model_release_<run>_metrics.csv` (AUC, EER, TPR at FPR 1e-2/1e-3/1e-4 per score)
+and `matrix/` (run manifest and seed-mean summary).
+
+`src/` holds the earlier record-model and reading code that the tests in `tests/` compare
+`doctor_trigger` against; the pipeline does not use it.

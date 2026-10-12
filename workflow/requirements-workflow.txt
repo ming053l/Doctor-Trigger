@@ -1,6 +1,5 @@
-# Reference environment that produced FINAL_RECEIPT.json on the shared server.
-# The PyTorch CUDA wheel may need to be selected for the destination driver's
-# supported CUDA version; see ENVIRONMENT.md before installing.
+# Package versions of the paper's pipeline run. Pick the PyTorch CUDA wheel that matches your
+# driver; see ENVIRONMENT.md.
 numpy==1.26.4
 pandas==2.2.3
 Pillow==11.2.1

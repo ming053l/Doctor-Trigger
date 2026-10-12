@@ -1,7 +1,0 @@
-variant: full_record_model
-uses_host_features: true
-uses_trigger_projection: true
-uses_key_rank_loss: true
-uses_detector_features: true
-uses_trigger_maps: true
-uses_face_context: optional

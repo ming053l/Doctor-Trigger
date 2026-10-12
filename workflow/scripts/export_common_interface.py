@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Export a method-neutral case manifest and peer score contract."""
+"""Export the method-neutral comparison interface: common/cases.csv and the two contracts.
+
+cases.csv has one row per query with the exact bytes every method sees (query, enrollment input,
+swap identity source, Doctor Trigger release and record, all with SHA-256) and the targets.
+peer_score_contract.json says how a peer method returns scores; workflow_contract.json says
+which inputs each comparison mode uses.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-sys.path.append(str(ROOT.parent))  # the doctor_trigger package
-
 from doctor_trigger.manifests import sha256_file
-from workflow.paths import require_input_path, require_output_path
+from workflow.pipeline_paths import WORKFLOW_ROOT, require_input_path, require_output_path
 
 
 def main() -> int:
@@ -23,7 +24,7 @@ def main() -> int:
     parser.add_argument("--queries", type=Path, required=True)
     parser.add_argument("--enrollments", type=Path, required=True)
     parser.add_argument("--alignment-manifest", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "common")
+    parser.add_argument("--output-dir", type=Path, default=WORKFLOW_ROOT / "common")
     args = parser.parse_args()
 
     queries = pd.read_csv(require_input_path(args.queries))
@@ -85,9 +86,8 @@ def main() -> int:
     swap = queries["protocol"] == "swap"
     if queries.loc[swap, "attack_source_path"].eq("").any():
         raise RuntimeError("swap query has no canonical attack source")
-    # Legacy successful receipts omitted unchanged default arguments. Make the
-    # effective attack parameters explicit in the comparison contract: 0.3 is
-    # the canonical SimSwap threshold and four recorded target retries used 0.1.
+    # A swap row made at the default SimSwap detector threshold may not store it; write 0.3 (the
+    # default) so every swap row states its attack parameters. Rows retried at 0.1 store 0.1.
     queries["simswap_det_thresh"] = pd.to_numeric(queries["simswap_det_thresh"], errors="coerce")
     queries.loc[swap, "simswap_det_thresh"] = queries.loc[swap, "simswap_det_thresh"].fillna(0.3)
     queries.loc[~swap, "simswap_det_thresh"] = float("nan")

@@ -1,32 +1,38 @@
 #!/usr/bin/env python3
-"""Train record_model_release RecordModel on one feature CSV and evaluate on multiple feature CSVs."""
+"""Train the record model f_theta on one feature table and score it on several.
+
+For every seed and variant in the YAML config (``host_only``, ``trigger_only``,
+``host_plus_trigger``, ``full_record_model``; see ``doctor_trigger.record_model``) this fits the
+model on ``train_features_csv``, writes the checkpoint, scores each table of ``eval_feature_csvs``
+(S_fake, S_rel, S_key per query) and records AUC, EER and TPR at FPR 1e-2/1e-3/1e-4 for each
+score against its target (y_fake, y_rel, y_key). Relative paths in the config resolve against the
+config file. Outputs under ``output_dir``: ``checkpoints/``, ``scores/``,
+``metrics/record_model_release_<run_name>_metrics.csv`` and ``matrix/`` (run manifest, summary).
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.append(str(ROOT.parents[1]))  # the doctor_trigger package
-
 from doctor_trigger.metrics import equal_error_rate, roc_auc, tpr_at_fpr
 from doctor_trigger.record_model import fit_record_model, save_checkpoint, score_table
 
 
 def load_config(path: Path) -> Dict[str, object]:
+    """The training config (YAML)."""
     import yaml
 
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def config_path(config_file: Path, value: object) -> Path:
-    """Resolve a configured path relative to the YAML file, not a user home."""
+    """Resolve a configured path relative to the YAML file."""
     path = Path(str(value)).expanduser()
     if path.is_absolute():
         return path.resolve()
@@ -34,6 +40,7 @@ def config_path(config_file: Path, value: object) -> Path:
 
 
 def metric_rows(scores: pd.DataFrame, variant: str, seed: int, eval_name: str, final_loss: float) -> List[Dict[str, object]]:
+    """One metrics row per score head; ``y_keycorr`` is the paper's y_key."""
     targets = {"S_fake": "y_fake", "S_rel": "y_rel", "S_key": "y_keycorr"}
     rows: List[Dict[str, object]] = []
     for score, target in targets.items():
@@ -61,8 +68,8 @@ def metric_rows(scores: pd.DataFrame, variant: str, seed: int, eval_name: str, f
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=Path, required=True)
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--config", type=Path, required=True, help="training config (YAML)")
     args = parser.parse_args()
     config_file = args.config.resolve()
     cfg = load_config(config_file)
@@ -87,7 +94,7 @@ def main() -> int:
     manifest: List[Dict[str, object]] = []
     for seed in seeds:
         for variant in variants:
-            print(f"[record_model_release_train_eval_matrix] train variant={variant} seed={seed} steps={steps} batch_size={batch_size}", flush=True)
+            print(f"[train_record_model] train variant={variant} seed={seed} steps={steps} batch_size={batch_size}", flush=True)
             fitted = fit_record_model(train_df, variant, int(seed), steps, hidden_dim, lr, batch_size)
             ckpt_path = ckpt_dir / f"{variant}_seed{seed}_{run_name}.pt"
             save_checkpoint(fitted, ckpt_path, train_csv)
@@ -95,7 +102,7 @@ def main() -> int:
                 eval_name = str(item["name"])
                 eval_csv = config_path(config_file, item["path"])
                 eval_df = pd.read_csv(eval_csv)
-                print(f"[record_model_release_train_eval_matrix] eval variant={variant} seed={seed} eval={eval_name} n={len(eval_df)}", flush=True)
+                print(f"[train_record_model] eval variant={variant} seed={seed} eval={eval_name} n={len(eval_df)}", flush=True)
                 scores = score_table(fitted, eval_df)
                 score_path = score_dir / f"{run_name}_{variant}_seed{seed}_{eval_name}_scores.csv"
                 scores.to_csv(score_path, index=False)

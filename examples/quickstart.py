@@ -5,6 +5,8 @@
   python examples/quickstart.py --image my_face.png   # your own square face crop
   python examples/quickstart.py --out quickstart_out  # also write the images and the record
 
+(from the repository root, with the package importable: ``pip install -e .`` or ``PYTHONPATH=.``)
+
 What it does, using the doctor_trigger package:
 
   1. enroll   doctor_trigger.enrollment.enroll(): derives the face's key s from a master seed and
@@ -19,8 +21,9 @@ What it does, using the doctor_trigger package:
   3. verify   doctor_trigger.readings:
                 C_B = spectral_agreement() against the stored template T_I on K_eff and the sub-band
                       kappa <= 0.15 ("face consistency").
-                G_s = key_projection() of the phase drift onto the enrolled keyed displacement
-                      ("release signal"). Here it is unweighted and not release-normalized, so a
+                G_s = key_projection() of the phase drift onto the enrolled displacement delta_s
+                      ("release signal"). Here it is unweighted and not release-normalized (the
+                      pipeline uses amplitude weights and divides by the release's own G_s), so a
                       release reads somewhat above 1 and the original about 0.
   4. decide   doctor_trigger.decision.unit_status(): Confirmed if C_B >= tau_C and G_s >= tau_G;
               Unconfirmed otherwise; Unavailable when the check cannot run (no record, or the
@@ -29,28 +32,22 @@ What it does, using the doctor_trigger package:
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageFilter
 
-REPO = Path(__file__).resolve().parents[1]
-sys.path.append(str(REPO))  # the doctor_trigger package
+from doctor_trigger.calibration import lower_tail_threshold
+from doctor_trigger.channels import jpeg, rescale_round_trip
+from doctor_trigger.decision import DirectThresholds, Status, unit_status
+from doctor_trigger.enrollment import DEFAULT_ALPHA_LADDER, EnrollmentSettings, enroll
+from doctor_trigger.readings import SumForm, UnitReading, key_projection, phase_drift, spectral_agreement
+from doctor_trigger.record import Record, UnitId, save_record
+from doctor_trigger.spectrum import SUBBAND_B_KAPPA_MAX, luminance_phase, subband_b
 
-from doctor_trigger.calibration import lower_tail_threshold  # noqa: E402
-from doctor_trigger.channels import jpeg, rescale_round_trip  # noqa: E402
-from doctor_trigger.decision import DirectThresholds, Status, unit_status  # noqa: E402
-from doctor_trigger.enrollment import DEFAULT_ALPHA_LADDER, EnrollmentSettings, enroll  # noqa: E402
-from doctor_trigger.readings import SumForm, UnitReading, key_projection, phase_drift, spectral_agreement  # noqa: E402
-from doctor_trigger.record import Record, UnitId, stored_arrays  # noqa: E402
-from doctor_trigger.spectrum import SUBBAND_B_KAPPA_MAX, luminance_phase, subband_b  # noqa: E402
-
-SETTINGS = EnrollmentSettings()  # the defaults of workflow/scripts/enroll.py
+SETTINGS = EnrollmentSettings()  # the pipeline's defaults (workflow/scripts/enroll.py)
 ALPHAS = DEFAULT_ALPHA_LADDER
-RECORD_FIELDS = ("template_phase", "host_phase", "delta", "host_amplitude", "support", "code", "key", "alpha")
-"""Record arrays written to record_PRIVATE.npz (beta, ring and amplitude floor are the defaults)."""
-DATA = Path(__file__).resolve().parent / "data"
+SAMPLE_IMAGES = Path(__file__).resolve().parent / "data"
 
 
 # ----------------------------------------------------------------------------- verify
@@ -82,6 +79,7 @@ def read_copy(query: np.ndarray | None, record: Record | None) -> UnitReading:
 
 
 def decide(query: np.ndarray | None, record: Record | None, thresholds: DirectThresholds) -> tuple[str, UnitReading]:
+    """Status of one copy (Eq. 11), with the failed check(s) named when it is Unconfirmed."""
     reading = read_copy(query, record)
     status = unit_status(reading, thresholds)
     if status is not Status.UNCONFIRMED:
@@ -107,23 +105,24 @@ def splice(target: np.ndarray, donor: np.ndarray) -> np.ndarray:
     return np.clip(m * donor + (1 - m) * target, 0, 255).round().astype(np.uint8)
 
 
-def load(path: Path, size: int | None = None) -> np.ndarray:
-    im = Image.open(path).convert("RGB")
-    if size is not None and im.size != (size, size):
-        im = im.resize((size, size), Image.LANCZOS)
-    return np.asarray(im, dtype=np.uint8)
+def load_rgb(path: Path, size: int | None = None) -> np.ndarray:
+    """An image as uint8 RGB, resized to size x size (Lanczos) when a size is given."""
+    image = Image.open(path).convert("RGB")
+    if size is not None and image.size != (size, size):
+        image = image.resize((size, size), Image.LANCZOS)
+    return np.asarray(image, dtype=np.uint8)
 
 
 # ----------------------------------------------------------------------------- main
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--image", type=Path, default=DATA / "office.png", help="face to enroll (square crop)")
-    ap.add_argument("--calibration-image", type=Path, default=DATA / "market.png",
-                    help="a different face, used only for the toy calibration")
-    ap.add_argument("--out", type=Path, default=None, help="optional folder for images and the record")
-    args = ap.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--image", type=Path, default=SAMPLE_IMAGES / "office.png", help="face to enroll (square crop)")
+    parser.add_argument("--calibration-image", type=Path, default=SAMPLE_IMAGES / "market.png",
+                        help="a different face, used only for the toy calibration")
+    parser.add_argument("--out", type=Path, default=None, help="optional folder for images and the record")
+    args = parser.parse_args()
 
-    original = load(args.image)
+    original = load_rgb(args.image)
     size = original.shape[0]
     if original.shape[0] != original.shape[1]:
         raise SystemExit("please pass a square face crop")
@@ -136,24 +135,26 @@ def main() -> None:
 
     # 2. TOY calibration: five enrollments made from a different face (as given, mirrored, rotated;
     #    each gets its own key), each sent through the benign channels we want to tolerate.
-    cal_img = load(args.calibration_image, size)
-    cal_faces = [cal_img, cal_img[:, ::-1], np.rot90(cal_img), np.rot90(cal_img, 3), np.rot90(cal_img[:, ::-1])]
-    cal = []
-    for i, face in enumerate(cal_faces):
+    calibration_face = load_rgb(args.calibration_image, size)
+    calibration_faces = [calibration_face, calibration_face[:, ::-1], np.rot90(calibration_face),
+                         np.rot90(calibration_face, 3), np.rot90(calibration_face[:, ::-1])]
+    calibration_readings = []
+    for i, face in enumerate(calibration_faces):
         face_enrolled = enroll(np.ascontiguousarray(face), UnitId(f"{args.calibration_image.stem}-cal{i}"), ALPHAS, SETTINGS)
-        rel, rec = face_enrolled.released, face_enrolled.record
-        benign = [jpeg(rel, q) for q in (70, 75, 80, 85, 90)] + [rescale_round_trip(rel, s) for s in (0.6, 0.75, 0.9)]
-        benign.append(jpeg(rescale_round_trip(rel, 0.75), 80))
-        cal += [read_copy(b, rec) for b in benign]
-    tau_c = float(lower_tail_threshold([c.spectral_agreement for c in cal]))
-    tau_g = float(lower_tail_threshold([c.key_projection for c in cal]))
+        face_release, face_record = face_enrolled.released, face_enrolled.record
+        benign = ([jpeg(face_release, q) for q in (70, 75, 80, 85, 90)]
+                  + [rescale_round_trip(face_release, s) for s in (0.6, 0.75, 0.9)])
+        benign.append(jpeg(rescale_round_trip(face_release, 0.75), 80))
+        calibration_readings += [read_copy(copy, face_record) for copy in benign]
+    tau_c = float(lower_tail_threshold([r.spectral_agreement for r in calibration_readings]))
+    tau_g = float(lower_tail_threshold([r.key_projection for r in calibration_readings]))
     thresholds = DirectThresholds(tau_C=tau_c, tau_G=tau_g)
-    print(f"[calibrate] TOY: 1% quantiles over {len(cal)} benign copies (JPEG q70-90, resize 0.6-0.9x) of "
-          f"{len(cal_faces)} enrollments of {args.calibration_image.name}\n"
+    print(f"[calibrate] TOY: 1% quantiles over {len(calibration_readings)} benign copies (JPEG q70-90, resize 0.6-0.9x) of "
+          f"{len(calibration_faces)} enrollments of {args.calibration_image.name}\n"
           f"            -> tau_C={tau_c:.4f}, tau_G={tau_g:.3f}  (in practice: calibrate on your own releases)")
 
     # 3-4. verify a few copies of the enrolled face
-    donor = load(args.calibration_image, size)
+    donor = load_rgb(args.calibration_image, size)
     copies = {
         "posted (released PNG)": released,
         "JPEG re-save, q85": jpeg(released, 85),
@@ -163,8 +164,8 @@ def main() -> None:
         "center crop 90% (no record of geometry)": released[size // 20: size - size // 20, size // 20: size - size // 20],
     }
     print(f"\n{'copy':42s} {'C':>8s} {'G_s':>7s}  status")
-    for name, img in copies.items():
-        status, reading = decide(img, record, thresholds)
+    for name, image in copies.items():
+        status, reading = decide(image, record, thresholds)
         c = f"{reading.spectral_agreement:.4f}" if reading.available else "-"
         g = f"{reading.key_projection:.3f}" if reading.available else "-"
         print(f"{name:42s} {c:>8s} {g:>7s}  {status}")
@@ -172,11 +173,10 @@ def main() -> None:
 
     if args.out:
         args.out.mkdir(parents=True, exist_ok=True)
-        for name, img in [("original", original), ("released", released)] + [
-                (f"copy{i}", im) for i, im in enumerate(copies.values())]:
-            Image.fromarray(img).save(args.out / f"{name}.png")
-        arrays = stored_arrays(record)
-        np.savez_compressed(args.out / "record_PRIVATE.npz", **{name: arrays[name] for name in RECORD_FIELDS})
+        for name, image in [("original", original), ("released", released)] + [
+                (f"copy{i}", copy) for i, copy in enumerate(copies.values())]:
+            Image.fromarray(image).save(args.out / f"{name}.png")
+        save_record(args.out / "record_PRIVATE.npz", record)  # the pipeline's record format
         print(f"\nwrote images and the private record to {args.out}/ (keep record_PRIVATE.npz private)")
 
 

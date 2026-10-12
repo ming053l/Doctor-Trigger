@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Create no-padding/no-resize face crops and a three-detector audit manifest."""
+"""Stage 2: crop one face per frame, without padding or resizing, and record three detectors.
+
+SCRFD gives the face box; YuNet and a Haar cascade validate it (IoU >= 0.2). A frame needs at
+least two agreeing detectors. The crop keeps the face at width/height ratios 0.224/0.334 of the
+crop and is saved as lossless PNG. Frames that fail go to the quarantine manifest; there is no
+full-frame fallback.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -14,10 +19,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from workflow.paths import require_input_path, require_output_path
+from workflow.pipeline_paths import WORKFLOW_ROOT, require_input_path, require_output_path
 
 
 def box_iou(first: tuple[int, int, int, int] | None, second: tuple[int, int, int, int] | None) -> float:
@@ -142,11 +144,11 @@ def serialize_box(box: tuple[int, int, int, int] | None) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--output-root", type=Path, default=ROOT / "artifacts/aligned")
-    parser.add_argument("--output-manifest", type=Path, default=ROOT / "manifests/alignment.csv")
-    parser.add_argument("--quarantine", type=Path, default=ROOT / "manifests/alignment_quarantine.csv")
-    parser.add_argument("--scrfd-model", type=Path, default=ROOT / "assets/detectors/scrfd_10g_bnkps.onnx")
-    parser.add_argument("--yunet-model", type=Path, default=ROOT / "assets/detectors/face_detection_yunet_2023mar.onnx")
+    parser.add_argument("--output-root", type=Path, default=WORKFLOW_ROOT / "artifacts/aligned")
+    parser.add_argument("--output-manifest", type=Path, default=WORKFLOW_ROOT / "manifests/alignment.csv")
+    parser.add_argument("--quarantine", type=Path, default=WORKFLOW_ROOT / "manifests/alignment_quarantine.csv")
+    parser.add_argument("--scrfd-model", type=Path, default=WORKFLOW_ROOT / "assets/detectors/scrfd_10g_bnkps.onnx")
+    parser.add_argument("--yunet-model", type=Path, default=WORKFLOW_ROOT / "assets/detectors/face_detection_yunet_2023mar.onnx")
     parser.add_argument("--ctx-id", type=int, default=0)
     parser.add_argument("--det-thresh", type=float, default=0.3)
     parser.add_argument("--ratio-w", type=float, default=0.224)
@@ -173,8 +175,7 @@ def main() -> int:
     rejected: list[dict[str, Any]] = []
     for count, row in enumerate(frame.itertuples(index=False), start=1):
         source = Path(str(row.frame_path))
-        # Canonical crops are always lossless PNG so the alignment stage does
-        # not introduce an unmeasured JPEG recompression variable.
+        # Crops are lossless PNG so alignment adds no JPEG recompression.
         destination = output_root / str(row.dataset) / str(row.split) / str(row.class_name) / f"{row.sample_id}.png"
         meta_path = destination.with_suffix(".json")
         if args.skip_existing and destination.is_file() and meta_path.is_file():

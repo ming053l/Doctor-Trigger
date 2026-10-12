@@ -1,30 +1,24 @@
 #!/usr/bin/env python3
-"""Normalize the three existing scan manifests into one read-only source index."""
+"""Stage 1: merge the three source manifests into one base manifest of real and fake frames.
+
+Each row gets a sample id and a source-group (video) id. A dataset whose source splits put one
+video in more than one split is re-split by video group (70/15/15, hashed); otherwise the source
+protocol's split is kept. The source manifests are named in config.yaml (``source_manifests``).
+"""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import sys
-import os
 from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from workflow.paths import require_input_path, require_output_path
+from workflow.pipeline_paths import WORKFLOW_ROOT, require_input_path, require_output_path, source_manifests
 
 
-DEFAULT_SOURCE_MANIFESTS = {
-    "FF++": Path(os.environ.get("DT_MANIFEST_FFPP", "")),
-    "DFDC": Path(os.environ.get("DT_MANIFEST_DFDC", "")),
-    "CelebDF": Path(os.environ.get("DT_MANIFEST_CELEBDF", "")),
-}
-
-
-def stable_id(*parts: object) -> str:
+def hashed_id(*parts: object) -> str:
+    """First 24 hex digits of SHA-256 over the parts joined by \x1f."""
     value = "\x1f".join(str(part) for part in parts)
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:24]
 
@@ -45,10 +39,10 @@ def load_dataset(dataset: str, path: Path) -> pd.DataFrame:
     frame["class"] = frame["class"].map(normalize_class)
     frame["frame_path"] = frame["frame_path"].astype(str)
     frame = frame.rename(columns={"split": "original_split"})
-    frame["source_group_id"] = frame["video_id"].map(lambda value: stable_id(dataset, value))
+    frame["source_group_id"] = frame["video_id"].map(lambda value: hashed_id(dataset, value))
     frame["logical_frame"] = frame["frame_path"].map(lambda value: Path(value).name)
     frame["sample_id"] = frame.apply(
-        lambda row: stable_id(dataset, row["class"], row["video_id"], row["logical_frame"]),
+        lambda row: hashed_id(dataset, row["class"], row["video_id"], row["logical_frame"]),
         axis=1,
     )
     frame["source_exists"] = frame["frame_path"].map(lambda value: Path(value).is_file())
@@ -69,9 +63,8 @@ def load_dataset(dataset: str, path: Path) -> pd.DataFrame:
     else:
         frame["split"] = frame["original_split"]
         frame["split_source"] = "source_protocol"
-    # The CelebDF view contains repeated logical frames under multiple split
-    # symlinks.  Keep one physical input row after assigning the whole source
-    # group to a canonical split.
+    # The Celeb-DF frame tree lists some frames under more than one split; keep one row per
+    # sample once the whole video group has its split.
     frame = frame.sort_values(["dataset", "class", "video_id", "logical_frame", "original_split", "frame_path"])
     frame = frame.drop_duplicates(subset=["sample_id"], keep="first")
     return frame[
@@ -92,13 +85,14 @@ def load_dataset(dataset: str, path: Path) -> pd.DataFrame:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=ROOT / "manifests/base_samples.csv")
-    parser.add_argument("--limit-per-dataset", type=int, default=0)
+    parser.add_argument("--output", type=Path, default=WORKFLOW_ROOT / "manifests/base_samples.csv")
+    parser.add_argument("--limit-per-dataset", type=int, default=0,
+                        help="keep at most this many frames per (split, class) of each dataset (0 = all)")
     args = parser.parse_args()
     output = require_output_path(args.output)
 
     parts = []
-    for dataset, path in DEFAULT_SOURCES.items():
+    for dataset, path in source_manifests().items():
         frame = load_dataset(dataset, path)
         if args.limit_per_dataset > 0:
             frame = (
