@@ -35,8 +35,10 @@ raw videos (FF++ / Celeb-DF / DFDC)
               ├─ enroll.py                     released image + private NPZ record per face
               ├─ build_queries.py              benign copies and SimSwap face-swap queries
               ├─ extract_features.py           spectral-agreement / key features for every query
+              ├─ integrity_gate.py             ids, splits, fidelity gate, hashes; stops the run on failure
+              ├─ export_common_interface.py    common/cases.csv and the peer-score contract
               ├─ record_model/train_record_model.py  trained record-model scorers (3 seeds)
-              └─ integrity gate + receipts     hashes, counts, quarantine accounting
+              └─ finalize_receipt.py, verify_workflow.py   FINAL_RECEIPT: hashes and counts
 ```
 
 The workflow is resumable and self-verifying: re-running it against a completed root re-checks

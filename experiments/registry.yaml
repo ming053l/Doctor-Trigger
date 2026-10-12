@@ -49,8 +49,7 @@ engines:
   gpu: true
   impl: migrated
   note: swapped images cached under {engine_cache}/{engine}; delete to force regeneration
-  paper: 'swapped images of the other face manipulations: Table 1 right columns and appendix Table 12
-    engine rows'
+  paper: 'swapped images of the other face manipulations: Table 1 right columns'
 fig-imperceptibility:
   cmd: python build_fig_imperceptibility.py
   cwd: '{repo_root}/experiments'
