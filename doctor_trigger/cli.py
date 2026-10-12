@@ -150,7 +150,7 @@ def cmd_enroll(image: str, sample_id: str, out_dir: str, master_seed: int, datas
 
 
 def cmd_verify(image: str, record_file: str, tau_c: float | None, tau_g: float | None) -> int:
-    """Read H, C_B and G_s of a query J against a record R; with thresholds, print the status."""
+    """Read H_B, C_B and G_s of a query J against a record R; with thresholds, print the status."""
     import numpy as np
     from PIL import Image
 
@@ -158,11 +158,15 @@ def cmd_verify(image: str, record_file: str, tau_c: float | None, tau_g: float |
     from doctor_trigger.record import load_record
 
     reading = read_unit(np.asarray(Image.open(image).convert("RGB")), load_record(record_file))
-    print(f"H={reading.H:.4f} C_B={reading.C_B:.4f} G_s={reading.G_s:.4f}")
+    if not reading.available:
+        print(f"status=Unavailable ({reading.unavailable_reason})")
+        return 0
+    print(f"H_B={reading.original_reference_agreement:.4f} C_B={reading.spectral_agreement:.4f} "
+          f"G_s={reading.key_projection:.4f}")
     if tau_c is not None and tau_g is not None:
-        from doctor_trigger.decision import unit_status
+        from doctor_trigger.decision import DirectThresholds, unit_status
 
-        print(f"status={unit_status(reading, {'tau_C': tau_c, 'tau_G': tau_g}).value}")
+        print(f"status={unit_status(reading, DirectThresholds(tau_C=tau_c, tau_G=tau_g)).value}")
     return 0
 
 
