@@ -7,17 +7,18 @@
 # reads it (registry entries run in experiments/ or workflow/); prefer "{repo_root}/..." or an
 # absolute path on your machine.
 #
-# `python -m doctor_trigger reproduce ID` (or `python run.py run ID`) also exports the keys marked
-# [DT_*] as environment variables for the workflow shell scripts and peer subprocesses.
+# `python -m doctor_trigger reproduce ID` (or `python run.py run ID`) exports the keys marked
+# [DT_*] as environment variables for the workflow shell scripts and peer subprocesses; every
+# marked key must be present.
 
 # --- the finished enrollment/query pipeline (workflow/run_workflow.sh; see README: Data) ---
-canonical_root: "{repo_root}/../canonical_workflow"         # [DT_CANON_ROOT]
+canonical_root: "{repo_root}/../canonical_workflow"         # [DT_CANON_ROOT] pipeline root: manifests, records, features
 cases_csv:      "{canonical_root}/common/cases.csv"         # one row per query: release, record, protocol, targets
 queries_csv:    "{canonical_root}/manifests/queries.csv"    # query-stage manifest (default if omitted: this value)
 features_csv:   "{canonical_root}/features/calibrated_features.csv"   # pipeline feature rows (fig-signal, fig-release-residual)
 
 # --- code shipped with this repository ---
-model_snapshot: "{repo_root}/experiments/_snapshot"         # [DT_MODEL_SNAPSHOT] model code the experiments import
+model_snapshot: "{repo_root}/experiments/_snapshot"         # [DT_MODEL_SNAPSHOT] image-only detector, benign-channel and SimSwap code the experiments import
 model_config:   "{model_snapshot}/config_ffpp_std_dfd_resnet50.yaml"  # image-only detector architecture
 
 # --- where results go ---
@@ -30,19 +31,19 @@ ckpts_root: "{repo_root}/../ckpts"                          # [DT_CKPTS_ROOT] pe
 checkpoints:
   image_detector_aug: "{ckpts_root}/image_detector_aug"     # [DT_IMAGE_DETECTOR_AUG] {ffpp,dfdc,celebdf}/best_val_auc.pt, deployed augmentation recipe
   image_detector:     "{ckpts_root}/image_detector"         # [DT_IMAGE_DETECTOR] {ffpp,dfdc,celebdf}/best_val_auc.pt, no augmentation
-  record_model:       "{canonical_root}/results/record_model"   # record-model checkpoints written by the pipeline
 
-# --- third-party code (see README: Peers) ---
+# --- third-party code (see docs/REPRODUCE.md: What you need to provide) ---
 peers_root:   "{repo_root}/../peer_methods"                 # [DT_PEERS_ROOT] peer watermark repos cloned side by side
 engines_root: "{peers_root}/engines"                        # one directory per face-manipulation engine
-simswap_root: "{repo_root}/../SimSwap"                      # [DT_SIMSWAP_ROOT] SimSwap checkout
+simswap_root: "{repo_root}/../SimSwap"                      # [DT_SIMSWAP_ROOT] SimSwap checkout and weights (pipeline swap queries, SimSwap engine)
 
-# --- earlier runs (read by the deployment-cost and imperceptibility experiments only) ---
-legacy_outputs:      "{repo_root}/../legacy_outputs"        # [DT_LEGACY_OUTPUTS]
-legacy_trigger_glob: "{legacy_outputs}/trigger/**/*_trigger.json"   # [DT_LEGACY_TRIGGER_GLOB] earlier trigger renders
-paper_repo:          "{repo_root}/../paper"                 # [DT_PAPER_REPO] exported but read by no script
+# --- an earlier enrollment run (read by the imperceptibility figure and deployment-cost only) ---
+legacy_outputs:      "{repo_root}/../legacy_outputs"        # [DT_LEGACY_OUTPUTS] root of that run
+legacy_trigger_glob: "{legacy_outputs}/trigger/**/*_trigger.json"   # [DT_LEGACY_TRIGGER_GLOB] JSON sidecars: original crop + its release
+paper_repo:          "{repo_root}/../paper"                 # [DT_PAPER_REPO] exported only; no script reads it
 
-# --- stage-0 source manifests (workflow/scripts/make_source_manifest.py) ---
+# --- pipeline inputs (read by workflow/pipeline_paths.py): stage-0 source manifests, one per dataset,
+#     written by workflow/scripts/make_source_manifest.py; SimSwap is simswap_root above ---
 source_manifests:
   ffpp:    "{repo_root}/../source_manifests/ffpp_manifest.csv"      # [DT_MANIFEST_FFPP]
   dfdc:    "{repo_root}/../source_manifests/dfdc_manifest.csv"      # [DT_MANIFEST_DFDC]

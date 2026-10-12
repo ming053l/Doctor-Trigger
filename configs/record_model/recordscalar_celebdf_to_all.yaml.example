@@ -1,6 +1,8 @@
-# Copy to recordscalar_celebdf_to_all.yaml and replace the placeholders with the paths in config.yaml.
-# Record-model training on features whose reference is the stored template phase
-# (experiments/features_record_scalar.py): C from the stored template, G family divided by stored release scalars.
+# Copy to recordscalar_celebdf_to_all.yaml and replace each {placeholder} with its value from config.yaml
+# (the trainer reads paths as written; relative ones resolve against this file).
+# Trains the record model f_theta (Sec. 3.3) on the record-reference feature table x = Phi(J, R) written by
+# experiments/features_release_scalars.py: C against the stored template T_I, the G_s family divided by the
+# stored release projection. Read by workflow/record_model/train_record_model.py (registry: record-model-recordscalar).
 output_dir: "{record_model_runs}/recordscalar_celebdf"
 run_name: recordscalar_celebdf_to_all
 train_features_csv: "{outputs_root}/features_record_scalar/recordscalar_features_celebdf_train.csv"

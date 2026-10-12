@@ -1,19 +1,14 @@
 #!/usr/bin/env python
-"""Unified experiment entry point: a shim for ``python -m doctor_trigger`` (doctor_trigger/cli.py).
+"""Same as ``python -m doctor_trigger`` (doctor_trigger/cli.py); ``run`` is ``reproduce``.
 
-  python run.py list                 # every experiment and the paper artifact it feeds
-  python run.py show <id>            # resolved command, cwd, outputs
-  python run.py run <id> [k=v ...]   # execute (template slots filled from k=v); same as `reproduce`
-  python run.py status               # which outputs exist, with mtimes
-
-The method commands (enroll, verify, calibrate) are forwarded too. All machine paths come from
-config.yaml; experiments/registry.yaml maps paper artifacts to commands.
+  python run.py list | show ID | status
+  python run.py run ID [k=v ...]
+  python run.py enroll | verify | calibrate ...
 """
-import os
+import io
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from doctor_trigger.cli import main  # noqa: E402
+from doctor_trigger.cli import main
 
 COMMANDS = ("list", "show", "run", "reproduce", "status", "enroll", "verify", "calibrate")
 
@@ -21,4 +16,14 @@ if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:
         print(__doc__)
         sys.exit(1)
-    sys.exit(main(sys.argv[1:]))
+    if sys.stdout.isatty():
+        sys.exit(main(sys.argv[1:]))
+    # Redirected to a file or pipe, run.py's own lines (the "[ID] cwd=" banner) are written after
+    # the experiment's output, as they always were, so saved logs keep their layout.
+    redirected, sys.stdout = sys.stdout, io.StringIO()
+    try:
+        code = main(sys.argv[1:])
+    finally:
+        own_lines, sys.stdout = sys.stdout.getvalue(), redirected
+        sys.stdout.write(own_lines)
+    sys.exit(code)

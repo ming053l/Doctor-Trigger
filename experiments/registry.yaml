@@ -52,7 +52,7 @@ engines:
   paper: 'swapped images of the other face manipulations: Table 1 right columns and appendix Table 12
     engine rows'
 fig-imperceptibility:
-  cmd: python fig_imperceptibility.py
+  cmd: python build_fig_imperceptibility.py
   cwd: '{repo_root}/experiments'
   impl: migrated
   paper: Fig 5 (visual fidelity of released images)
@@ -117,7 +117,7 @@ release-evidence:
   paper: 'appendix Table 7 release-version column: released image vs its unreleased original, for H and
     G_s'
 sensitivity-fig:
-  cmd: python build_sensitivity_fig.py
+  cmd: python build_fig_sensitivity.py
   cwd: '{repo_root}/experiments'
   impl: migrated
   note: reads {outputs_root}/sensitivity/*.csv produced by sensitivity-release jobs

@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
 """Fig 6: complementary evidence for face consistency and release-signal retention.
 
-Empirical anatomy of the directly computed measurements, main protocol.
-
-Panels from the pipeline feature CSV (explicit NPZ templates,
-PNG-read-back benign queries; test split):
-(a-c) original-reference error 1-H (log) against key projection G_s on FF++, Celeb-DF, DFDC
-(d,e) the wrong-key test read by the cosine control and by the signed projection (FF++).
-Every annotation is computed from the data; the distributions overlap in 1-H,
-and the figure shows that rather than a synthetic split line.
+(a-c) original-reference error 1 - H (log) against the release-normalized key projection
+      G_s^(release), test split of FF++, Celeb-DF and DFDC, from the pipeline feature CSV;
+(d, e) a wrong projection key read by the original-reference agreement H (unchanged, since H does
+      not use the key) and by G_s^(release) (disrupted), recomputed from the records of 250 FF++
+      test releases. Nothing is fitted: the scatter shows where the classes overlap in 1 - H.
 
 Paths from config.yaml (doctor_trigger.config): features_csv, cases_csv, outputs_root; the
 environment variable DT_FEATURES_CSV, when set, replaces features_csv.
 Writes <outputs_root>/figures/fig_signal.{pdf,png}.
 """
 import os
-import sys
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -25,59 +21,58 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # the repository root holds doctor_trigger
 from doctor_trigger import config, manifests
 from doctor_trigger.key import wrong_keys
 from doctor_trigger.metrics import roc_auc
-from doctor_trigger.readings import (SumForm, phase_drift, release_normalized, spectral_agreement,
-                                     wrong_key_displacement)
+from doctor_trigger.readings import phase_drift, release_normalized, spectral_agreement, wrong_key_displacement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import luminance_phase
 
 mpl.rcParams.update({"font.family": "Liberation Serif",
                      "mathtext.fontset": "dejavuserif", "pdf.fonttype": 42})
-INK = "#17202B"; MUTED = "#5E6D82"; HAIRLINE = "#C8CED7"
-GOLD = "#A87400"; BLUE = "#2B6CB0"; RED = "#B63E30"; TEAL = "#0C5E59"
+GOLD = "#A87400"; BLUE = "#2B6CB0"; RED = "#B63E30"
 
-F = os.environ.get("DT_FEATURES_CSV") or config.path("features_csv")
+FEATURES_CSV = os.environ.get("DT_FEATURES_CSV") or config.path("features_csv")
 OUT = Path(config.path("outputs_root")) / "figures"
 OUT.mkdir(parents=True, exist_ok=True)
 rng = np.random.default_rng(0)
 cols = ["dataset", "split", "protocol", "y_fake", "H", "G_s", "G_wrong_max", "G_margin", "G_z"]
-d = pd.read_csv(F, usecols=cols)
-d = d[d.split == "test"]
-ffpp = d[d.dataset == "FF++"]; cdf = d[d.dataset == "CelebDF"]; dfdc = d[d.dataset == "DFDC"]
+features = pd.read_csv(FEATURES_CSV, usecols=cols)
+features = features[features.split == "test"]
+ffpp = features[features.dataset == "FF++"]
+celebdf = features[features.dataset == "CelebDF"]
+dfdc = features[features.dataset == "DFDC"]
 
 
-# ---------------- wrong-key before/after, computed from the archived NPZ ----------------
+# ---------------- panels (d, e): correct versus wrong projection key, from the records ----------------
 EPS = 1e-12
 
 
 def projection(drift, delta, weights, bins):
-    """G_s (Eq. 6) on the gathered bins, with the denominator written sum w (delta^2) as this figure
-    always was; key_projection's sum (w delta) delta differs from it in the last bits."""
+    """G_s (Eq. 6) on the gathered bins, denominator written sum w (delta^2); key_projection's
+    sum (w delta) delta rounds differently in the last bits, so this figure keeps its own form."""
     w, dl = weights[bins], delta[bins]
     return float(np.sum(w * dl * np.sin(drift[bins])) / (np.sum(w * dl ** 2) + EPS))
 
 
-cb = manifests.read_cases(dataset="FF++", split="test", protocol="benign").head(250)
-cosC, cosW, gC, gW = [], [], [], []
-for r in cb.itertuples():
-    record = load_record(r.doctor_trigger_template_path)
-    ph = luminance_phase(np.asarray(Image.open(r.input_path).convert("RGB")), centered=True)
-    if ph.shape != record.shape: continue
-    hp, sup, w = record.original_phase, record.active_bins, record.amplitude_weights
-    dw = wrong_key_displacement(record, wrong_keys(record.key, 1)[0])
-    cosC.append(spectral_agreement(ph, hp, w, sup, stabilizer=EPS))
-    cosW.append(cosC[-1])  # Paired projection-key test holds the original-phase reference fixed.
-    res = phase_drift(ph, hp)
-    # normalizer: the query's own correct-key projection, so the correct-key strip sits at +-1
-    ref = projection(res, record.displacement, w, sup)
-    gC.append(release_normalized(projection(res, record.displacement, w, sup), ref))
-    gW.append(release_normalized(projection(res, dw, w, sup), ref))
-cosC, cosW, gC, gW = map(np.array, (cosC, cosW, gC, gW))
-auc_before = roc_auc([1]*len(cosC)+[0]*len(cosW), np.concatenate([cosC, cosW]))
-auc_after = roc_auc([1]*len(gC)+[0]*len(gW), np.concatenate([gC, gW]))
+cases = manifests.read_cases(dataset="FF++", split="test", protocol="benign").head(250)
+h_correct, h_wrong, g_correct, g_wrong = [], [], [], []
+for case in cases.itertuples():
+    record = load_record(case.doctor_trigger_template_path)
+    query_phase = luminance_phase(np.asarray(Image.open(case.input_path).convert("RGB")), centered=True)
+    if query_phase.shape != record.shape: continue
+    original_phase, active, weights = record.original_phase, record.active_bins, record.amplitude_weights
+    wrong_delta = wrong_key_displacement(record, wrong_keys(record.key, 1)[0])
+    h_correct.append(spectral_agreement(query_phase, original_phase, weights, active, stabilizer=EPS))
+    h_wrong.append(h_correct[-1])  # H compares with the original phase only, so a wrong key leaves it unchanged
+    drift = phase_drift(query_phase, original_phase)
+    # release normalization by the query's own correct-key projection, so the correct-key strip sits at 1
+    release_g = projection(drift, record.displacement, weights, active)
+    g_correct.append(release_normalized(projection(drift, record.displacement, weights, active), release_g))
+    g_wrong.append(release_normalized(projection(drift, wrong_delta, weights, active), release_g))
+h_correct, h_wrong, g_correct, g_wrong = map(np.array, (h_correct, h_wrong, g_correct, g_wrong))
+auc_h = roc_auc([1]*len(h_correct)+[0]*len(h_wrong), np.concatenate([h_correct, h_wrong]))
+auc_g = roc_auc([1]*len(g_correct)+[0]*len(g_wrong), np.concatenate([g_correct, g_wrong]))
 
 TS, LS = 21.0, 20.0
 FLOOR = 2e-4
@@ -89,11 +84,12 @@ axes = [fig.add_subplot(gs[0]), fig.add_subplot(gs[1]), fig.add_subplot(gs[2]),
         fig.add_subplot(gs[4]), fig.add_subplot(gs[6])]
 
 def plane(ax, df, title, sub_n=1100, ylab=True, xlab=True):
-    ben = df[df.protocol == "benign"]; wk = df[df.protocol == "wrong_key"]
-    fk = df[df.protocol == "swap"]
-    fs = fk.iloc[rng.choice(len(fk), size=min(sub_n, len(fk)), replace=False)]
-    bs = ben.iloc[rng.choice(len(ben), size=min(sub_n, len(ben)), replace=False)]
-    ws = wk.iloc[rng.choice(len(wk), size=min(sub_n, len(wk)), replace=False)]
+    """1 - H against G_s^(release) for up to sub_n random swap, benign and wrong-key rows."""
+    benign = df[df.protocol == "benign"]; wrong_key = df[df.protocol == "wrong_key"]
+    swap = df[df.protocol == "swap"]
+    fs = swap.iloc[rng.choice(len(swap), size=min(sub_n, len(swap)), replace=False)]
+    bs = benign.iloc[rng.choice(len(benign), size=min(sub_n, len(benign)), replace=False)]
+    ws = wrong_key.iloc[rng.choice(len(wrong_key), size=min(sub_n, len(wrong_key)), replace=False)]
     for g, col, lab, marker in [(fs, RED, "Re-rendered", "x"), (bs, GOLD, "Benign, correct key", "o"),
                         (ws, BLUE, "Benign, wrong key", "^")]:
         ax.scatter(np.maximum(1 - g.H.values, FLOOR), g.G_s, s=7, color=col, marker=marker,
@@ -104,10 +100,9 @@ def plane(ax, df, title, sub_n=1100, ylab=True, xlab=True):
     if not ylab: ax.set_yticklabels([])
     ax.set_title(title, fontsize=TS); ax.tick_params(labelsize=17.0)
     for sp in ("top", "right"): ax.spines[sp].set_visible(False)
-    return ben, wk, fk
 
-ben, wk, fk = plane(axes[0], ffpp, "(a) FF++", xlab=False)
-plane(axes[1], cdf, "(b) Celeb-DF", sub_n=209, ylab=False, xlab=False)
+plane(axes[0], ffpp, "(a) FF++", xlab=False)
+plane(axes[1], celebdf, "(b) Celeb-DF", sub_n=209, ylab=False, xlab=False)
 plane(axes[2], dfdc, "(c) DFDC", sub_n=636, ylab=False, xlab=False)
 # the three share one x axis, so label it once, centred under the group
 _p0 = axes[0].get_position(); _p2 = axes[2].get_position()
@@ -121,7 +116,7 @@ for lh in leg.legend_handles:
     lh.set_alpha(1.0)
     lh.set_linewidth(1.6)
 
-# (b)/(c) wrong-key verification, before and after the signed projection
+# (d, e) the same 250 releases read with the correct and with a wrong projection key
 def strip(ax, va, vb, title, ylab):
     ja = np.random.default_rng(1).normal(0, 0.05, len(va))
     jb = np.random.default_rng(2).normal(0, 0.05, len(vb))
@@ -133,14 +128,14 @@ def strip(ax, va, vb, title, ylab):
     for sp in ("top", "right"): ax.spines[sp].set_visible(False)
 
 ax = axes[3]
-strip(ax, cosC, cosW, "(d) Cosine", "Cosine control\n$H$")
-lo = min(cosC.min(), cosW.min()); hi = max(cosC.max(), cosW.max()); pad = (hi-lo)*0.25 + 1e-4
+strip(ax, h_correct, h_wrong, "(d) Cosine", "Cosine control\n$H$")
+lo = min(h_correct.min(), h_wrong.min()); hi = max(h_correct.max(), h_wrong.max()); pad = (hi-lo)*0.25 + 1e-4
 ax.set_ylim(lo - pad, hi + pad)
 
 ax = axes[4]
-strip(ax, gC, gW, "(e) Projection", "Key projection\n$G_s^{(\\mathrm{release})}$")
+strip(ax, g_correct, g_wrong, "(e) Projection", "Key projection\n$G_s^{(\\mathrm{release})}$")
 ax.set_ylim(-0.6, 1.5)
 
 for ext in ("pdf", "png"):
     fig.savefig(OUT / f"fig_signal.{ext}", dpi=260, bbox_inches="tight", pad_inches=0.02, facecolor="white")
-print(f"saved; before AUC {auc_before:.3f}, after AUC {auc_after:.4f}, cos gap {cosC.mean()-cosW.mean():.5f}")
+print(f"saved; before AUC {auc_h:.3f}, after AUC {auc_g:.4f}, cos gap {h_correct.mean()-h_wrong.mean():.5f}")

@@ -44,17 +44,16 @@ and DFDC keep their own protocol splits.
    alignment, enrollment, queries, features, record model, integrity gate):
 
    ```bash
-   export DT_MANIFEST_FFPP=<out>/ffpp_manifest.csv
-   export DT_MANIFEST_DFDC=<out>/dfdc_manifest.csv
-   export DT_MANIFEST_CELEBDF=<out>/celebdf_manifest.csv
-   export DT_SIMSWAP_ROOT=<path to SimSwap>
-   python scripts/preflight.py --require-gpu   # checks packages, weights and inputs
-   ./run_workflow.sh --gpu 0                   # resumable; --verify-only re-checks a finished root
+   cd ..                                       # back to the repository root
+   pip install -e .
+   cp config.example.yaml config.yaml          # set source_manifests.{ffpp,dfdc,celebdf} and simswap_root
+   python workflow/scripts/preflight.py --require-gpu   # checks packages, weights and inputs
+   workflow/run_workflow.sh --gpu 0            # resumable; --verify-only re-checks a finished root
    ```
 
-   Alternatively, fill `source_manifests` and `simswap_root` in `config.yaml` and use
-   `python run.py run pipeline-stage0 frames_root=<...> out_csv=<...>` and `python run.py run pipeline`,
-   which export the same variables.
+   The same two steps are registry entries:
+   `python -m doctor_trigger reproduce pipeline-stage0 frames_root=<...> out_csv=<...>` and
+   `python -m doctor_trigger reproduce pipeline`.
 
 Outputs stay under `workflow/` (released images, private records, queries, features). Stage details
 and the record format are in [`workflow/WORKFLOW.md`](../workflow/WORKFLOW.md).

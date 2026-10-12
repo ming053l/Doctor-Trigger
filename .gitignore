@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
+*.egg-info/
+build/
 outputs/
 *.log
 config.yaml

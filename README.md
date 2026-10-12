@@ -42,14 +42,14 @@ swap or generative edit fails, and the never-released original is told apart fro
 
 | Step | What happens | Code |
 | --- | --- | --- |
-| **1. Enroll** | A per-face secret key shifts the Fourier phase slightly on a mid-frequency ring. The publisher keeps a private record: spectral reference, key and thresholds. | [`workflow/scripts/enroll.py`](workflow/scripts/enroll.py) |
-| **2. Verify** | Two checks against the record. *Face consistency* `C`: is this still the enrolled face? *Release signal* `G_s` (key projection): is the keyed signal still there? | [`workflow/record_model/src/trigger_conditioned.py`](workflow/record_model/src/trigger_conditioned.py) |
-| **3. Decide** | Thresholds come from benign copies (about 1% benign rejection). An optional learned record model can replace the direct thresholds. | [`workflow/record_model/`](workflow/record_model/) |
+| **1. Enroll** | A per-face secret key `s` expands into a binary ±1 sign pattern `h_s` on a mid-frequency ring of the luminance Fourier phase; the release carries a weak phase displacement `δ_s` along it. The publisher keeps a private record `R`: template, original phase and amplitude weights, key. | [`doctor_trigger/enrollment.py`](doctor_trigger/enrollment.py), [`key.py`](doctor_trigger/key.py) |
+| **2. Verify** | Two readings against the record. *Spectral agreement* `C_B`: is this still the enrolled face? *Key projection* `G_s`: is the keyed displacement still there? | [`doctor_trigger/readings.py`](doctor_trigger/readings.py) |
+| **3. Decide** | Thresholds come from benign copies (about 1% benign rejection). An optional learned record model can replace the direct thresholds. | [`calibration.py`](doctor_trigger/calibration.py), [`decision.py`](doctor_trigger/decision.py), [`record_model.py`](doctor_trigger/record_model.py) |
 
 | Status | Meaning |
 | --- | --- |
 | **Confirmed** | Both checks pass: consistent with the enrolled release. |
-| **Unconfirmed** | Face consistency or release signal fails (e.g. a swapped face, or an original that was never released). Flagged for human review. |
+| **Unconfirmed** | Spectral agreement or key projection fails (e.g. a swapped face, or an original that was never released). Flagged for human review. |
 | **Unavailable** | The record, the face, or a supported channel is missing, so no verdict is given. |
 
 See [`docs/assets/verification.png`](docs/assets/verification.png) for the full verification diagram
@@ -59,7 +59,7 @@ and [docs/FAQ.md](docs/FAQ.md) for common questions (is it a watermark? what mus
 
 ```bash
 git clone https://github.com/ming053l/Doctor-Trigger.git && cd Doctor-Trigger
-pip install numpy Pillow scikit-image pandas
+pip install -e .                 # numpy, Pillow, scikit-image, PyYAML, pandas
 python examples/quickstart.py
 ```
 
@@ -75,6 +75,15 @@ center crop 90% (no record of geometry)           -       -  Unavailable
 ```
 
 The thresholds there come from a toy calibration; see [examples/README.md](examples/README.md).
+The same steps on your own image:
+
+```bash
+python -m doctor_trigger enroll face.png --sample-id face --out out/   # out/face_released.png + out/face_record_PRIVATE.npz
+python -m doctor_trigger verify copy.png out/face_record_PRIVATE.npz             # prints H_B, C_B, G_s
+python -m doctor_trigger calibrate scores.csv --column C_B --frr 0.01           # τ from your benign copies' scores
+python -m doctor_trigger verify copy.png out/face_record_PRIVATE.npz --tau-c <τ_C> --tau-g <τ_G>   # adds the status
+```
+
 For the full pipeline (GPU, datasets, SimSwap), see [`workflow/ENVIRONMENT.md`](workflow/ENVIRONMENT.md)
 and [`workflow/WORKFLOW.md`](workflow/WORKFLOW.md).
 
@@ -87,10 +96,9 @@ from its maintainers ([FF++](https://github.com/ondyari/FaceForensics),
 frames to `<frames_root>/<split>/<class>/<video_id>/*.png`, then:
 
 ```bash
-cd workflow
-python scripts/make_source_manifest.py <frames_root> <out>/ffpp_manifest.csv   # once per dataset
-export DT_MANIFEST_FFPP=... DT_MANIFEST_DFDC=... DT_MANIFEST_CELEBDF=... DT_SIMSWAP_ROOT=...
-./run_workflow.sh --gpu 0      # align faces, enroll, build queries, extract features, train record model
+python workflow/scripts/make_source_manifest.py <frames_root> <out>/ffpp_manifest.csv   # once per dataset
+cp config.example.yaml config.yaml    # set source_manifests.{ffpp,dfdc,celebdf} and simswap_root
+workflow/run_workflow.sh --gpu 0      # align faces, enroll, build queries, extract features, train record model
 ```
 
 Details: [docs/DATA.md](docs/DATA.md).
@@ -101,7 +109,9 @@ Each table and figure is a named entry in [`experiments/registry.yaml`](experime
 run against a finished pipeline root:
 
 ```bash
-cp config.example.yaml config.yaml && python run.py list && python run.py run threshold-transfer
+pip install -e ".[experiments]" && cp config.example.yaml config.yaml   # then fill in the paths
+python -m doctor_trigger list                          # every entry and the paper artifact it feeds
+python -m doctor_trigger reproduce threshold-transfer  # `python run.py run <id>` does the same
 ```
 
 [docs/REPRODUCE.md](docs/REPRODUCE.md) maps every paper table and figure to its entry, lists the
@@ -110,17 +120,23 @@ external weights each one needs, and explains how peer methods are scored.
 ## Repository map
 
 ```
+doctor_trigger/  the method (python -m doctor_trigger list|show|status|reproduce|enroll|verify|calibrate)
+  spectrum.py      luminance Y, phase φ, wrap(·), normalized radius κ, sub-band B (κ ≤ 0.15)
+  key.py           key s, sign pattern h_s (±1), active bins K_eff, displacement δ_s, wrong keys
+  record.py        the private record R (NPZ), enrolled units and where their records live
+  enrollment.py    encoded release I′ and record R for one face, α ladder, fidelity gate
+  readings.py      spectral agreement H / C / C_B, key projection G_s, wrong-key statistics, features Φ
+  calibration.py   thresholds τ at a target benign false-rejection rate (FRR)
+  decision.py      Confirmed / Unconfirmed / Unavailable per unit
+  channels.py      benign delivery channels (JPEG, resizing, one-frame codecs, ...)
+  metrics.py       AUC, TPR at a fixed FPR, EER
+  record_model.py  the optional learned record model f_θ (S_rel, S_key, S_fake; needs torch)
+  config.py, manifests.py, cli.py   config.yaml paths, query manifests, the command line
 examples/        dataset-free quick start (two AI-generated sample faces)
 workflow/        the pipeline: frames -> aligned faces -> releases + private records -> queries -> features -> record model
-  scripts/         one script per stage; enroll.py is the method's release step
-  record_model/    verification readings (trigger_conditioned.py) and the optional learned record model
-  contracts/       output-file and peer-scoring specifications
-  assets/          face-detector weights (SCRFD, YuNet) for alignment
 experiments/     the paper's evaluations; registry.yaml maps them to commands
-  _snapshot/       trimmed model code they import (image-only detector, benign channels, SimSwap wrapper)
-run.py           evaluation entry point: list / show / run / status
-dt/              path resolution from config.yaml (copy config.example.yaml)
 configs/         record-model training configs used by the evaluations
+run.py           same as python -m doctor_trigger (run = reproduce)
 docs/            DATA, REPRODUCE, FAQ and README figures
 ```
 
@@ -132,6 +148,8 @@ docs/            DATA, REPRODUCE, FAQ and README figures
   repost of a repost, 11% under per-image H.264 intra coding, and 6% under a 90% center crop, while
   benign copies still pass. Strong diffusion regeneration and a phase-ring transplant attack also
   weaken it (App. K). Validate on the channels you intend to support.
+- **Images only.** Video (per-frame enrollment, clip-level decisions) is future work; the package
+  is laid out for it, see [docs/FAQ.md](docs/FAQ.md#faq) ("Does it work on video?").
 - **Records are sensitive.** Templates reveal coarse facial structure; keep records, keys and the
   master seed private.
 - **Responsible use.** The code is meant for publishers verifying copies of their own releases. Use
@@ -145,6 +163,7 @@ docs/            DATA, REPRODUCE, FAQ and README figures
   title  = {Doctor Trigger: A Framework for Release-Bound Face Verification},
   author = {Lee, Chia-Ming and Lin, Chia-Yu and Huang, Hung-Kai and Ku, Yi-Ting and Liang, Yu-Chen and Hsu, Chih-Chung},
   year   = {2026},
+  url    = {https://ming053l.github.io/Doctor-Trigger/},
   note   = {Under review}
 }
 ```

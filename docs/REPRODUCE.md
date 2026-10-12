@@ -7,16 +7,21 @@ Every number in the paper comes from two steps:
    inputs and [`workflow/WORKFLOW.md`](../workflow/WORKFLOW.md) for every stage.
 2. **The evaluations** (`experiments/`) read that finished pipeline root and write one CSV (or
    figure) per paper artifact. Each is a named entry in
-   [`experiments/registry.yaml`](../experiments/registry.yaml), run through `run.py`.
+   [`experiments/registry.yaml`](../experiments/registry.yaml), run through
+   `python -m doctor_trigger reproduce <id>`.
 
 ```bash
+pip install -e ".[experiments]"         # the doctor_trigger package plus the evaluation dependencies
 cp config.example.yaml config.yaml      # set canonical_root, weights and peer paths
-python run.py status                    # which inputs/outputs resolve
-python run.py list                      # every entry
-python run.py show threshold-transfer   # the resolved command, without running it
-python run.py run threshold-transfer    # run one entry; results go under outputs_root
-python run.py run benign-channels dataset=FF++   # entries with {slots} take k=v arguments
+python -m doctor_trigger status                       # which registered outputs exist
+python -m doctor_trigger list                         # every entry
+python -m doctor_trigger show threshold-transfer      # the resolved command, without running it
+python -m doctor_trigger reproduce threshold-transfer # run one entry; results go under outputs_root
+python -m doctor_trigger reproduce benign-channels dataset=FF++   # entries with {slots} take k=v arguments
 ```
+
+`reproduce` runs the entry's command in its working directory with the `DT_*` path variables of
+config.yaml exported. `python run.py run <id>` is the same command under its earlier name.
 
 ## The pipeline
 
@@ -29,8 +34,8 @@ raw videos (FF++ / Celeb-DF / DFDC)
               ├─ align_faces.py                SCRFD crops, second-detector agreement, lossless PNG
               ├─ enroll.py                     released image + private NPZ record per face
               ├─ build_queries.py              benign copies and SimSwap face-swap queries
-              ├─ extract_features.py           relation / key features for every query
-              ├─ train_eval_record_model_matrix  trained record-model scorers (3 seeds)
+              ├─ extract_features.py           spectral-agreement / key features for every query
+              ├─ record_model/train_record_model.py  trained record-model scorers (3 seeds)
               └─ integrity gate + receipts     hashes, counts, quarantine accounting
 ```
 
@@ -41,9 +46,10 @@ alone.
 | Pipeline output | Meaning |
 | --- | --- |
 | `artifacts/released/.../*.png` | The published copy of each enrolled face (visually unchanged, keyed signal written). |
-| `private/templates/.../*.npz` | The private per-face record: enrolled phase, original phase and amplitude, keyed displacement, key. |
+| `private/templates/.../*.npz` | The private per-face record R: template T_I, original phase and amplitude weights, keyed displacement δ_s, sign pattern h_s (±1), active bins, key. |
+| `manifests/{alignment,enrollments,queries}.csv` | Stage manifests (plus `*_quarantine.csv` for rejected items). |
 | `common/cases.csv` | The query inventory: every benign copy and swapped render, with paths and labels. |
-| `features/calibrated_features.csv` | The verifier's reading of every query: relation, key projection, wrong-key margins, band features. |
+| `features/calibrated_features.csv` | The verifier's reading of every query: spectral agreement H / C, key projection G_s, wrong-key statistics, band features (Φ). |
 | `FINAL_RECEIPT.json` | Hashes and counts for every stage, so a finished root is checkable without recomputing. |
 
 Everything downstream consumes only `cases.csv`, the features CSV and the records. Peer methods are
@@ -54,7 +60,7 @@ scored through the same files, per
 
 Numbering follows the current paper (the PDF on the
 [project page](https://ming053l.github.io/Doctor-Trigger/static/pdf/paper.pdf)); the `paper:` text
-that `run.py list` prints uses the same numbers.
+that `python -m doctor_trigger list` prints uses the same numbers.
 
 **Marks:** ✓ = the entry produces this artifact; ~ = the entry produces part of it, or the
 artifact needs inputs this repository does not ship (noted in the row); ✗ = no code in this
@@ -63,7 +69,7 @@ reproduced the printed numbers (figures: pixel-identical renders).
 
 ### Main paper
 
-| Paper artifact | Registry entries (`python run.py run <id>`) | |
+| Paper artifact | Registry entries (`python -m doctor_trigger reproduce <id>`) | |
 | --- | --- | --- |
 | Fig 1: two-stage verification interface | illustration (no code) | ✗ |
 | Fig 2: release evidence with preserved fidelity | illustration drawn from one asset in the paper source (no code); the multi-asset version of its right half is Fig 9, `fig-channel-samples` | ✗ |
@@ -73,7 +79,7 @@ reproduced the printed numbers (figures: pixel-identical renders).
 | Table 2: face-swap detection within and across datasets | peers: `peers-detect method=<peer>`; image-only S_df: `image-detector-train-aug dataset=<ds>` then `image-detector-eval`; direct 1 − C_B: `subband-table1 part=datasets` (re-run; a direct test has no training, so its transfer columns equal the target dataset's AUC); record model S_fake: `features-record-ref` → `features-record-scalar` → `record-model-recordscalar pin=<ffpp\|dfdc\|celebdf>` | ✓ |
 | Table 3: release evidence from the key | swap AUC: `reference-baselines`; pass rates: `original-control calibration=1580` (re-run) | ✓ |
 | Table 4: credential retention across delivery channels | `table4-artifact` (credential, SimSwap-reject and benign-pass columns; collect stage re-run on the frozen per-image scores). The reenactment and SD-inpainting columns are not produced | ~ |
-| Fig 5: visual fidelity of released images | `fig-imperceptibility` (also reads earlier trigger renders, `legacy_trigger_glob`, not shipped) | ✓ |
+| Fig 5: visual fidelity of released images | `fig-imperceptibility` (also reads release renders from an earlier enrollment run, `legacy_trigger_glob`, not shipped) | ✓ |
 | Fig 6: complementary evidence for face consistency and release signal | `fig-signal` (re-run) | ✓ |
 | Fig 7: direct spectral evidence across channels | `table4-artifact`, then `fig-roundtrip` (re-run from the frozen Table 4 scores) | ✓ |
 | Sec. 4.2 verification cost and storage | `record-codec` (payload sizes), `deployment-cost` (timings) | ✓ |
@@ -131,7 +137,7 @@ The repository contains the method, the pipeline, and the evaluations mapped abo
    `original-control`); `insightface` downloads them on first use.
 
 Items 4 to 6 are only needed for the comparison experiments. Two entries, `fig-imperceptibility`
-and `deployment-cost`, also read trigger renders from an earlier enrollment run
+and `deployment-cost`, also read release renders from an earlier enrollment run
 (`legacy_trigger_glob`) that are not part of this release.
 
 ## How peers are evaluated
