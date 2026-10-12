@@ -23,11 +23,11 @@ Protocols:
                      cosine against the TEMPLATE phase, sub-band 0.15; clip score = mean over the
                      video's frames; tau = 1% quantile of the means of all 120 train clips.
                      H_sub against the host phase is stored alongside.
-Env: DT_CANON_ROOT, DT_MODEL_SNAPSHOT, DT_OUTPUTS (exported by run.py).
+Paths from config.yaml (doctor_trigger.config): cases_csv, outputs_root.
 Calibration defaults to every FF++ training release and clip, as in the paper; DT_T4_NCAL=n and
 DT_T4_CLIP_TRAIN=n take the first n instead (an earlier draft used 100 and 100).
 Debug only: DT_T4_LIMIT=k restricts every cohort to k items; DT_T4_WORKERS=n.
-Outputs in $DT_OUTPUTS/table4/: still_queries.csv, still_calibration.csv, clip_frames.csv,
+Outputs in <outputs_root>/table4/: still_queries.csv, still_calibration.csv, clip_frames.csv,
 rows.csv, rows.tex, manifest.json.
 """
 import hashlib, hmac, io, json, os, platform, subprocess, sys, time
@@ -39,21 +39,23 @@ import pandas as pd
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
+import doctor_trigger.channels  # noqa: E402
+from doctor_trigger import config  # noqa: E402
+from doctor_trigger.calibration import lower_tail_threshold  # noqa: E402
+from doctor_trigger.channels import apply_channel  # noqa: E402
+from doctor_trigger.manifests import read_cases, sha256_file  # noqa: E402
+from doctor_trigger.metrics import roc_auc  # noqa: E402
+from doctor_trigger.readings import (SizeMismatch, SumForm, phase_drift, query_phase,  # noqa: E402
+                                     spectral_agreement, subband_bins)
+from doctor_trigger.record import load_record  # noqa: E402
+from doctor_trigger.spectrum import luminance, luminance_phase, wrap_phase  # noqa: E402
 
-def _dt(env):
-    v = os.environ.get(env)
-    assert v, f"{env} unset: run through run.py"
-    return v
-
-
-R = _dt("DT_CANON_ROOT")
-SNAP = _dt("DT_MODEL_SNAPSHOT")
-OUT = Path(_dt("DT_OUTPUTS")) / "table4"
-sys.path.insert(0, SNAP)
-from scripts.benign_channels import transform_image  # noqa: E402
+CASES_CSV = config.path("cases_csv")
+OUT = Path(config.path("outputs_root")) / "table4"
 
 EPS = 1e-12
-CUT = 0.15                    # readout band: radius / sqrt(0.5) <= CUT
+CUT = 0.15                    # readout band B: kappa = radius / sqrt(0.5) <= CUT
 TAU_CLEAN = 0.9821            # clean-copy cutoff: 1% FPR on FF++ train benign (canonical features)
 N_TEST = 200
 N_CAL = int(os.environ.get("DT_T4_NCAL", "0")) or None                 # None: every train release
@@ -64,7 +66,7 @@ LIMIT = int(os.environ.get("DT_T4_LIMIT", "0"))
 WORKERS = int(os.environ.get("DT_T4_WORKERS", "48"))
 STILL = ["lossless", "jpeg85", "repost", "repost2", "strip", "screenshot", "transcode", "crop"]
 
-cases = pd.read_csv(f"{R}/common/cases.csv")
+cases = read_cases(CASES_CSV)
 
 
 # ---------------------------------------------------------------- cohorts
@@ -157,7 +159,7 @@ def ch_screenshot(img, man):
 
 
 def ch_transcode(img, man):
-    x = transform_image(img.convert("RGB"), "x264_crf30", seed=7)
+    x = apply_channel("x264_crf30", img.convert("RGB"), seed=7)
     return attach(x, man, "PNG", keep_meta=False)
 
 
@@ -175,54 +177,38 @@ CH = dict(lossless=ch_lossless, jpeg85=ch_jpeg85, repost=ch_repost, repost2=ch_r
 
 
 # ---------------------------------------------------------------- measurements
-def load_rec(tp):
-    with np.load(tp) as rec:
-        return dict(host=rec["host_phase"].astype(np.float64), tmpl=rec["template_phase"].astype(np.float64),
-                    delta=rec["delta"].astype(np.float64), sup=rec["support"].astype(bool),
-                    amp=rec["host_amplitude"].astype(np.float64))
-
-
 def lum_of(img):
-    a = np.asarray(img.convert("RGB"), np.float64)
-    return 0.299 * a[:, :, 0] + 0.587 * a[:, :, 1] + 0.114 * a[:, :, 2]
+    return luminance(np.asarray(img.convert("RGB")))
 
 
-def wrap(v): return (v + np.pi) % (2 * np.pi) - np.pi
-
-
-def phase_of(img): return np.fft.fftshift(np.angle(np.fft.fft2(lum_of(img))))
+def phase_of(img): return luminance_phase(np.asarray(img.convert("RGB")), centered=True)
 
 
 def phase_resized(img, shape):
-    if (img.size[1], img.size[0]) != shape:
-        img = img.resize((shape[1], shape[0]), Image.BICUBIC)
-    return phase_of(img)
-
-
-def band(shape):
-    fy = np.fft.fftshift(np.fft.fftfreq(shape[0])).reshape(-1, 1)
-    fx = np.fft.fftshift(np.fft.fftfreq(shape[1])).reshape(1, -1)
-    return np.sqrt(fy * fy + fx * fx) / np.sqrt(0.5) <= CUT
+    return query_phase(img, shape, SizeMismatch.RESIZE, centered=True)
 
 
 def h_host_sub(ph, rec):
-    ww = np.where(rec["sup"] & band(rec["host"].shape), rec["amp"], 0.0)
-    return float(np.sum(np.cos(wrap(ph - rec["host"])) * ww) / (np.sum(ww) + EPS))
+    """H_B: agreement with the original phase on K_eff and sub-band B (inline-product summation)."""
+    return spectral_agreement(ph, rec.original_phase, rec.amplitude_weights, subband_bins(rec, CUT),
+                              stabilizer=EPS, form=SumForm.WEIGHT_MAP_VALUE_LAYOUT)
 
 
 def c_tmpl_sub(ph, rec):
-    ww = np.where(rec["sup"] & band(rec["tmpl"].shape), rec["amp"], 0.0)
-    return float(np.sum(np.cos(wrap(ph - rec["tmpl"])) * ww) / (np.sum(ww) + EPS))
+    """C_B: agreement with the template T_I on K_eff and sub-band B (inline-product summation)."""
+    return spectral_agreement(ph, rec.template_phase, rec.amplitude_weights, subband_bins(rec, CUT),
+                              stabilizer=EPS, form=SumForm.WEIGHT_MAP_VALUE_LAYOUT)
 
 
 def g_raw_sub(ph, rec):
-    s = rec["sup"] & band(rec["host"].shape)
-    w, dl, res = rec["amp"][s], rec["delta"][s], wrap(ph - rec["host"])[s]
+    # G_s on sub-band B; ``w * dl ** 2`` is kept as measured (it rounds differently from Eq. (6)'s w delta delta)
+    s = subband_bins(rec, CUT)
+    w, dl, res = rec.amplitude_weights[s], rec.displacement[s], phase_drift(ph, rec.original_phase)[s]
     return float(np.sum(w * dl * np.sin(res)) / (np.sum(w * dl ** 2) + EPS))
 
 
 def forward_h(img, rec):
-    sup, amp, tpz = rec["sup"], rec["amp"], rec["tmpl"]
+    sup, amp, tpz = rec.active_bins, rec.amplitude_weights, rec.template_phase
     Hh, Wh = sup.shape; lum = lum_of(img); hc, wc = lum.shape
     spat = np.fft.ifft2(np.fft.ifftshift(np.where(sup, amp, 0.0) * np.exp(1j * tpz))).real
     ww = np.where(sup, amp, 0.0); sww = np.sum(ww) + EPS
@@ -237,7 +223,7 @@ def forward_h(img, rec):
             mask = np.zeros((Hh, Wh)); mask[oy:oy + hc, ox:ox + wc] = 1.0
             f_meas = np.fft.fftshift(np.fft.fft2(canvas))
             p_rel = np.fft.fftshift(np.fft.fft2(spat * mask))
-            best = max(best, float(np.sum(np.cos(wrap(np.angle(f_meas) - np.angle(p_rel))) * ww) / sww))
+            best = max(best, float(np.sum(np.cos(wrap_phase(np.angle(f_meas) - np.angle(p_rel))) * ww) / sww))
     return best
 
 
@@ -246,9 +232,9 @@ def stable_seed(qid): return int(hashlib.sha256(str(qid).encode()).hexdigest()[:
 
 # ---------------------------------------------------------------- worker
 def work(t):
-    kind = t["kind"]; rec = load_rec(t["tp"])
+    kind = t["kind"]; rec = load_record(t["tp"])
     if kind == "still":
-        shape = rec["host"].shape
+        shape = rec.shape
         back = CH[t["channel"]](Image.open(t["path"]), manifest_for(t["eid"], t["sha"]))
         ph = phase_resized(back, shape)
         g, ref = g_raw_sub(ph, rec), g_raw_sub(phase_resized(Image.open(t["rel_path"]), shape), rec)
@@ -261,12 +247,12 @@ def work(t):
     if kind == "cal":
         back = CH[t["channel"]](Image.open(t["path"]), manifest_for(t["eid"], t["sha"]))
         return dict(kind=kind, enrollment_id=t["eid"], channel=t["channel"],
-                    H_sub=h_host_sub(phase_resized(back, rec["host"].shape), rec))
+                    H_sub=h_host_sub(phase_resized(back, rec.shape), rec))
     if kind == "cal_crop":
         return dict(kind=kind, enrollment_id=t["eid"], channel="crop",
                     H_forward=forward_h(crop90(Image.open(t["path"])), rec))
     if kind == "clip":
-        frame = transform_image(Image.open(t["path"]).convert("RGB"), "x264_crf30", seed=stable_seed(t["qid"]))
+        frame = apply_channel("x264_crf30", Image.open(t["path"]).convert("RGB"), seed=stable_seed(t["qid"]))
         ph = phase_of(frame)
         return dict(kind=kind, split=t["split"], video=t["video"], query_id=t["qid"], protocol=t["protocol"],
                     C_tmpl_sub=c_tmpl_sub(ph, rec), H_sub=h_host_sub(ph, rec))
@@ -322,9 +308,6 @@ def stage_clips():
         OUT / "clip_frames.csv", index=False)
 
 
-def sha256_file(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
-
-
 def sha256_ids(ids): return hashlib.sha256("\n".join(sorted(map(str, ids))).encode()).hexdigest()
 
 
@@ -332,11 +315,10 @@ def pct(x): return f"{100 * x:.1f}".rstrip("0").rstrip(".")
 
 
 def stage_collect():
-    from sklearn.metrics import roc_auc_score
     q = pd.read_csv(OUT / "still_queries.csv"); cal = pd.read_csv(OUT / "still_calibration.csv")
     clips = pd.read_csv(OUT / "clip_frames.csv")
 
-    def auc(neg, pos): return float(roc_auc_score([0] * len(neg) + [1] * len(pos), np.concatenate([-neg, -pos])))
+    def auc(neg, pos): return roc_auc([0] * len(neg) + [1] * len(pos), np.concatenate([-neg, -pos]))
 
     rows = []
     base = dict(cohort="FF++ test, first 200 enrollments (groupby order)", unit="image pair")
@@ -348,7 +330,7 @@ def stage_collect():
         else:
             cc = cal[(cal.kind == "cal") & (cal.channel == ch)].H_sub.values
             gs, fs, stat, calsrc = g.H_sub.values, f.H_sub.values, "H_sub: amplitude-weighted cosine vs host phase, band radius/sqrt(0.5)<=0.15", f"{len(cc)} FF++ train benign, groupby order, same channel"
-        tau = float(np.quantile(cc, 0.01))
+        tau = float(lower_tail_threshold(cc))
         rows.append(dict(base, row=ch, n_benign=len(gs), n_swap=len(fs), credential_rate=float(g.credential.mean()),
                          clean_cutoff=TAU_CLEAN, clean_preserved=float(np.mean(gs >= TAU_CLEAN)), declared_tau=tau,
                          preserved=float(np.mean(gs >= tau)), flagged=float(np.mean(fs < tau)), auc=auc(gs, fs),
@@ -356,10 +338,10 @@ def stage_collect():
                          score_file="still_queries.csv", calibration_file="still_calibration.csv"))
     tr, te = clips[clips.split == "train"], clips[clips.split == "test"]
     for col, tag in (("C_tmpl_sub", "transcode_clip"), ("H_sub", "transcode_clip_host")):
-        tau = float(np.quantile(tr[tr.protocol == "benign"].groupby("video")[col].mean(), 0.01))
+        tau = float(lower_tail_threshold(tr[tr.protocol == "benign"].groupby("video")[col].mean()))
         gb = te[te.protocol == "benign"].groupby("video")[col].mean().values
         fb = te[te.protocol == "swap"].groupby("video")[col].mean().values
-        ftau = float(np.quantile(tr[tr.protocol == "benign"][col], 0.01))
+        ftau = float(lower_tail_threshold(tr[tr.protocol == "benign"][col]))
         fg, ff = te[te.protocol == "benign"][col].values, te[te.protocol == "swap"][col].values
         rows.append(dict(row=tag, cohort=f"every FF++ test frame; {tr.video.nunique()} train videos for tau", unit="clip",
                          n_benign=len(gb), n_swap=len(fb), credential_rate=float("nan"), clean_cutoff=float("nan"),
@@ -407,12 +389,12 @@ def stage_collect():
         created_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), command=" ".join(sys.argv), limit=LIMIT,
         script=dict(path=str(Path(__file__).resolve()), sha256=sha256_file(__file__),
                     repo_rev=git("rev-parse", "HEAD"), repo_dirty=bool(git("status", "--porcelain"))),
-        inputs=dict(cases_csv=dict(path=f"{R}/common/cases.csv", sha256=sha256_file(f"{R}/common/cases.csv")),
-                    transform_source=dict(path=f"{SNAP}/scripts/benign_channels.py",
-                                          sha256=sha256_file(f"{SNAP}/scripts/benign_channels.py"))),
+        inputs=dict(cases_csv=dict(path=CASES_CSV, sha256=sha256_file(CASES_CSV)),
+                    transform_source=dict(path=doctor_trigger.channels.__file__,
+                                          sha256=sha256_file(doctor_trigger.channels.__file__))),
         constants=dict(readout_band="radius/sqrt(0.5) <= 0.15", clean_cutoff=TAU_CLEAN, n_test=N_TEST, n_cal=N_CAL,
                        clip_train_videos=CLIP_TRAIN_VIDEOS, crop_search_px=2, threshold_quantile=0.01,
-                       x264=X264, x264_seed="unused by the x264 branch of transform_image",
+                       x264=X264, x264_seed="unused by the x264 channels of doctor_trigger.channels",
                        metadata="HMAC-SHA256 JSON in PNG tEXt / JPEG COM (demo key), not a C2PA manifest"),
         cohorts=dict(test_enrollments=dict(n=len(enr), sha256=sha256_ids(enr.index), ids=list(map(str, enr.index))),
                      calibration_enrollments=dict(n=len(cal_c), sha256=sha256_ids(cal_c.index), ids=list(map(str, cal_c.index))),

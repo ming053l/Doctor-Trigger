@@ -1,28 +1,30 @@
-import os as _dtos
-def _dt(env, rest=""):
-    v = _dtos.environ.get(env)
-    assert v, f"{env} unset: run through run.py, or export it (see config.example.yaml)"
-    return v + rest
 """Peer robustness on the same axis as Table 2.
 
 For each peer: embed its mark, make a swapped copy once, then apply the *same*
 benign distortions used for our heads to both the genuine and the swapped query
 and ask whether the peer's native signal still separates them (detection AUC).
+``load()`` (embed, score per method) is also used by peer_canonical.py and depcost.py.
 
-Usage: python peer_robust.py <method> <ds>
+Usage: python peer_robust.py <method> <ds> [engine]
+Peer repositories and checkpoints live under config keys peers_root and ckpts_root.
 """
-import sys, os, glob, tempfile
+import sys, os, glob
+from pathlib import Path
 import numpy as np
 import torch
-sys.path.insert(0, _dt("DT_SIMSWAP_ROOT"))
-sys.path.insert(0, _dt("DT_MODEL_SNAPSHOT"))
 from PIL import Image
 import torchvision.transforms as T
 from sklearn.metrics import roc_auc_score
-from pathlib import Path
-from scripts.benign_channels import transform_image
-sys.path.insert(0, _dt("DT_PEERS_ROOT"))
-from engines_api import ENGINES
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
+from doctor_trigger import config  # noqa: E402
+from doctor_trigger.channels import apply_channel  # noqa: E402
+from experiments.shared.swap_engines import ENGINES  # noqa: E402
+
+PEERS_ROOT = config.path("peers_root")
+CKPTS_ROOT = config.path("ckpts_root")
+MODEL_SNAPSHOT = config.path("model_snapshot")   # src/fractalforensics_reimpl.py (FractalForensics re-implementation)
+
 
 METHOD = sys.argv[1] if len(sys.argv) > 1 else "facesigns"
 DS = sys.argv[2] if len(sys.argv) > 2 else "ffpp"
@@ -40,7 +42,7 @@ FAM = {"JPEG quality": ["jpeg_q90", "jpeg_q70", "jpeg_q50"],
 def load():
     """returns embed(pil)->pil , score(pil)->float  (higher = more likely manipulated)"""
     if METHOD == "facesigns":
-        D = _dt("DT_PEERS_ROOT", "/FaceSigns"); sys.path.insert(0, D)
+        D = PEERS_ROOT + "/FaceSigns"; sys.path.insert(0, D)
         enc = torch.jit.load(f"{D}/encoder_model.pth").eval().to(dev)
         dec = torch.jit.load(f"{D}/decoder_model.pth").eval().to(dev)
         tf = T.Compose([T.Resize((256, 256)), T.ToTensor()])
@@ -55,11 +57,11 @@ def load():
             return 1.0 - float(((db > 0.5).float() == sec).float().mean())
         return embed, score
     if METHOD == "sepmark":
-        sys.path.insert(0, _dt("DT_PEERS_ROOT", "/SepMark"))
+        sys.path.insert(0, PEERS_ROOT + "/SepMark")
         from network.Dual_Mark import Network
         ML = 128
         net = Network(ML, ["Identity()"], ["Identity()"], torch.device(dev), 1, 2e-4, 0.5, "se", "se", [1,10,10,10,0.1])
-        _ck = os.environ.get("SEPMARK_CKPT") or _dt("DT_PEERS_ROOT", "/SepMark/pretrained/results/"
+        _ck = os.environ.get("SEPMARK_CKPT") or (PEERS_ROOT + "/SepMark/pretrained/results/"
                           "Dual_watermark_256_128_0.1_0.0002_0.5_se_se_1_10_10_10_0.1_2023_04_18_16_29_54/models/EC_90.pth")
         net.load_model_ed(_ck)
         net.encoder_decoder.eval()
@@ -77,13 +79,13 @@ def load():
             return float((dC.gt(0) != dRF.gt(0)).float().mean())   # tracer/detector mismatch
         return embed, score
     if METHOD == "stegastamp":
-        sys.path.insert(0, _dt("DT_PEERS_ROOT", "/StegaStamp_pytorch"))
-        import model
+        sys.path.insert(0, PEERS_ROOT + "/StegaStamp_pytorch")
+        import model  # noqa: F401  (StegaStamp classes, needed to unpickle the checkpoints)
         base = DS[:-5] if DS.endswith("tight") else DS
-        canon = _dt("DT_CKPTS_ROOT") + f"/stegastamp_canon/{base}"
-        pd = _dt("DT_CKPTS_ROOT") + f"/stegastamp_pd/{base}"
+        canon = CKPTS_ROOT + f"/stegastamp_canon/{base}"
+        pd = CKPTS_ROOT + f"/stegastamp_pd/{base}"
         ck = canon if os.path.exists(f"{canon}/encoder.pth") else (
-            pd if os.path.exists(f"{pd}/encoder.pth") else _dt("DT_CKPTS_ROOT", "/stegastamp/celebdf"))
+            pd if os.path.exists(f"{pd}/encoder.pth") else CKPTS_ROOT + "/stegastamp/celebdf")
         enc = torch.load(f"{ck}/encoder.pth", map_location=dev).eval()
         dec = torch.load(f"{ck}/decoder.pth", map_location=dev).eval()
         tf = T.Compose([T.Resize((400, 400)), T.ToTensor()])
@@ -99,13 +101,13 @@ def load():
             return 1.0 - float(((d > 0.5).float() == sec).float().mean())
         return embed, score
     if METHOD == "lidmark":
-        sys.path.insert(0, _dt("DT_PEERS_ROOT", "/LIDMark"))
+        sys.path.insert(0, PEERS_ROOT + "/LIDMark")
         from model.lidmark import LIDMarkEncoder, FHD
         IMG, WM = 256, 152
         base = DS[:-5] if DS.endswith("tight") else DS
-        ck = _dt("DT_CKPTS_ROOT") + f"/lidmark_canon/{base}/weights/checkpoints_distortions"
+        ck = CKPTS_ROOT + f"/lidmark_canon/{base}/weights/checkpoints_distortions"
         if not os.path.isdir(ck):
-            ck = _dt("DT_CKPTS_ROOT") + f"/lidmark/{base}/weights/checkpoints_distortions"
+            ck = CKPTS_ROOT + f"/lidmark/{base}/weights/checkpoints_distortions"
         cks = sorted(glob.glob(f"{ck}/checkpoint_epoch_*.pth"),
                      key=lambda q: int("".join(filter(str.isdigit, os.path.basename(q)))))
         enc = LIDMarkEncoder(128, 64, 3, WM).to(dev).eval(); dec = FHD(128, 64, 1, WM).to(dev).eval()
@@ -113,7 +115,7 @@ def load():
         enc.load_state_dict({k[8:]: v for k, v in sd.items() if k.startswith("encoder.")})
         dec.load_state_dict({k[8:]: v for k, v in sd.items() if k.startswith("decoder.")})
         pool = f"lidpool_canon_{base}" if "lidmark_canon" in ck else f"lidpool_{base}"
-        wmf = sorted(glob.glob(_dt("DT_PEERS_ROOT") + f"/{pool}/wm/128/**/*.npy", recursive=True))
+        wmf = sorted(glob.glob(PEERS_ROOT + f"/{pool}/wm/128/**/*.npy", recursive=True))
         WMV = torch.from_numpy(np.load(wmf[0]).astype(np.float32)).unsqueeze(0).to(dev)
         gt_lm = WMV[:, :136]
         def _t(p):
@@ -129,11 +131,11 @@ def load():
             return float(torch.norm(d, p=2, dim=2).mean())
         return embed, score
     if METHOD == "kadnet":
-        sys.path.insert(0, _dt("DT_PEERS_ROOT", "/KAD-Net"))
+        sys.path.insert(0, PEERS_ROOT + "/KAD-Net")
         from network.KAD_Net import Network
         ML = 128
         net = Network("FD", ML, ["Identity()"], ["Identity()"], torch.device(dev), 1, 2e-4, 0.5, "se", "se", [1,10,10,10,0.1])
-        _ck = os.environ.get("KADNET_CKPT") or _dt("DT_PEERS_ROOT", "/KAD-Net/results/FD/256/models/EC_100.pth")
+        _ck = os.environ.get("KADNET_CKPT") or PEERS_ROOT + "/KAD-Net/results/FD/256/models/EC_100.pth"
         net.load_model_ed(_ck)
         net.encoder_decoder.eval()
         nm = T.Compose([T.Resize((256,256)), T.ToTensor(), T.Normalize([0.5]*3, [0.5]*3)])
@@ -150,12 +152,12 @@ def load():
     if METHOD == "fractal":
         # proto-scale reproduction of FractalForensics, trained per dataset here;
         # its native signal is the encrypted-message bit-error from the decoder
-        sys.path.insert(0, _dt("DT_MODEL_SNAPSHOT"))
+        sys.path.insert(0, MODEL_SNAPSHOT)
         from src.fractalforensics_reimpl import (FractalEncoder, FractalDecoder,
             generate_fractal_batch, make_message_bits, xor_encrypt_bits, bit_error_rate)
         IMG, MSG = 128, 128
         base = DS[:-5] if DS.endswith("tight") else DS
-        ck = torch.load(_dt("DT_CKPTS_ROOT") + f"/fractal/{base}/best.pt",
+        ck = torch.load(CKPTS_ROOT + f"/fractal/{base}/best.pt",
                         map_location=dev, weights_only=False)
         enc = FractalEncoder(IMG, MSG).to(dev).eval(); dec = FractalDecoder(MSG).to(dev).eval()
         enc.load_state_dict(ck["enc"]); dec.load_state_dict(ck["dec"])
@@ -175,7 +177,7 @@ def load():
     if METHOD == "wam":
         # Watermark Anything (Meta), authors' released wam_mit checkpoint.
         # Robust localized watermarking: its native signal is payload bit-error.
-        W = _dt("DT_PEERS_ROOT", "/WAM")
+        W = PEERS_ROOT + "/WAM"
         sys.path.insert(0, W); sys.path.insert(0, f"{W}/notebooks")
         cwd = os.getcwd(); os.chdir(W)
         try:
@@ -203,7 +205,7 @@ def load():
     if METHOD == "vine":
         # VINE-R (Lu et al.), authors' released encoder/decoder from HuggingFace.
         # Robust watermarking built on a diffusion prior; native signal is bit-error.
-        V = _dt("DT_PEERS_ROOT", "/VINE")
+        V = PEERS_ROOT + "/VINE"
         sys.path.insert(0, V); sys.path.insert(0, f"{V}/vine/src")
         cwd = os.getcwd(); os.chdir(f"{V}/vine/src")
         try:
@@ -234,7 +236,7 @@ if __name__ == "__main__":
     swap = ENGINES[ENGINE]()
     if ENGINE != "simswap":
         PERTS = ["clean"]; FAM = {}
-    files = sorted(glob.glob(_dt("DT_PEERS_ROOT") + f"/heldout_{DS}/*"))
+    files = sorted(glob.glob(PEERS_ROOT + f"/heldout_{DS}/*"))
     pairs = []
     for i, f in enumerate(files):
         if len(pairs) >= N:
@@ -251,8 +253,8 @@ if __name__ == "__main__":
         ys, ss = [], []
         for k, (b, sw) in enumerate(pairs):
             try:
-                ss.append(score(transform_image(b, p, seed=(k+17)*1009))); ys.append(0)
-                ss.append(score(transform_image(sw, p, seed=(k+17)*1009))); ys.append(1)
+                ss.append(score(apply_channel(p, b, seed=(k+17)*1009))); ys.append(0)
+                ss.append(score(apply_channel(p, sw, seed=(k+17)*1009))); ys.append(1)
             except Exception:
                 continue
         try: res[p] = roc_auc_score(ys, ss)

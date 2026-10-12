@@ -3,33 +3,26 @@ recovered by reading only the part of the ring it preserves?
 
 Blur and codec are low-pass: they attenuate the upper end of the ring. The
 record already stores amplitudes and support, so restricting the readout to
-radius <= kappa_cut is a per-channel declaration, training-free. AUC per cut on
-the explicit reading, FF++ test."""
-import os as _dtos
-def _dt(env, rest=""):
-    v = _dtos.environ.get(env)
-    assert v, f"{env} unset"
-    return v + rest
-import sys, numpy as np, pandas as pd
+kappa <= kappa_cut is a per-channel declaration, training-free. AUC per cut on
+the explicit reading (C_B against the template T_I), FF++ test."""
+import sys
+from pathlib import Path
+
+import numpy as np
 from PIL import Image
-from sklearn.metrics import roc_auc_score
-sys.path.insert(0, _dt("DT_MODEL_SNAPSHOT"))
-from scripts.benign_channels import transform_image
-R = _dt("DT_CANON_ROOT")
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
+from doctor_trigger.channels import apply_channel  # noqa: E402
+from doctor_trigger.manifests import read_cases  # noqa: E402
+from doctor_trigger.metrics import roc_auc  # noqa: E402
+from doctor_trigger.readings import SumForm, amplitude_weighted_mean  # noqa: E402
+from doctor_trigger.record import load_record  # noqa: E402
+from doctor_trigger.spectrum import kappa_grid, luminance_phase, wrap_phase  # noqa: E402
+
 N = 150
+STABILIZER = 1e-8
 
-def phase_of(pil):
-    a = np.asarray(pil, dtype=np.float64)
-    lum = 0.299*a[:,:,0] + 0.587*a[:,:,1] + 0.114*a[:,:,2]
-    return np.angle(np.fft.fft2(lum))
-
-def radius_grid(shape):
-    fy = np.fft.fftfreq(shape[0]).reshape(-1, 1)
-    fx = np.fft.fftfreq(shape[1]).reshape(1, -1)
-    return np.sqrt(fy*fy + fx*fx) / np.sqrt(0.5**2 + 0.5**2)
-
-cases = pd.read_csv(f"{R}/common/cases.csv")
-te = cases[(cases.dataset == "FF++") & (cases.split == "test")]
+te = read_cases(dataset="FF++", split="test")
 ben = te[te.protocol == "benign"].drop_duplicates("enrollment_id")[
     ["enrollment_id", "doctor_trigger_template_path", "doctor_trigger_released_path"]]
 swaps = te[te.protocol == "swap"].drop_duplicates("enrollment_id")[["enrollment_id", "input_path"]]
@@ -39,23 +32,24 @@ CUTS = [0.15, 0.20, 0.25, 0.30, 0.45]
 CHANNELS = ["blur_k7", "x264_crf35", "jpeg_q50"]
 scores = {(c, k): {"b": [], "f": []} for c in CHANNELS for k in CUTS}
 for _, q in pool.iterrows():
-    with np.load(q.doctor_trigger_template_path) as rec:
-        tmpl = np.fft.ifftshift(rec["template_phase"].astype(np.float64))
-        sup = np.fft.ifftshift(rec["support"].astype(bool))
-        amp = np.fft.ifftshift(rec["host_amplitude"].astype(np.float64))
-    rad = radius_grid(tmpl.shape)
+    record = load_record(q.doctor_trigger_template_path)
+    # uncentered layout, as the readout always summed in it
+    template = np.fft.ifftshift(record.template_phase)
+    active = np.fft.ifftshift(record.active_bins)
+    weights = np.fft.ifftshift(record.amplitude_weights)
+    kappa = kappa_grid(template.shape, centered=False)
     rel = Image.open(q.doctor_trigger_released_path).convert("RGB")
     fake = Image.open(q.input_path).convert("RGB")
     for ci, ch in enumerate(CHANNELS):
-        pb = phase_of(transform_image(rel, ch, seed=11 + ci))
-        pf = phase_of(transform_image(fake, ch, seed=17 + ci))
-        rb = np.cos((pb - tmpl + np.pi) % (2*np.pi) - np.pi)
-        rf = np.cos((pf - tmpl + np.pi) % (2*np.pi) - np.pi)
+        pb = luminance_phase(np.asarray(apply_channel(ch, rel, seed=11 + ci)), centered=False)
+        pf = luminance_phase(np.asarray(apply_channel(ch, fake, seed=17 + ci)), centered=False)
+        cos_benign = np.cos(wrap_phase(pb - template))
+        cos_fake = np.cos(wrap_phase(pf - template))
         for k in CUTS:
-            w = np.where(sup & (rad <= k), amp, 0.0)
-            z = np.sum(w) + 1e-8
-            scores[(ch, k)]["b"].append(float(np.sum(rb*w)/z))
-            scores[(ch, k)]["f"].append(float(np.sum(rf*w)/z))
+            bins = active & (kappa <= k)
+            for values, side in ((cos_benign, "b"), (cos_fake, "f")):
+                scores[(ch, k)][side].append(amplitude_weighted_mean(
+                    values, weights, bins, stabilizer=STABILIZER, form=SumForm.WEIGHT_MAP))
 
 print(f"{'channel':11s}" + "".join(f"  cut<={k:.2f}" for k in CUTS) + "   (AUC, benign-H mean)")
 for ch in CHANNELS:
@@ -63,6 +57,6 @@ for ch in CHANNELS:
     for k in CUTS:
         s_ = scores[(ch, k)]
         y = np.r_[np.zeros(len(s_["b"])), np.ones(len(s_["f"]))]
-        auc = roc_auc_score(y, np.r_[1-np.array(s_["b"]), 1-np.array(s_["f"])])
+        auc = roc_auc(y, np.r_[1-np.array(s_["b"]), 1-np.array(s_["f"])])
         line += f"  {auc:.3f}/{np.mean(s_['b']):.2f}"
     print(line)

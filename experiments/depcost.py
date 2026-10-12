@@ -1,32 +1,36 @@
-"""Deployment cost per method, using the same loaders the result tables use."""
-import os as _dtos
-def _dt(env, rest=""):
-    v = _dtos.environ.get(env)
-    assert v, f"{env} unset: run through run.py, or export it (see config.example.yaml)"
-    return v + rest
+"""Deployment cost per peer method, using the same loaders the result tables use (peer_robust.load).
+
+Usage: depcost.py <method>   (embeds and scores 20 held-out FF++ crops from <peers_root>/heldout_ffpp)"""
 import sys, os, time, glob, json
-import numpy as np, torch
+from pathlib import Path
+
+import torch
 from PIL import Image
-sys.path.insert(0, _dt("DT_PEERS_ROOT"))
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
+from doctor_trigger import config  # noqa: E402
+
+PEERS_ROOT = config.path("peers_root")
+CKPTS_ROOT = config.path("ckpts_root")
 
 METHOD = sys.argv[1]
 sys.argv = ["x", METHOD, "ffpp"]
-import peer_robust
+import peer_robust  # noqa: E402  (reads sys.argv at import)
 
-files = sorted(glob.glob(_dt("DT_PEERS_ROOT", "/heldout_ffpp/*")))[:20]
+files = sorted(glob.glob(PEERS_ROOT + "/heldout_ffpp/*"))[:20]
 imgs = [Image.open(f).convert("RGB").resize((256, 256)) for f in files]
 
 CKPT = {
- "facesigns":  [_dt("DT_PEERS_ROOT", "/FaceSigns/encoder_model.pth"),
-                _dt("DT_PEERS_ROOT", "/FaceSigns/decoder_model.pth")],
- "sepmark":    [_dt("DT_PEERS_ROOT", "/SepMark/pretrained/results/Dual_watermark_256_128_0.1_0.0002_0.5_se_se_1_10_10_10_0.1_2023_04_18_16_29_54/models/EC_90.pth")],
- "stegastamp": [_dt("DT_CKPTS_ROOT", "/stegastamp_pd/ffpp/encoder.pth"),
-                _dt("DT_CKPTS_ROOT", "/stegastamp_pd/ffpp/decoder.pth")],
- "kadnet":     [_dt("DT_PEERS_ROOT", "/KAD-Net/results/FD/256/models/EC_100.pth")],
- "lidmark":    [_dt("DT_CKPTS_ROOT", "/lidmark/ffpp/weights/checkpoints_distortions/checkpoint_epoch_9.pth")],
- "wam":        [_dt("DT_PEERS_ROOT", "/WAM/checkpoints/wam_mit.pth")],
- "vine":       [_dt("DT_PEERS_ROOT", "/VINE/ckpt/VINE-R-Enc/model.safetensors"),
-                _dt("DT_PEERS_ROOT", "/VINE/ckpt/VINE-R-Dec/CustomConvNeXt.pth")],
+ "facesigns":  [PEERS_ROOT + "/FaceSigns/encoder_model.pth",
+                PEERS_ROOT + "/FaceSigns/decoder_model.pth"],
+ "sepmark":    [PEERS_ROOT + "/SepMark/pretrained/results/Dual_watermark_256_128_0.1_0.0002_0.5_se_se_1_10_10_10_0.1_2023_04_18_16_29_54/models/EC_90.pth"],
+ "stegastamp": [CKPTS_ROOT + "/stegastamp_pd/ffpp/encoder.pth",
+                CKPTS_ROOT + "/stegastamp_pd/ffpp/decoder.pth"],
+ "kadnet":     [PEERS_ROOT + "/KAD-Net/results/FD/256/models/EC_100.pth"],
+ "lidmark":    [CKPTS_ROOT + "/lidmark/ffpp/weights/checkpoints_distortions/checkpoint_epoch_9.pth"],
+ "wam":        [PEERS_ROOT + "/WAM/checkpoints/wam_mit.pth"],
+ "vine":       [PEERS_ROOT + "/VINE/ckpt/VINE-R-Enc/model.safetensors",
+                PEERS_ROOT + "/VINE/ckpt/VINE-R-Dec/CustomConvNeXt.pth"],
 }
 def ck_bytes(m):
     return sum(os.path.getsize(p) for p in CKPT.get(m, []) if os.path.exists(p))

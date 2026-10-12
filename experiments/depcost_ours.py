@@ -1,18 +1,31 @@
-"""Deployment cost of the enrolled path: closed-form relation, plus the two heads."""
-import os as _dtos
-def _dt(env, rest=""):
-    v = _dtos.environ.get(env)
-    assert v, f"{env} unset: run through run.py, or export it (see config.example.yaml)"
-    return v + rest
+"""Deployment cost of the enrolled path: closed-form relation, plus the two heads.
+
+Timing is measured on the earlier trigger renders (config key legacy_trigger_glob) with the legacy
+key path of workflow/record_model/src/trigger_conditioned.py (i.i.d. +-1 code on a half-plane
+ring), as for the reported numbers; the record-model and image-only detector sizes are counted
+from their definitions."""
+import importlib.util
 import sys, os, glob, json, time
-import numpy as np, torch, yaml
-sys.path.insert(0, _dt("DT_MODEL_SNAPSHOT"))
+from pathlib import Path
+
+import numpy as np
 from PIL import Image
-from src.trigger_conditioned import (RingSpec, compute_delta_s, recover_host_phase,
-                                     wrap_phase, compute_host_score)
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))  # repository root
+from doctor_trigger import config  # noqa: E402
+from experiments.shared.image_only_detector import build_image_only_detector, checkpoint_path  # noqa: E402
+
+_spec = importlib.util.spec_from_file_location(
+    "trigger_conditioned", REPO_ROOT / "workflow" / "record_model" / "src" / "trigger_conditioned.py")
+trigger_conditioned = sys.modules["trigger_conditioned"] = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(trigger_conditioned)
+RingSpec, compute_delta_s = trigger_conditioned.RingSpec, trigger_conditioned.compute_delta_s
+recover_host_phase, wrap_phase = trigger_conditioned.recover_host_phase, trigger_conditioned.wrap_phase
+compute_host_score = trigger_conditioned.compute_host_score
+
 IMG = 256
-recs = [json.load(open(j)) for j in sorted(glob.glob(
-    _dt("DT_LEGACY_TRIGGER_GLOB"), recursive=True))[:25]]
+recs = [json.load(open(j)) for j in sorted(glob.glob(config.path("legacy_trigger_glob"), recursive=True))[:25]]
 recs = [d for d in recs if os.path.exists(d['trigger_path'])]
 imgs = [Image.open(d['trigger_path']).convert("RGB").resize((IMG, IMG)) for d in recs[:20]]
 d0 = recs[0]
@@ -39,12 +52,10 @@ t0 = time.time(); tm = [enroll(p)[1] for p in imgs]; t1 = time.time()
 for p, t in zip(imgs, tm): verify(p, t)
 t2 = time.time()
 
-from src import models
-cfg = yaml.safe_load(open(_dt("DT_MODEL_SNAPSHOT", "/config_ffpp_std_dfd_resnet50.yaml")))
-image_detector = models.build_model(cfg)
+image_detector = build_image_only_detector()
 image_detector_params = sum(q.numel() for q in image_detector.parameters())
 record_model_params = 75*64 + 64 + 64*64 + 64 + 3*(64 + 1) + 2*(64*8 + 8)  # hidden 64 plus two 8-d embeddings
-image_detector_ckpt = _dt("DT_IMAGE_DETECTOR_AUG", "/ffpp/best_val_auc.pt")   # deployed detector; every head has the same size
+image_detector_ckpt = checkpoint_path("ffpp", augmented=True)   # deployed detector; every head has the same size
 print(json.dumps({
  "enroll_ms_cpu": (t1-t0)/len(imgs)*1000,
  "relation_verify_ms_cpu": (t2-t1)/len(imgs)*1000,

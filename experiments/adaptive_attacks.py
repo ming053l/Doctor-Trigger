@@ -12,54 +12,41 @@ Each attack pushes every image toward the wrong verdict (benign down, re-rendere
 AUC afterwards for the record path (1 - H over the declared sub-band), the image-only detector, and
 the standardized alarm. Chance is 0.500; 0.000 means the ranking is fully inverted.
 
-Env: DT_CANON_ROOT, DT_OUTPUTS, DT_MODEL_SNAPSHOT, DT_IMAGE_DETECTOR_AUG; optional DT_ADAPT_N (default 200).
-Writes $DT_OUTPUTS/adaptive/{per_query.csv,summary.csv}.
+Paths from config.yaml (doctor_trigger.config): queries_csv, outputs_root, checkpoints.image_detector_aug;
+optional env DT_ADAPT_N (default 200). Writes <outputs_root>/adaptive/{per_query.csv,summary.csv}.
 """
 import os, sys
 from pathlib import Path
 
-import numpy as np, pandas as pd, torch, torch.nn.functional as Fn, yaml
+import numpy as np, pandas as pd, torch
 from PIL import Image
-from sklearn.metrics import roc_auc_score
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
+from doctor_trigger import config  # noqa: E402
+from doctor_trigger.manifests import read_queries  # noqa: E402
+from doctor_trigger.metrics import robust_z, roc_auc  # noqa: E402
+from doctor_trigger.record import load_record  # noqa: E402
+from doctor_trigger.spectrum import subband_b  # noqa: E402
+from experiments.shared.image_only_detector import (checkpoint_path, image_only_logit,  # noqa: E402
+                                                    load_image_only_detector)
 
-def _dt(env, rest=""):
-    v = os.environ.get(env); assert v, f"{env} unset"; return v + rest
-
-
-R = _dt("DT_CANON_ROOT"); OUT = Path(_dt("DT_OUTPUTS")) / "adaptive"
+OUT = Path(config.path("outputs_root")) / "adaptive"
 N = int(os.environ.get("DT_ADAPT_N", "200")); EPS = 8 / 255; STEPS = 40; CUT = 0.15
 dev = "cuda"
-sys.path.insert(0, _dt("DT_MODEL_SNAPSHOT"))
-from src import models  # noqa: E402
 
-cfg = yaml.safe_load(open(_dt("DT_MODEL_SNAPSHOT", "/config_ffpp_std_dfd_resnet50.yaml")))
-
-
-def load_image_detector(tag):
-    m = models.build_model(cfg).to(dev)
-    m.load_state_dict(torch.load(_dt("DT_IMAGE_DETECTOR_AUG", f"/{tag}/best_val_auc.pt"), map_location=dev, weights_only=False))
-    return m.eval()
-
-
-image_detector, proxy = load_image_detector("ffpp"), load_image_detector("dfdc")   # deployed detector and the attacker's proxy
+# deployed detector and the attacker's proxy
+image_detector = load_image_only_detector(checkpoint_path("ffpp"), dev)
+proxy = load_image_only_detector(checkpoint_path("dfdc"), dev)
 for p in list(image_detector.parameters()) + list(proxy.parameters()):
     p.requires_grad_(False)
 
 
-def det_logit(model, x):                      # x: (1,3,H,W) in [0,1]
-    o = model(Fn.interpolate(x, size=(224, 224), mode="bilinear", align_corners=False))
-    lg = o["logits"] if isinstance(o, dict) else o
-    return lg[:, 1] - lg[:, 0] if lg.ndim > 1 and lg.shape[1] == 2 else lg.reshape(-1)
-
-
 def rec(tp):
-    with np.load(tp) as z:
-        tm = np.fft.ifftshift(z["template_phase"].astype(np.float64))
-        sup = np.fft.ifftshift(z["support"].astype(bool))
-        amp = np.fft.ifftshift(z["host_amplitude"].astype(np.float64))
-    fy = np.fft.fftfreq(tm.shape[0])[:, None]; fx = np.fft.fftfreq(tm.shape[1])[None, :]
-    w = np.where(sup & (np.sqrt(fy * fy + fx * fx) / np.sqrt(0.5) <= CUT), amp, 0.0)
+    """Template T_I and sub-band-B weights (K_eff, kappa <= CUT) of a record, uncentered, on the GPU."""
+    record = load_record(tp)
+    tm = np.fft.ifftshift(record.template_phase)
+    w = np.where(np.fft.ifftshift(record.active_bins) & subband_b(tm.shape, centered=False, kappa_max=CUT),
+                 np.fft.ifftshift(record.amplitude_weights), 0.0)
     return (torch.tensor(tm, device=dev, dtype=torch.float32),
             torch.tensor(w, device=dev, dtype=torch.float32))
 
@@ -77,9 +64,9 @@ def objective(x, tm, w, fake, kind):
     if kind in ("white_box_record", "white_box_joint"):
         e = rel_err(x, tm, w); s = s + (e if not fake else -e) * 100.0
     if kind in ("white_box_image", "white_box_joint"):
-        g = det_logit(image_detector, x); s = s + (g if not fake else -g)
+        g = image_only_logit(image_detector, x); s = s + (g if not fake else -g)
     if kind == "surrogate":
-        g = det_logit(proxy, x); s = s + (g if not fake else -g)
+        g = image_only_logit(proxy, x); s = s + (g if not fake else -g)
     return s
 
 
@@ -110,17 +97,12 @@ def load(p):
 
 @torch.no_grad()
 def scores(x, tm, w):
-    return float(rel_err(x, tm, w)), float(torch.sigmoid(det_logit(image_detector, x)))
-
-
-def rz(v, cal):
-    cal = np.asarray(cal); med = np.median(cal); mad = np.median(np.abs(cal - med)) + 1e-6
-    return (np.asarray(v) - med) / mad
+    return float(rel_err(x, tm, w)), float(torch.sigmoid(image_only_logit(image_detector, x)))
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    man = pd.read_csv(f"{R}/manifests/queries.csv"); man = man[man.status == "pass"]
+    man = read_queries()
     ff = man[(man.dataset == "FF++") & (man.split == "test")]
     pos = ff[ff.protocol == "swap"].head(N)
     neg = ff[ff.protocol == "benign"].set_index("enrollment_id")
@@ -148,14 +130,14 @@ def main():
         if k % 25 == 0: print(f"{k}/{len(pos)} pairs", flush=True)
 
     df = pd.DataFrame(rows)
-    df["alarm"] = np.maximum(rz(df.rel_err, cal_h), np.minimum(rz(df.S_df, cal_d), 4))
+    df["alarm"] = np.maximum(robust_z(df.rel_err, cal_h), np.minimum(robust_z(df.S_df, cal_d), 4))
     df.to_csv(OUT / "per_query.csv", index=False)
     out = []
     for atk, g in df.groupby("attack"):
         y = (g.label == "re-rendered").astype(int)
         out.append(dict(attack=atk, n_pairs=len(g) // 2,
-                        record_only=roc_auc_score(y, g.rel_err), image_only=roc_auc_score(y, g.S_df),
-                        alarm=roc_auc_score(y, g.alarm)))
+                        record_only=roc_auc(y, g.rel_err), image_only=roc_auc(y, g.S_df),
+                        alarm=roc_auc(y, g.alarm)))
     s = pd.DataFrame(out).set_index("attack").reindex(
         ["none", "white_box_record", "white_box_image", "white_box_joint", "score_only_nes", "surrogate"])
     s.to_csv(OUT / "summary.csv"); print(s.round(3).to_string())

@@ -1,8 +1,8 @@
 #!/bin/bash
-: "${DT_CANON_ROOT:?set DT_CANON_ROOT}"
-: "${DT_PEERS_ROOT:?set DT_PEERS_ROOT}"
+# Run sensitivity_release.py jobs one after another on one GPU (paths come from config.yaml).
+# Usage: sensitivity_launch.sh GPU "FF++|alpha:0.02" "DFDC|band:0.05-0.45" ...
 cd "$(dirname "$0")"
-GPU=$1; shift  # host launcher: adjust env below per machine
+GPU=$1; shift
 for job in "$@"; do
   ds=${job%%|*}; spec=${job##*|}
   echo "=== [gpu$GPU] $ds $spec"

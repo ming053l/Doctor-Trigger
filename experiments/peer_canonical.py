@@ -1,36 +1,35 @@
-import os as _dtos
-def _dt(env, rest=""):
-    v = _dtos.environ.get(env)
-    assert v, f"{env} unset: run through run.py, or export it (see config.example.yaml)"
-    return v + rest
 """End-to-end peer run on the canonical protocol (test split).
 
 Per peer_score_contract.json: enroll enrollment_input_path with the method's own
 mark, apply the recorded SimSwap attack from attack_source_path, one score row
 per query_id, quarantined failures reported rather than replaced.
 Usage: peer_canonical.py <method>
+Optional env: CANON_DATASET (one dataset only), CANON_ENGINE (swap engine, default simswap),
+CANON_PIN_DS (one fixed peer checkpoint for zero-shot transfer runs).
+Writes <outputs_root>/<method>[_pin_<ds>][_<engine>].csv.
 """
 import sys, os, csv, tempfile
-import numpy as np, pandas as pd, torch
+from pathlib import Path
 from PIL import Image
-sys.path.insert(0, _dt("DT_PEERS_ROOT"))
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
+from doctor_trigger import config  # noqa: E402
+from doctor_trigger.manifests import DATASET_TAGS, read_cases  # noqa: E402
+from experiments.shared.swap_engines import ENGINES  # noqa: E402
 
 METHOD = sys.argv[1]
 sys.argv = ["x", METHOD, "ffpp"]
-import peer_robust
-from engines_api import ENGINES
+import peer_robust  # noqa: E402  (reads sys.argv at import)
 
-R = _dt("DT_CANON_ROOT")
-cases = pd.read_csv(f"{R}/common/cases.csv")
-cases = cases[cases.split == "test"].copy()
+cases = read_cases(split="test").copy()
 only_ds = os.environ.get("CANON_DATASET")
 if only_ds: cases = cases[cases.dataset == only_ds].copy()
-DSMAP = {"FF++": "ffpp", "DFDC": "dfdc", "CelebDF": "celebdf"}
+DSMAP = DATASET_TAGS
 ENGINE = os.environ.get("CANON_ENGINE", "simswap")
 swap = ENGINES[ENGINE]()
 TAG = os.environ.get("CANON_PIN_DS", "")
 ETAG = os.environ.get("CANON_ENGINE", "")
-OUT = _dt("DT_OUTPUTS") + f"/{METHOD}{('_pin_'+TAG) if TAG else ''}{('_'+ETAG) if ETAG and ETAG != 'simswap' else ''}.csv"
+OUT = config.path("outputs_root") + f"/{METHOD}{('_pin_'+TAG) if TAG else ''}{('_'+ETAG) if ETAG and ETAG != 'simswap' else ''}.csv"
 
 rows, nq = [], 0
 with tempfile.TemporaryDirectory(prefix=f"canon_{METHOD}_") as TMP:
