@@ -2,9 +2,9 @@
 
 InsightFace ``buffalo_l`` (SCRFD detector + ArcFace recognizer) on an RGB image; the identity
 similarity of two images is the dot product of the first detected face's normalized embeddings
-(cosine similarity), NaN when either image has no detected face. Settings match the earlier
-copies in attribution_matrix.py, reference_baselines.py and original_control.py: detection size
-320 × 320, detection threshold 0.3, CUDA with CPU fallback.
+(cosine similarity), NaN when either image has no detected face. Settings used by
+attribution_matrix.py, reference_baselines.py and original_control.py: detection size 320 × 320,
+detection threshold 0.3, CUDA with CPU fallback.
 """
 
 from __future__ import annotations

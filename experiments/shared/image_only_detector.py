@@ -7,10 +7,9 @@ deployed augmentation recipe) or ``checkpoints.image_detector`` (same architectu
 without augmentation; appendix E.2).
 
 The architecture is ``experiments/_snapshot/src/models.py`` (config key ``model_snapshot``),
-loaded here by file path so it does not collide with other ``src`` packages. This module
-replaces the build / load / ``Resize(224)`` / ``prob`` blocks copied into the benign-channel,
-engine, copy-ring, diffusion, adaptive-attack and evaluation scripts; the arithmetic is the same,
-so scores are bit-identical.
+loaded here by file path so it does not collide with other ``src`` packages. The benign-channel,
+engine, ring-transplant, diffusion, adaptive-attack and evaluation scripts all build, load and
+score the detector through this module.
 """
 
 from __future__ import annotations

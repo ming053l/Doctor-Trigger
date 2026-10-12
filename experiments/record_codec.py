@@ -1,103 +1,121 @@
-"""How small can the per-face record get?
+#!/usr/bin/env python
+"""How small can the per-face record get? (Sec. 4.2 storage paragraph, appendix Table 16 records)
 
-Variants, each verified on FF++ test (n=150) for H, G_s, and wrong-key AUC:
+Variants, each verified on 150 FF++ test pairs (benign release and its swap) for the swap AUC of
+1 - C, the benign mean of C, and the correct-versus-wrong-key AUC of G_s:
   full   : the deployed NPZ as shipped (baseline bytes)
-  derive : drop every derivable field (delta, code, host phase); keep active-bin
-           template phase + amplitude as float16 + a band bitmask + metadata
-  q84    : derive + phase quantized to 8 bits, log-amplitude to 4 bits
-  sub    : q84 restricted to the declared sub-band (kappa <= 0.15)
-Bytes are zlib-compressed serialized payloads."""
-import io, os, sys, zlib
-from pathlib import Path
+  derive : drop every field that can be recomputed (displacement, sign pattern, original phase);
+           keep the template phase and amplitude on the active bins of the ring
+           kappa in [0.10, 0.45] as float16, plus a bitmask of those bins
+  q84    : derive, with the phase quantized to 8 bits and the log-amplitude to 4 bits
+  sub    : q84 restricted to the ring's part in sub-band B (kappa <= 0.15)
+Bytes are zlib-compressed serialized payloads. The displacement is regenerated from the record's
+key; G_s is compared with 4 wrong keys per record.
+
+Paths: config.yaml (cases_csv). Prints the table; writes nothing.
+"""
+import io
+import os
+import zlib
 
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root: doctor_trigger
-from doctor_trigger.key import wrong_keys  # noqa: E402
-from doctor_trigger.manifests import read_cases  # noqa: E402
-from doctor_trigger.metrics import roc_auc  # noqa: E402
-from doctor_trigger.readings import SumForm, key_projection, phase_drift, spectral_agreement, wrong_key_displacement  # noqa: E402
-from doctor_trigger.record import load_record  # noqa: E402
-from doctor_trigger.spectrum import kappa_grid, luminance_phase  # noqa: E402
+from doctor_trigger.key import wrong_keys
+from doctor_trigger.manifests import read_cases
+from doctor_trigger.metrics import roc_auc
+from doctor_trigger.readings import SumForm, key_projection, phase_drift, spectral_agreement, wrong_key_displacement
+from doctor_trigger.record import load_record
+from doctor_trigger.spectrum import kappa_grid, luminance_phase
 
-N = 150
+PAIR_COUNT = 150
+WRONG_KEY_COUNT = 4
+RING_KAPPA_MIN, RING_KAPPA_MAX = 0.10, 0.45
+SUBBAND_KAPPA_MAX = 0.15
 AGREEMENT_STABILIZER = 1e-8
 PROJECTION_STABILIZER = 1e-6
+VARIANTS = ["derive", "q84", "sub"]
 
 
-def phase_of(path):
+def unshifted_phase(path):
     """Unshifted luminance phase of an image file."""
     return luminance_phase(np.asarray(Image.open(path).convert("RGB"), dtype=np.float64), centered=False)
 
+
 def payload_bytes(arrays):
-    buf = io.BytesIO()
-    np.savez(buf, **arrays)
-    return len(zlib.compress(buf.getvalue(), 9))
+    buffer = io.BytesIO()
+    np.savez(buffer, **arrays)
+    return len(zlib.compress(buffer.getvalue(), 9))
 
-def enc(rec, rad, mode):
-    sup = rec["support"]
-    band = (rad >= 0.10) & (rad <= (0.15 if mode == "sub" else 0.45))
-    act = sup & band
-    tmpl = rec["template_phase"][act]
-    amp = rec["host_amplitude"][act]
-    mask = np.packbits(act[band])
-    if mode == "derive":
-        return {"t": tmpl.astype(np.float16), "a": amp.astype(np.float16), "m": mask}, act
-    tq = np.round((tmpl + np.pi) / (2*np.pi) * 255).astype(np.uint8)
-    la = np.log10(np.maximum(amp, 1e-6))
-    lo, hi = la.min(), la.max()
-    aq = np.round((la - lo) / max(hi - lo, 1e-9) * 15).astype(np.uint8)
-    return {"t": tq, "a": aq, "m": mask, "r": np.array([lo, hi], np.float32)}, act
 
-def dec_phase_amp(enc_d, mode):
-    if mode == "derive":
-        return enc_d["t"].astype(np.float64), enc_d["a"].astype(np.float64)
-    t = enc_d["t"].astype(np.float64) / 255 * 2*np.pi - np.pi
-    lo, hi = enc_d["r"]
-    a = 10 ** (enc_d["a"].astype(np.float64) / 15 * (hi - lo) + lo)
-    return t, a
+def encode(record, kappa, variant):
+    """The variant's payload arrays and the boolean mask of the bins it keeps."""
+    ring = (kappa >= RING_KAPPA_MIN) & (kappa <= (SUBBAND_KAPPA_MAX if variant == "sub" else RING_KAPPA_MAX))
+    kept = record["active_bins"] & ring
+    template = record["template_phase"][kept]
+    amplitude = record["amplitude_weights"][kept]
+    mask = np.packbits(kept[ring])
+    if variant == "derive":
+        return {"t": template.astype(np.float16), "a": amplitude.astype(np.float16), "m": mask}, kept
+    template_q = np.round((template + np.pi) / (2*np.pi) * 255).astype(np.uint8)
+    log_amplitude = np.log10(np.maximum(amplitude, 1e-6))
+    lo, hi = log_amplitude.min(), log_amplitude.max()
+    amplitude_q = np.round((log_amplitude - lo) / max(hi - lo, 1e-9) * 15).astype(np.uint8)
+    return {"t": template_q, "a": amplitude_q, "m": mask, "r": np.array([lo, hi], np.float32)}, kept
 
-te = read_cases(dataset="FF++", split="test")
-ben = te[te.protocol == "benign"].drop_duplicates("enrollment_id")
-swaps = te[te.protocol == "swap"].drop_duplicates("enrollment_id")[["enrollment_id", "input_path"]]
-pool = ben.merge(swaps, on="enrollment_id", suffixes=("", "_swap")).head(N)
 
-MODES = ["derive", "q84", "sub"]
-sizes = {m: [] for m in MODES + ["full"]}
-res = {m: {"Hb": [], "Hf": [], "G": [], "Gw": []} for m in MODES}
-for _, q in pool.iterrows():
-    sizes["full"].append(os.path.getsize(q.doctor_trigger_template_path))
-    record = load_record(q.doctor_trigger_template_path)
-    rec = {"template_phase": np.fft.ifftshift(record.template_phase),
-           "support": np.fft.ifftshift(record.active_bins),
-           "host_amplitude": np.fft.ifftshift(record.amplitude_weights)}
-    rad = kappa_grid(record.shape, centered=False)
-    pb = phase_of(q.input_path)
-    pf = phase_of(q.input_path_swap)
-    # regenerate delta from key (the derivable field)
-    delta_full = np.fft.ifftshift(wrong_key_displacement(record, record.key))
-    wrongs = [np.fft.ifftshift(wrong_key_displacement(record, wk)) for wk in wrong_keys(record.key, 4)]
-    for m in MODES:
-        e, act = enc(rec, rad, m)
-        sizes[m].append(payload_bytes(e))
-        t, a = dec_phase_amp(e, m)
-        every_bin = np.ones(t.shape, dtype=bool)
-        host = t - delta_full[act]
-        for tag, ph in [("Hb", pb), ("Hf", pf)]:
-            res[m][tag].append(spectral_agreement(ph[act], t, a, every_bin, stabilizer=AGREEMENT_STABILIZER,
-                                                  form=SumForm.WEIGHT_MAP))
-        resid = phase_drift(pb[act], host)
-        d = delta_full[act]
-        res[m]["G"].append(key_projection(resid, d, a, every_bin, stabilizer=PROJECTION_STABILIZER))
-        for wd in wrongs:
-            res[m]["Gw"].append(key_projection(resid, wd[act], a, every_bin, stabilizer=PROJECTION_STABILIZER))
+def decode(payload, variant):
+    """(template phase, amplitude) on the kept bins, as float64."""
+    if variant == "derive":
+        return payload["t"].astype(np.float64), payload["a"].astype(np.float64)
+    template = payload["t"].astype(np.float64) / 255 * 2*np.pi - np.pi
+    lo, hi = payload["r"]
+    amplitude = 10 ** (payload["a"].astype(np.float64) / 15 * (hi - lo) + lo)
+    return template, amplitude
+
+
+test = read_cases(dataset="FF++", split="test")
+benign = test[test.protocol == "benign"].drop_duplicates("enrollment_id")
+swaps = test[test.protocol == "swap"].drop_duplicates("enrollment_id")[["enrollment_id", "input_path"]]
+pairs = benign.merge(swaps, on="enrollment_id", suffixes=("", "_swap")).head(PAIR_COUNT)
+
+sizes = {v: [] for v in VARIANTS + ["full"]}
+readings = {v: {"C_benign": [], "C_swap": [], "G": [], "G_wrong": []} for v in VARIANTS}
+for _, pair in pairs.iterrows():
+    sizes["full"].append(os.path.getsize(pair.doctor_trigger_template_path))
+    stored = load_record(pair.doctor_trigger_template_path)
+    record = {"template_phase": np.fft.ifftshift(stored.template_phase),
+              "active_bins": np.fft.ifftshift(stored.active_bins),
+              "amplitude_weights": np.fft.ifftshift(stored.amplitude_weights)}
+    kappa = kappa_grid(stored.shape, centered=False)
+    benign_phase = unshifted_phase(pair.input_path)
+    swap_phase = unshifted_phase(pair.input_path_swap)
+    displacement = np.fft.ifftshift(wrong_key_displacement(stored, stored.key))   # regenerated from the key
+    wrong_displacements = [np.fft.ifftshift(wrong_key_displacement(stored, k))
+                           for k in wrong_keys(stored.key, WRONG_KEY_COUNT)]
+    for variant in VARIANTS:
+        payload, kept = encode(record, kappa, variant)
+        sizes[variant].append(payload_bytes(payload))
+        template, amplitude = decode(payload, variant)
+        every_bin = np.ones(template.shape, dtype=bool)
+        original_phase = template - displacement[kept]
+        for name, phase in [("C_benign", benign_phase), ("C_swap", swap_phase)]:
+            readings[variant][name].append(spectral_agreement(phase[kept], template, amplitude, every_bin,
+                                                              stabilizer=AGREEMENT_STABILIZER, form=SumForm.WEIGHT_MAP))
+        drift = phase_drift(benign_phase[kept], original_phase)
+        readings[variant]["G"].append(key_projection(drift, displacement[kept], amplitude, every_bin,
+                                                     stabilizer=PROJECTION_STABILIZER))
+        for wrong in wrong_displacements:
+            readings[variant]["G_wrong"].append(key_projection(drift, wrong[kept], amplitude, every_bin,
+                                                               stabilizer=PROJECTION_STABILIZER))
 
 print(f"{'variant':8s} {'KiB':>7s} {'det AUC':>8s} {'benH':>7s} {'keyAUC':>7s}")
 print(f"{'full':8s} {np.mean(sizes['full'])/1024:7.1f}    (shipped NPZ)")
-for m in MODES:
-    y = np.r_[np.zeros(N), np.ones(N)]
-    det = roc_auc(y, np.r_[1-np.array(res[m]['Hb']), 1-np.array(res[m]['Hf'])])
-    pos, neg = np.array(res[m]["G"]), np.array(res[m]["Gw"])
-    key_auc = roc_auc(np.r_[np.ones_like(pos), np.zeros_like(neg)], np.r_[pos, neg])
-    print(f"{m:8s} {np.mean(sizes[m])/1024:7.1f} {det:8.3f} {np.mean(res[m]['Hb']):7.3f} {key_auc:7.3f}")
+for variant in VARIANTS:
+    labels = np.r_[np.zeros(PAIR_COUNT), np.ones(PAIR_COUNT)]
+    swap_auc = roc_auc(labels, np.r_[1 - np.array(readings[variant]["C_benign"]),
+                                     1 - np.array(readings[variant]["C_swap"])])
+    correct, wrong = np.array(readings[variant]["G"]), np.array(readings[variant]["G_wrong"])
+    key_auc = roc_auc(np.r_[np.ones_like(correct), np.zeros_like(wrong)], np.r_[correct, wrong])
+    print(f"{variant:8s} {np.mean(sizes[variant])/1024:7.1f} {swap_auc:8.3f} "
+          f"{np.mean(readings[variant]['C_benign']):7.3f} {key_auc:7.3f}")

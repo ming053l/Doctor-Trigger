@@ -14,8 +14,7 @@ experiments can swap one for another:
 * ``sdinpaint`` SD-1.5 inpainting over the detected face box, no identity donor
 
 Paths come from ``doctor_trigger.config``: ``engines_root`` (one directory per third-party engine
-with its released checkpoints), ``simswap_root``, ``model_snapshot``. Moved from
-experiments/engines_api.py with the same model calls and settings.
+with its released checkpoints), ``simswap_root``, ``model_snapshot``.
 """
 
 from __future__ import annotations

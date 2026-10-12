@@ -154,20 +154,20 @@ table4-artifact:
     and SD-inpainting columns are not produced here
 key-pure-canonical:
   cmd: DT_FEATURES_CSV={outputs_root}/features_record_scalar/recordscalar_features.csv DT_RECORD_MODEL_SCORES_DIR={record_model_runs}/recordscalar_ffpp/scores
-    DT_TAG=_recordscalar python key_pure_canonical.py
+    DT_TAG=_recordscalar python key_discrimination.py
   cwd: '{repo_root}/experiments'
   impl: original
   needs: features-record-scalar, record-model-recordscalar (pin=ffpp)
   output: '{outputs_root}/key_pure_canonical_recordscalar.csv'
   paper: appendix Table 9 (key discrimination and learned record scores) on the main test split
 features-record-ref:
-  cmd: python features_record_ref.py
+  cmd: python features_template_reference.py
   cwd: '{repo_root}/experiments'
   impl: original
   output: '{outputs_root}/features_record_ref/recordref_features.csv'
   paper: record-model inputs with the stored template as reference (replaces the released-PNG reference)
 features-record-scalar:
-  cmd: python features_record_scalar.py
+  cmd: python features_release_scalars.py
   cwd: '{repo_root}/experiments'
   impl: original
   needs: features-record-ref
@@ -182,21 +182,21 @@ record-model-recordscalar:
   output: '{record_model_runs}/recordscalar_{pin}/metrics/'
   paper: Table 2 record-model S_fake row on record-scalar features (pin=ffpp|dfdc|celebdf, 3 seeds)
 copy-ring-canonical:
-  cmd: python copy_ring_canonical.py
+  cmd: python ring_transplant.py
   cwd: '{repo_root}/experiments'
   impl: original
   needs: features-record-scalar, record-model-recordscalar (pin=ffpp)
   output: '{outputs_root}/copy_ring/summary.csv'
   paper: 'appendix Table 18 (phase-ring transplantation): template-score and record-model rows'
 copy-ring-detector:
-  cmd: python copy_ring_detector.py
+  cmd: python ring_transplant_detector.py
   cwd: '{repo_root}/experiments'
   gpu: true
   impl: original
   output: '{outputs_root}/copy_ring/detector_summary.csv'
   paper: 'appendix Table 18 (phase-ring transplantation): image-only detector rows (FF++)'
 copy-ring-amplitude:
-  cmd: python copy_ring_amplitude.py
+  cmd: python ring_transplant_amplitude.py
   cwd: '{repo_root}/experiments'
   impl: original
   output: '{outputs_root}/copy_ring/amplitude_summary.csv'
