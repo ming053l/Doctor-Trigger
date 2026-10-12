@@ -41,9 +41,9 @@ from doctor_trigger.calibration import lower_tail_threshold
 from doctor_trigger.channels import jpeg, rescale_round_trip
 from doctor_trigger.decision import DirectThresholds, Status, unit_status
 from doctor_trigger.enrollment import DEFAULT_ALPHA_LADDER, EnrollmentSettings, enroll
-from doctor_trigger.readings import SumForm, UnitReading, key_projection, phase_drift, spectral_agreement
+from doctor_trigger.readings import UnitReading, key_projection, phase_drift, spectral_agreement, subband_bins
 from doctor_trigger.record import Record, UnitId, save_record
-from doctor_trigger.spectrum import SUBBAND_B_KAPPA_MAX, luminance_phase, subband_b
+from doctor_trigger.spectrum import SUBBAND_B_KAPPA_MAX, luminance_phase
 
 SETTINGS = EnrollmentSettings()  # the pipeline's defaults (workflow/scripts/enroll.py)
 ALPHAS = DEFAULT_ALPHA_LADDER
@@ -54,27 +54,14 @@ SAMPLE_IMAGES = Path(__file__).resolve().parent / "data"
 def read_copy(query: np.ndarray | None, record: Record | None) -> UnitReading:
     """Face consistency C_B and release signal G_s of one copy against its record.
 
-    Read on the uncentered Fourier grid with weight maps (``SumForm.WEIGHT_MAP``); G_s uses unit
-    weights and is not release-normalized.
+    Read in record (centered) layout; G_s uses unit weights and is not release-normalized.
     """
     if record is None or query is None or query.shape[:2] != record.shape:
         return UnitReading(None, None, None, None, SUBBAND_B_KAPPA_MAX, False, "record or geometry unresolved")
-    phase = luminance_phase(query, centered=False)
-    active = np.fft.ifftshift(record.active_bins)
-    agreement = spectral_agreement(
-        phase,
-        np.fft.ifftshift(record.template_phase),
-        np.fft.ifftshift(record.amplitude_weights),
-        active & subband_b(record.shape, centered=False),
-        form=SumForm.WEIGHT_MAP,
-    )
-    projection = key_projection(
-        phase_drift(phase, np.fft.ifftshift(record.original_phase)),
-        np.fft.ifftshift(record.displacement),
-        np.ones(record.shape),
-        active,
-        form=SumForm.WEIGHT_MAP,
-    )
+    phase = luminance_phase(query, centered=True)
+    agreement = spectral_agreement(phase, record.template_phase, record.amplitude_weights, subband_bins(record))
+    projection = key_projection(phase_drift(phase, record.original_phase), record.displacement,
+                                np.ones(record.shape), record.active_bins)
     return UnitReading(None, None, agreement, projection, SUBBAND_B_KAPPA_MAX, False)
 
 

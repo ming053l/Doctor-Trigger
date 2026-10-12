@@ -45,7 +45,8 @@ from doctor_trigger.calibration import lower_tail_threshold
 from doctor_trigger.channels import apply_channel
 from doctor_trigger.manifests import read_cases, sha256_file
 from doctor_trigger.metrics import roc_auc
-from doctor_trigger.readings import SizeMismatch, SumForm, phase_drift, query_phase, spectral_agreement, subband_bins
+from doctor_trigger.readings import (SizeMismatch, key_projection, phase_drift, query_phase, spectral_agreement,
+                                     subband_bins)
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import luminance, luminance_phase, wrap_phase
 
@@ -53,7 +54,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CASES_CSV = config.path("cases_csv")
 OUT = Path(config.path("outputs_root")) / "table4"
 
-EPS = 1e-12
+EPS = 1e-12                   # denominator stabilizer of the forward-model alignment search (forward_h)
 CUT = 0.15                    # sub-band B: kappa <= CUT
 TAU_CLEAN = 0.9821            # clean-copy cutoff: the 1% quantile of the full-ring H over the 1,144
                               # FF++ train benign queries of the pipeline features (features_csv)
@@ -189,23 +190,19 @@ def phase_resized(img, shape):
 
 
 def original_agreement_b(ph, rec):
-    """H_B: agreement with the original phase on K_eff and sub-band B (inline-product summation)."""
-    return spectral_agreement(ph, rec.original_phase, rec.amplitude_weights, subband_bins(rec, CUT),
-                              stabilizer=EPS, form=SumForm.WEIGHT_MAP_VALUE_LAYOUT)
+    """H_B: agreement with the original phase on K_eff and sub-band B."""
+    return spectral_agreement(ph, rec.original_phase, rec.amplitude_weights, subband_bins(rec, CUT))
 
 
 def template_agreement_b(ph, rec):
-    """C_B: agreement with the template T_I on K_eff and sub-band B (inline-product summation)."""
-    return spectral_agreement(ph, rec.template_phase, rec.amplitude_weights, subband_bins(rec, CUT),
-                              stabilizer=EPS, form=SumForm.WEIGHT_MAP_VALUE_LAYOUT)
+    """C_B: agreement with the template T_I on K_eff and sub-band B."""
+    return spectral_agreement(ph, rec.template_phase, rec.amplitude_weights, subband_bins(rec, CUT))
 
 
 def g_raw_sub(ph, rec):
-    """G_s (Eq. 6) on K_eff and sub-band B. The denominator is written ``w * dl ** 2``, which rounds
-    differently from ``w * dl * dl`` (readings.key_projection), so it stays inline."""
-    s = subband_bins(rec, CUT)
-    w, dl, res = rec.amplitude_weights[s], rec.displacement[s], phase_drift(ph, rec.original_phase)[s]
-    return float(np.sum(w * dl * np.sin(res)) / (np.sum(w * dl ** 2) + EPS))
+    """G_s (Eq. 6) on K_eff and sub-band B."""
+    return key_projection(phase_drift(ph, rec.original_phase), rec.displacement, rec.amplitude_weights,
+                          subband_bins(rec, CUT))
 
 
 def forward_h(img, rec):

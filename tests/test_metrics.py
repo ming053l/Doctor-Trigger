@@ -1,5 +1,5 @@
-"""doctor_trigger.metrics equals the metric helpers it replaces (plan Sec. 2.11), on the key-pure
-pairs of experiments/key_pure_canonical.py (calibrated features, test split).
+"""doctor_trigger.metrics equals the metric helpers it replaces, on the key-pure
+pairs of experiments/key_discrimination.py (calibrated features, test split).
 
 The old record-model library's safe_auc / tpr_at_fpr / safe_eer are compared through their frozen
 outputs on these pairs (tests/golden/record_model_library.json); the experiment helpers run code
@@ -8,25 +8,24 @@ at import time, so they are copied verbatim below.
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 from sklearn.metrics import roc_auc_score, roc_curve
 
 from doctor_trigger.metrics import equal_error_rate, robust_z, roc_auc, tpr_at_fpr
+from data_roots import PIPELINE_ROOT, available, requires, under
 from golden_values import load
 
-FEATURES = Path("/ssd2/ming/ttf_run/public_view/features/calibrated_features.csv")
-pytestmark = pytest.mark.skipif(not FEATURES.exists(), reason="public_view not available")
+FEATURES = under(PIPELINE_ROOT, "features/calibrated_features.csv")
+NEEDS_FEATURES = requires(FEATURES)
 SCORES = ["H", "C", "G_s", "G_margin", "G_z", "G_wrong_mean", "G_wrong_max"]
 
 
 OLD_RECORD_MODEL = load("record_model_library")
 
 
-# experiments/key_pure_canonical.py:tpr_at (= operating_points.py:tpr_at) and :eer
+# experiments/key_discrimination.py:tpr_at (= operating_points.py:tpr_at) and :eer
 def key_pure_tpr_at(y, s, t):
     fpr, tpr, _ = roc_curve(y, s); ok = fpr <= t
     return float(tpr[ok].max()) if ok.any() else 0.0
@@ -37,7 +36,7 @@ def key_pure_eer(y, s):
     return float((fpr[i] + 1 - tpr[i]) / 2)
 
 
-# experiments/adaptive_attacks.py:rz (= diffusion_regeneration.py:rz, copy_ring_detector.py:rz)
+# experiments/adaptive_attacks.py:rz (= diffusion_regeneration.py:rz, ring_transplant_detector.py:rz)
 def adaptive_rz(v, cal):
     cal = np.asarray(cal); med = np.median(cal); mad = np.median(np.abs(cal - med)) + 1e-6
     return (np.asarray(v) - med) / mad
@@ -54,9 +53,10 @@ def key_pure_pairs():
             yield y, np.r_[m[s + "_c"], m[s + "_w"]]
 
 
-PAIRS = list(key_pure_pairs())
+PAIRS = list(key_pure_pairs()) if available(FEATURES) else []
 
 
+@NEEDS_FEATURES
 def test_roc_metrics_match_record_model_and_key_pure():
     assert len(PAIRS) == len(OLD_RECORD_MODEL["safe_auc"])
     for index, (y, scores) in enumerate(PAIRS):
@@ -67,8 +67,9 @@ def test_roc_metrics_match_record_model_and_key_pure():
         assert equal_error_rate(y, scores) == OLD_RECORD_MODEL["safe_eer"][index]
 
 
+@NEEDS_FEATURES
 def test_equal_error_rate_matches_key_pure_eer():
-    # key_pure_canonical.py writes (fpr + 1 - tpr) / 2; record_model.py writes (fpr + fnr) / 2.
+    # key_discrimination.py writes (fpr + 1 - tpr) / 2; record_model.py writes (fpr + fnr) / 2.
     for y, scores in PAIRS:
         assert equal_error_rate(y, scores, rounding="fpr + 1 - tpr") == key_pure_eer(y, scores)
 

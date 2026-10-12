@@ -8,8 +8,9 @@ Re-encodes the first N train enrollments (by enrollment_id) with the deployed en
 amplitude floor), re-renders each release with SimSwap, and scores five queries per asset: the
 release, the release after JPEG q90, the unedited original, the SimSwap re-rendering and the
 re-rendering after JPEG q90. Readings: H against the original phase and the key projection G_s
-(Eq. 6, stabilizer 1e-6) on K_eff, summed over the uncentered grid. The projections of 32 wrong
-keys on the release are stored per asset (columns Gw0..Gw31) for the key axis and the m sweep.
+(Eq. 6, denominator stabilizer 1e-6) on K_eff, read in the uncentered layout. The projections of
+32 wrong keys on the release are stored per asset (columns Gw0..Gw31) for the key axis and the m
+sweep.
 An enrollment whose SimSwap re-rendering fails is skipped.
 Writes <outputs_root>/sensitivity/<DS>_<setting>.csv (one row per asset; build_fig_sensitivity.py
 draws the figures) and prints the median readings and the mean time per wrong-key projection.
@@ -29,7 +30,7 @@ from doctor_trigger.channels import jpeg
 from doctor_trigger.enrollment import encode_release
 from doctor_trigger.key import Ring, displacement, sign_pattern, wrong_keys
 from doctor_trigger.manifests import read_cases
-from doctor_trigger.readings import SumForm, key_projection, phase_drift, spectral_agreement
+from doctor_trigger.readings import phase_drift, spectral_agreement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import luminance_phase
 from experiments.shared.swap_engines import ENGINES
@@ -57,15 +58,25 @@ swap = ENGINES["simswap"]()
 
 
 def original_reference_agreement(image, original_phase, weights, active):
-    """H against the original phase over K_eff (uncentered weight map, stabilizer 1e-8)."""
-    return spectral_agreement(luminance_phase(image, centered=False), original_phase, weights, active,
-                              stabilizer=1e-8, form=SumForm.WEIGHT_MAP)
+    """H against the original phase over K_eff (uncentered layout)."""
+    return spectral_agreement(luminance_phase(image, centered=False), original_phase, weights, active)
+
+
+SENSITIVITY_PROJECTION_STABILIZER = 1e-6
+"""Denominator stabilizer of G_s in this sweep, kept from the run behind Figs 13-14 and Table 15.
+
+The one exception to readings.key_projection (eps_0 = 1e-12): sum w delta^2 over K_eff is about
+0.016, so 1e-6 lowers G_s by about 6e-5 relative, which could move a printed digit of those
+artifacts. The sum is over the whole uncentered grid with the weights zeroed outside K_eff."""
 
 
 def projection(image, original_phase, weights, active, delta):
-    """G_s of Eq. (6) for displacement ``delta`` (uncentered weight map, stabilizer 1e-6)."""
+    """G_s of Eq. (6) for displacement ``delta`` (uncentered layout, SENSITIVITY_PROJECTION_STABILIZER)."""
     drift = phase_drift(luminance_phase(image, centered=False), original_phase)
-    return key_projection(drift, delta, weights, active, stabilizer=1e-6, form=SumForm.WEIGHT_MAP)
+    masked_weights = np.where(active, weights, 0.0)
+    numerator = float(np.sum(masked_weights * delta * np.sin(drift)))
+    denominator = float(np.sum(masked_weights * delta * delta))
+    return numerator / (denominator + SENSITIVITY_PROJECTION_STABILIZER)
 
 
 rows = []

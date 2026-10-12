@@ -23,14 +23,13 @@ from PIL import Image
 
 from doctor_trigger import config
 from doctor_trigger.manifests import read_queries, select
-from doctor_trigger.readings import SumForm, spectral_agreement
+from doctor_trigger.readings import spectral_agreement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import luminance_spectrum, subband_b
 
 OUT = Path(config.path("outputs_root")) / "copy_ring"
 TEST_COUNT = int(os.environ.get("DT_COPY_N", "200"))
 CALIBRATION_COUNT = 200
-SUBBAND_STABILIZER = 1e-8
 DATASETS = ("FF++", "CelebDF", "DFDC")
 CONDITIONS = ["released", "manipulated", "copy_phase", "copy_phase_and_magnitude"]
 
@@ -58,7 +57,7 @@ def readings(image, record):
     """Relation error 1 - C_B and the two amplitude errors (1 - log-magnitude correlation)."""
     spectrum = luminance_spectrum(image)
     agreement = spectral_agreement(np.angle(spectrum), record["template"], record["amplitude"],
-                                   record["subband"], stabilizer=SUBBAND_STABILIZER, form=SumForm.WEIGHT_MAP)
+                                   record["subband"])
     out = {"rel_err": 1.0 - agreement}
     log_amplitude = np.log1p(np.abs(spectrum))
     for name, mask in (("amp_err_ring", record["active"]), ("amp_err_sub", record["subband"])):

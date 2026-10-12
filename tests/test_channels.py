@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import io
 import shutil
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -19,9 +18,10 @@ import pytest
 from PIL import Image
 
 from doctor_trigger import channels
+from data_roots import PIPELINE_ROOT, available, under
 from golden_values import digest, load
 
-CASES = Path("/ssd2/ming/ttf_run/public_view/common/cases.csv")
+CASES = under(PIPELINE_ROOT, "common/cases.csv")
 
 
 OLD_CHANNELS = load("benign_channels")
@@ -29,8 +29,8 @@ OLD_CHANNELS = load("benign_channels")
 
 @pytest.fixture(scope="module")
 def images() -> list[Image.Image]:
-    if not CASES.exists():
-        pytest.skip("public_view not available")
+    if not available(CASES):
+        pytest.skip("test data not available (see tests/data_roots.py)")
     cases = pd.read_csv(CASES)
     picked = pd.concat([cases[(cases.dataset == ds) & (cases.split == "test")].head(2)
                         for ds in ("FF++", "DFDC", "CelebDF")])

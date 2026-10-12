@@ -59,7 +59,7 @@ and [docs/FAQ.md](docs/FAQ.md) for common questions (is it a watermark? what mus
 
 ```bash
 git clone https://github.com/ming053l/Doctor-Trigger.git && cd Doctor-Trigger
-pip install -e .                 # numpy, Pillow, scikit-image, PyYAML, pandas
+pip install -e .                 # numpy, Pillow, scikit-image, scikit-learn, PyYAML, pandas
 python examples/quickstart.py
 ```
 

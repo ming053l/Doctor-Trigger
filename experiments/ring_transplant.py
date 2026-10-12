@@ -26,10 +26,10 @@ from PIL import Image
 from doctor_trigger import config
 from doctor_trigger.calibration import lower_tail_threshold
 from doctor_trigger.manifests import read_queries, select
-from doctor_trigger.readings import SumForm, normalized_pixel_radius, record_features, spectral_agreement
+from doctor_trigger.readings import normalized_pixel_radius, record_features, spectral_agreement, subband_bins
 from doctor_trigger.record import load_record
 from doctor_trigger.record_model import load_checkpoint, record_model_scores
-from doctor_trigger.spectrum import luminance_phase, subband_b
+from doctor_trigger.spectrum import luminance_phase
 
 OUTPUTS = Path(config.path("outputs_root"))
 OUT = OUTPUTS / "copy_ring"
@@ -42,7 +42,6 @@ TRAIN_FEATURES = OUTPUTS / "features_record_scalar/recordscalar_features_ffpp_tr
 C_FAMILY = ["C"] + [f"C_b{i}" for i in range(8)]
 SCORE_ORDER = ("S_rel", "S_key", "S_fake")
 """Order of the record-model score columns in per_query.csv."""
-SUBBAND_STABILIZER = 1e-8
 CONDITIONS = ["released", "manipulated", "copy_active_bins", "copy_ring_band"]
 
 
@@ -63,15 +62,8 @@ def transplant(query, donor, mask_centered):
 
 
 def subband_agreement(phase_centered, record):
-    """C_B against the stored template (CSV column ``H_sub``), summed in the unshifted layout."""
-    return spectral_agreement(
-        np.fft.ifftshift(phase_centered),
-        np.fft.ifftshift(record.template_phase),
-        np.fft.ifftshift(record.amplitude_weights),
-        np.fft.ifftshift(record.active_bins) & subband_b(record.shape, centered=False),
-        stabilizer=SUBBAND_STABILIZER,
-        form=SumForm.WEIGHT_MAP,
-    )
+    """C_B against the stored template (CSV column ``H_sub``)."""
+    return spectral_agreement(phase_centered, record.template_phase, record.amplitude_weights, subband_bins(record))
 
 
 def test_rows(query):

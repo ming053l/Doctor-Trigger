@@ -12,14 +12,10 @@ Sec. 3.2-3.3 of the paper. On the luminance phase phi_J of a query and the recor
 - wrong-key statistics (G-bar^-, G^-_max, G_Delta, G_z) over m = 8 wrong keys (Eq. 7)
 - feature map          x = Phi(J, R), the 75 record-model inputs (Eq. 8, App. D.1)
 
-Summation forms. The feature pipeline sums over the selected bins only (a boolean gather) and returns
-NaN when their total weight is at most 1e-12. Most experiments instead sum over the whole grid with
-the weights zeroed outside the bins (a weight map) and add a stabilizer (1e-12, 1e-8 or 1e-6) to the
-denominator. The forms agree mathematically but not in the last bits, and a whole-grid sum also
-depends on the memory layout of the product it sums, so the kernels take ``form`` (``SumForm``) and
-``stabilizer`` explicitly; the defaults are the feature pipeline's. The kernels work in whatever
-layout (centered or not, full grid or a vector of gathered bins) the caller passes; record arrays
-should be passed as loaded (T_I, phi-hat_I and w are Fortran-ordered on disk).
+Summation. Every reading sums over the selected bins only (a boolean gather in C order of the
+arrays it is given), skips bins whose inputs are not finite, and returns NaN for an agreement whose
+total weight is at most 1e-12. The kernels work in whatever layout (centered or not, full grid or a
+vector of gathered bins) the caller passes.
 """
 
 from __future__ import annotations
@@ -85,70 +81,22 @@ def query_phase(
 
 
 # ----------------------------------------------------------------------------- kernels
-class SumForm(Enum):
-    """How a reading sums over its bins (see the module docstring).
-
-    Why there are three: every form computes the same Eq. (5) / Eq. (6) value, but floating-point
-    sums depend on which numbers are added and in what memory order. The paper's tables were
-    produced by scripts that used different (equivalent) expressions, so each caller passes the
-    form its table was computed with and reproduces it to the last bit. New code should use the
-    default, ``GATHERED`` (the feature pipeline's form).
-    """
-
-    GATHERED = "gathered"
-    """Sum the gathered bins, skipping non-finite entries (``record_features``, ``original_control``)."""
-    WEIGHT_MAP = "weight_map"
-    """Sum the whole grid with weights 0 outside the bins, ``np.sum(values * where(bins, w, 0))``;
-    the product takes NumPy's default layout (scripts that name the cosine first, ``r = np.cos(...)``)."""
-    WEIGHT_MAP_VALUE_LAYOUT = "weight_map_value_layout"
-    """As ``WEIGHT_MAP``, but the product keeps the layout of the values. This is what an inline
-    ``np.sum(np.cos(...) * w)`` gives, because NumPy then reuses the cosine's temporary buffer for
-    arrays of at least 256 KiB (``operating_points``, ``table4_artifact``, ``diffusion_regeneration``)."""
-
-
-NUMPY_TEMPORARY_REUSE_BYTES = 256 * 1024
-"""Smallest array NumPy reuses as the output of ``temporary * other`` (NPY_MIN_ELIDE_BYTES)."""
-
-
-def _weight_map_product(values: np.ndarray, masked_weights: np.ndarray, form: SumForm) -> np.ndarray:
-    if form is SumForm.WEIGHT_MAP_VALUE_LAYOUT and values.nbytes >= NUMPY_TEMPORARY_REUSE_BYTES:
-        return np.multiply(values, masked_weights, out=np.empty_like(values))
-    return values * masked_weights
-
-
 def phase_drift(query_phase: np.ndarray, original_phase: np.ndarray) -> np.ndarray:
     """Wrapped phase drift r_k(J) = wrap(phi_J(k) - phi-hat_I(k)) of the query (Sec. 3.2)."""
     return wrap_phase(query_phase - original_phase)
 
 
-def amplitude_weighted_mean(
-    values: np.ndarray,
-    weights: np.ndarray,
-    bins: np.ndarray,
-    *,
-    stabilizer: float | None = None,
-    form: SumForm = SumForm.GATHERED,
-) -> float:
+def amplitude_weighted_mean(values: np.ndarray, weights: np.ndarray, bins: np.ndarray) -> float:
     """sum_{k in bins} w_k v_k / sum_{k in bins} w_k, the amplitude-weighted mean of App. D.1.
 
-    With ``stabilizer=None`` (the feature pipeline, and the default for new code) a total weight at
-    or below 1e-12 gives NaN; otherwise the stabilizer is added to the denominator, as the scripts
-    behind some tables did (1e-12, 1e-8 or 1e-6), so they keep their exact values. The ``GATHERED`` form skips bins where ``values`` or ``weights`` are
-    not finite; in the weight-map forms a non-finite value propagates into the result.
+    Bins where ``values`` or ``weights`` are not finite are skipped; a total weight at or below
+    1e-12 (no bins to read) gives NaN.
     """
-    if form is SumForm.GATHERED:
-        mask = bins & np.isfinite(values) & np.isfinite(weights)
-        total = float(np.sum(weights[mask]))
-        weighted_sum = np.sum(values[mask] * weights[mask])
-    else:
-        masked_weights = np.where(bins, weights, 0.0)
-        total = float(np.sum(masked_weights))
-        weighted_sum = np.sum(_weight_map_product(values, masked_weights, form))
-    if stabilizer is None:
-        if total <= EMPTY_WEIGHT_LIMIT:
-            return float("nan")
-        return float(weighted_sum / total)
-    return float(weighted_sum / (total + stabilizer))
+    mask = bins & np.isfinite(values) & np.isfinite(weights)
+    total = float(np.sum(weights[mask]))
+    if total <= EMPTY_WEIGHT_LIMIT:
+        return float("nan")
+    return float(np.sum(values[mask] * weights[mask]) / total)
 
 
 def spectral_agreement(
@@ -156,54 +104,27 @@ def spectral_agreement(
     reference_phase: np.ndarray,
     weights: np.ndarray,
     bins: np.ndarray,
-    *,
-    stabilizer: float | None = None,
-    form: SumForm = SumForm.GATHERED,
 ) -> float:
     """Spectral agreement (Eq. 5): amplitude-weighted mean of cos wrap(phi_J - reference) over ``bins``.
 
     The reference names the reading: the template T_I gives C(J; R), the original phase phi-hat_I
     gives H(J; R), the original-reference agreement. ``bins`` = K_eff gives the full-ring reading,
     K_eff and sub-band B (``subband_bins``) gives C_B / H_B. The feature pipeline's ``C`` column uses
-    the released crop's phase as the reference. ``stabilizer`` and ``form`` choose the summation
-    (``amplitude_weighted_mean``).
+    the released crop's phase as the reference.
     """
-    return amplitude_weighted_mean(
-        np.cos(wrap_phase(query_phase - reference_phase)),
-        weights,
-        bins,
-        stabilizer=stabilizer,
-        form=form,
-    )
+    return amplitude_weighted_mean(np.cos(wrap_phase(query_phase - reference_phase)), weights, bins)
 
 
-def key_projection(
-    drift: np.ndarray,
-    displacement: np.ndarray,
-    weights: np.ndarray,
-    bins: np.ndarray,
-    *,
-    stabilizer: float = PROJECTION_STABILIZER,
-    form: SumForm = SumForm.GATHERED,
-) -> float:
+def key_projection(drift: np.ndarray, displacement: np.ndarray, weights: np.ndarray, bins: np.ndarray) -> float:
     """Key projection G_s (Eq. 6): sum w delta sin r / (sum w delta^2 + eps_0) over ``bins``.
 
-    ``drift`` is r_k(J) (``phase_drift``) and ``displacement`` the key's delta_s. ``stabilizer`` is
-    eps_0 (1e-12 in the paper; some experiments use 1e-6). The ``GATHERED`` form skips bins where
-    drift, displacement or weights are not finite; ``WEIGHT_MAP`` sums the whole grid with weights
-    zeroed outside the bins (the products then keep NumPy's own layout, as in the scripts).
+    ``drift`` is r_k(J) (``phase_drift``) and ``displacement`` the key's delta_s; eps_0 = 1e-12.
+    Bins where drift, displacement or weights are not finite are skipped.
     """
-    if form is SumForm.GATHERED:
-        mask = bins & np.isfinite(drift) & np.isfinite(displacement) & np.isfinite(weights)
-        numerator = float(np.sum(weights[mask] * displacement[mask] * np.sin(drift[mask])))
-        denominator = float(np.sum(weights[mask] * displacement[mask] * displacement[mask]))
-    elif form is SumForm.WEIGHT_MAP:
-        masked_weights = np.where(bins, weights, 0.0)
-        numerator = float(np.sum(masked_weights * displacement * np.sin(drift)))
-        denominator = float(np.sum(masked_weights * displacement * displacement))
-    else:
-        raise ValueError(f"key_projection has no {form} form")
-    return numerator / (denominator + stabilizer)
+    mask = bins & np.isfinite(drift) & np.isfinite(displacement) & np.isfinite(weights)
+    numerator = float(np.sum(weights[mask] * displacement[mask] * np.sin(drift[mask])))
+    denominator = float(np.sum(weights[mask] * displacement[mask] * displacement[mask]))
+    return numerator / (denominator + PROJECTION_STABILIZER)
 
 
 def release_normalized(projection: float, release_projection: float, floor: float = RELEASE_PROJECTION_FLOOR) -> float:
@@ -400,7 +321,7 @@ def record_features(
     finite_reference = np.isfinite(reference_drift) & finite_weights
 
     def weighted_mean(values: np.ndarray, finite: np.ndarray, bins: np.ndarray) -> float:
-        # amplitude_weighted_mean (GATHERED, no stabilizer) with the finiteness test done once per array.
+        # amplitude_weighted_mean with the finiteness test done once per array.
         mask = bins & finite
         w, v = (weights, values) if mask.all() else (weights[mask], values[mask])
         total = float(np.sum(w))
@@ -413,7 +334,7 @@ def record_features(
     finite_sin_projection = np.isfinite(sin_projection) & finite_weights
 
     def projection(sin_values: np.ndarray, finite: np.ndarray, key_displacement: np.ndarray, bins: np.ndarray) -> float:
-        # key_projection (GATHERED) with sin r computed once per query instead of once per call.
+        # key_projection with sin r computed once per query instead of once per call.
         mask = bins & finite & np.isfinite(key_displacement)
         if mask.all():
             w, d, s = weights, key_displacement, sin_values
@@ -511,7 +432,7 @@ def read_unit(
     release_rgb: np.ndarray | None = None,
     subband_kappa_max: float | None = SUBBAND_B_KAPPA_MAX,
 ) -> UnitReading:
-    """Read H (H_B), C (C_B) and G_s of a query crop against its record (gathered summation form).
+    """Read H (H_B), C (C_B) and G_s of a query crop against its record.
 
     ``query_rgb`` and ``release_rgb`` are (H, W, 3) arrays. With the released crop, G_s is
     release-normalized. ``subband_kappa_max=None`` reads the agreements over the full ring K_eff.

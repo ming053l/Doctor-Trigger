@@ -19,11 +19,10 @@ from doctor_trigger import config
 from doctor_trigger.channels import apply_channel
 from doctor_trigger.manifests import read_cases
 from doctor_trigger.metrics import roc_auc
-from doctor_trigger.readings import SizeMismatch, SumForm, query_phase, spectral_agreement
+from doctor_trigger.readings import SizeMismatch, query_phase, spectral_agreement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import subband_b
 
-STABILIZER = 1e-8
 PART = sys.argv[1]
 
 @lru_cache(maxsize=None)
@@ -32,14 +31,13 @@ def subband_b_uncentered(shape):
 
 
 def subband_spectral_agreement(pil, record_path):
-    """C_B of a query against its record, summed over the uncentered grid (a weight map)."""
+    """C_B of a query against its record, read in the uncentered layout."""
     record = load_record(record_path)
     template = np.fft.ifftshift(record.template_phase)
     active = np.fft.ifftshift(record.active_bins)
     weights = np.fft.ifftshift(record.amplitude_weights)
     phase = query_phase(pil, template.shape, SizeMismatch.RESIZE, centered=False)
-    return spectral_agreement(phase, template, weights, active & subband_b_uncentered(template.shape),
-                              stabilizer=STABILIZER, form=SumForm.WEIGHT_MAP)
+    return spectral_agreement(phase, template, weights, active & subband_b_uncentered(template.shape))
 
 
 if PART == "benign":

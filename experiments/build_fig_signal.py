@@ -24,7 +24,7 @@ from PIL import Image
 from doctor_trigger import config, manifests
 from doctor_trigger.key import wrong_keys
 from doctor_trigger.metrics import roc_auc
-from doctor_trigger.readings import phase_drift, release_normalized, spectral_agreement, wrong_key_displacement
+from doctor_trigger.readings import key_projection, phase_drift, release_normalized, spectral_agreement, wrong_key_displacement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import luminance_phase
 
@@ -45,16 +45,6 @@ dfdc = features[features.dataset == "DFDC"]
 
 
 # ---------------- panels (d, e): correct versus wrong projection key, from the records ----------------
-EPS = 1e-12
-
-
-def projection(drift, delta, weights, bins):
-    """G_s (Eq. 6) on the gathered bins, denominator written sum w (delta^2); key_projection's
-    sum (w delta) delta rounds differently in the last bits, so this figure keeps its own form."""
-    w, dl = weights[bins], delta[bins]
-    return float(np.sum(w * dl * np.sin(drift[bins])) / (np.sum(w * dl ** 2) + EPS))
-
-
 cases = manifests.read_cases(dataset="FF++", split="test", protocol="benign").head(250)
 h_correct, h_wrong, g_correct, g_wrong = [], [], [], []
 for case in cases.itertuples():
@@ -63,13 +53,13 @@ for case in cases.itertuples():
     if query_phase.shape != record.shape: continue
     original_phase, active, weights = record.original_phase, record.active_bins, record.amplitude_weights
     wrong_delta = wrong_key_displacement(record, wrong_keys(record.key, 1)[0])
-    h_correct.append(spectral_agreement(query_phase, original_phase, weights, active, stabilizer=EPS))
+    h_correct.append(spectral_agreement(query_phase, original_phase, weights, active))
     h_wrong.append(h_correct[-1])  # H compares with the original phase only, so a wrong key leaves it unchanged
     drift = phase_drift(query_phase, original_phase)
     # release normalization by the query's own correct-key projection, so the correct-key strip sits at 1
-    release_g = projection(drift, record.displacement, weights, active)
-    g_correct.append(release_normalized(projection(drift, record.displacement, weights, active), release_g))
-    g_wrong.append(release_normalized(projection(drift, wrong_delta, weights, active), release_g))
+    release_g = key_projection(drift, record.displacement, weights, active)
+    g_correct.append(release_normalized(key_projection(drift, record.displacement, weights, active), release_g))
+    g_wrong.append(release_normalized(key_projection(drift, wrong_delta, weights, active), release_g))
 h_correct, h_wrong, g_correct, g_wrong = map(np.array, (h_correct, h_wrong, g_correct, g_wrong))
 auc_h = roc_auc([1]*len(h_correct)+[0]*len(h_wrong), np.concatenate([h_correct, h_wrong]))
 auc_g = roc_auc([1]*len(g_correct)+[0]*len(g_wrong), np.concatenate([g_correct, g_wrong]))

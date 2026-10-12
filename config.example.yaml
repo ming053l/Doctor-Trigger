@@ -18,7 +18,7 @@ queries_csv:    "{canonical_root}/manifests/queries.csv"    # query-stage manife
 features_csv:   "{canonical_root}/features/calibrated_features.csv"   # pipeline feature rows (fig-signal, fig-release-residual)
 
 # --- code shipped with this repository ---
-model_snapshot: "{repo_root}/experiments/_snapshot"         # [DT_MODEL_SNAPSHOT] image-only detector, benign-channel and SimSwap code the experiments import
+model_snapshot: "{repo_root}/experiments/_snapshot"         # [DT_MODEL_SNAPSHOT] image-only detector and SimSwap code the experiments import
 model_config:   "{model_snapshot}/config_ffpp_std_dfd_resnet50.yaml"  # image-only detector architecture
 
 # --- where results go ---
@@ -38,9 +38,7 @@ engines_root: "{peers_root}/engines"                        # one directory per 
 simswap_root: "{repo_root}/../SimSwap"                      # [DT_SIMSWAP_ROOT] SimSwap checkout and weights (pipeline swap queries, SimSwap engine)
 
 # --- an earlier enrollment run (read by the imperceptibility figure and deployment-cost only) ---
-legacy_outputs:      "{repo_root}/../legacy_outputs"        # [DT_LEGACY_OUTPUTS] root of that run
-legacy_trigger_glob: "{legacy_outputs}/trigger/**/*_trigger.json"   # [DT_LEGACY_TRIGGER_GLOB] JSON sidecars: original crop + its release
-paper_repo:          "{repo_root}/../paper"                 # [DT_PAPER_REPO] exported only; no script reads it
+legacy_trigger_glob: "{repo_root}/../legacy_outputs/trigger/**/*_trigger.json"   # [DT_LEGACY_TRIGGER_GLOB] JSON sidecars: original crop + its release
 
 # --- pipeline inputs (read by workflow/pipeline_paths.py): stage-0 source manifests, one per dataset,
 #     written by workflow/scripts/make_source_manifest.py; SimSwap is simswap_root above ---

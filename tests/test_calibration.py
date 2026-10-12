@@ -1,21 +1,20 @@
 """doctor_trigger.calibration equals experiments/joint_policy.py:calibrate_joint (frozen outputs in
 tests/golden/experiment_record_model.json) and the inline
-``np.quantile(scores, 0.01)`` cutoffs, on the frozen record-scalar features (public_view_outputs)."""
+``np.quantile(scores, 0.01)`` cutoffs, on the frozen record-scalar features (tests/data_roots.py)."""
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from doctor_trigger.calibration import JointCalibration, joint_rejection, joint_thresholds, lower_tail_threshold
+from data_roots import OUTPUTS, requires, under
 from golden_values import digest, load
 
-OUTPUTS = Path("/ssd2/ming/ttf_run/public_view_outputs")
-FEATURES = OUTPUTS / "features_record_scalar/recordscalar_features.csv"
-pytestmark = pytest.mark.skipif(not FEATURES.exists(), reason="public_view not available")
+FEATURES = under(OUTPUTS, "features_record_scalar/recordscalar_features.csv")
+pytestmark = requires(FEATURES)
 
 
 @pytest.fixture(scope="module")

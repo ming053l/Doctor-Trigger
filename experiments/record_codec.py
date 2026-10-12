@@ -24,7 +24,7 @@ from PIL import Image
 from doctor_trigger.key import wrong_keys
 from doctor_trigger.manifests import read_cases
 from doctor_trigger.metrics import roc_auc
-from doctor_trigger.readings import SumForm, key_projection, phase_drift, spectral_agreement, wrong_key_displacement
+from doctor_trigger.readings import key_projection, phase_drift, spectral_agreement, wrong_key_displacement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import kappa_grid, luminance_phase
 
@@ -32,8 +32,6 @@ PAIR_COUNT = 150
 WRONG_KEY_COUNT = 4
 RING_KAPPA_MIN, RING_KAPPA_MAX = 0.10, 0.45
 SUBBAND_KAPPA_MAX = 0.15
-AGREEMENT_STABILIZER = 1e-8
-PROJECTION_STABILIZER = 1e-6
 VARIANTS = ["derive", "q84", "sub"]
 
 
@@ -100,14 +98,11 @@ for _, pair in pairs.iterrows():
         every_bin = np.ones(template.shape, dtype=bool)
         original_phase = template - displacement[kept]
         for name, phase in [("C_benign", benign_phase), ("C_swap", swap_phase)]:
-            readings[variant][name].append(spectral_agreement(phase[kept], template, amplitude, every_bin,
-                                                              stabilizer=AGREEMENT_STABILIZER, form=SumForm.WEIGHT_MAP))
+            readings[variant][name].append(spectral_agreement(phase[kept], template, amplitude, every_bin))
         drift = phase_drift(benign_phase[kept], original_phase)
-        readings[variant]["G"].append(key_projection(drift, displacement[kept], amplitude, every_bin,
-                                                     stabilizer=PROJECTION_STABILIZER))
+        readings[variant]["G"].append(key_projection(drift, displacement[kept], amplitude, every_bin))
         for wrong in wrong_displacements:
-            readings[variant]["G_wrong"].append(key_projection(drift, wrong[kept], amplitude, every_bin,
-                                                               stabilizer=PROJECTION_STABILIZER))
+            readings[variant]["G_wrong"].append(key_projection(drift, wrong[kept], amplitude, every_bin))
 
 print(f"{'variant':8s} {'KiB':>7s} {'det AUC':>8s} {'benH':>7s} {'keyAUC':>7s}")
 print(f"{'full':8s} {np.mean(sizes['full'])/1024:7.1f}    (shipped NPZ)")

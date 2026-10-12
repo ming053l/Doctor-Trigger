@@ -19,12 +19,12 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 from doctor_trigger import config, manifests
-from doctor_trigger.readings import SumForm, spectral_agreement
+from doctor_trigger.readings import spectral_agreement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import luminance_phase
 
 OUT = Path(config.path("outputs_root")) / "figures"; OUT.mkdir(parents=True, exist_ok=True)
-N, EPS = 24, 1e-12
+N = 24
 cases = manifests.read_cases(dataset="FF++", split="test", protocol="benign").head(N)
 
 records, query_phases = [], []
@@ -32,14 +32,14 @@ for case in cases.itertuples():
     records.append(load_record(case.doctor_trigger_template_path))
     query_phases.append(luminance_phase(np.asarray(Image.open(case.input_path).convert("RGB")), centered=True))
 
-# H of query i against record j (Eq. 5 with the original phase as reference), whole-grid weight
-# map with stabilizer 1e-12; a size mismatch leaves the cell empty
+# H of query i against record j (Eq. 5 with the original phase as reference); a size mismatch
+# leaves the cell empty
 agreement = np.full((N, N), np.nan)
 for i, query_phase in enumerate(query_phases):
     for j, record in enumerate(records):
         if query_phase.shape != record.shape: continue
         agreement[i, j] = spectral_agreement(query_phase, record.original_phase, record.amplitude_weights,
-                                             record.active_bins, stabilizer=EPS, form=SumForm.WEIGHT_MAP)
+                                             record.active_bins)
 matched = np.diag(agreement)
 mismatched = agreement[~np.eye(N, dtype=bool)]; mismatched = mismatched[np.isfinite(mismatched)]
 

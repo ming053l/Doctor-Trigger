@@ -11,19 +11,15 @@ import hashlib
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from PIL import Image
 import pytest
 
 from doctor_trigger import key as keymod
 from doctor_trigger.spectrum import kappa_grid, luminance_spectrum
+from data_roots import enrollment_subset
 from golden_values import digest, load
 
 REPO = Path(__file__).resolve().parents[1]
-CANONICAL_ENROLLMENTS = Path(
-    "/ssd2/huanghungkai/Doctor_Trigger_handoff_v2/workflow_v1/manifests/full_v1_enrollments.csv"
-)
-SUBSET_ENROLLMENTS = Path("/ssd2/ming/refactor_baseline/subset_enrollments.csv")
 SHAPES = [(256, 256), (268, 330), (569, 512), (7, 5), (1, 4), (2, 2)]
 KEYS = [0, 1, 17, 2**63 + 12345, 2**64 - 1, 0x9E3779B97F4A7C15]
 
@@ -31,9 +27,7 @@ KEYS = [0, 1, 17, 2**63 + 12345, 2**64 - 1, 0x9E3779B97F4A7C15]
 OLD_ENROLL = load("enroll_script")
 OLD_FEATURES = load("extract_features_script")
 
-subset = pd.read_csv(SUBSET_ENROLLMENTS)
-ROWS = pd.read_csv(CANONICAL_ENROLLMENTS).merge(subset[["enrollment_id"]], on="enrollment_id")
-ROWS = pd.concat([ROWS[ROWS.dataset == name].head(count) for name, count in {"FF++": 3, "DFDC": 3, "CelebDF": 2}.items()])
+ROWS = enrollment_subset({"FF++": 3, "DFDC": 3, "CelebDF": 2})
 ROW_LIST = list(ROWS.itertuples(index=False))
 
 

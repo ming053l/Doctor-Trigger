@@ -1,19 +1,18 @@
 """doctor_trigger.record_model against the code it replaces, on the shipped checkpoints.
 
 References (frozen outputs, see golden_values.py):
-* the former workflow/record_model/src/record_model.py: variant columns, in
+* the record-model library this module replaced: variant columns, in
   tests/golden/record_model_library.json
-* the record-model trainer's former standardize, fit and predict (now calls into this module):
+* the record-model trainer's standardize, fit and predict before they moved here:
   tests/golden/record_model_trainer.json
-* experiments/joint_policy.py load_models / predict (NaN -> column mean) and
-  experiments/copy_ring_canonical.py predict (NaN -> 0), now calls into this module: frozen outputs
-  in tests/golden/experiment_record_model.json
+* the experiments' own loaders, experiments/joint_policy.py load_models / predict (NaN -> column
+  mean) and experiments/ring_transplant.py predict (NaN -> 0): frozen outputs in
+  tests/golden/experiment_record_model.json
 Every comparison is exact (``np.array_equal`` / ``torch.equal``, or SHA-256 digests of the bytes).
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -21,15 +20,14 @@ import pytest
 import torch
 
 from doctor_trigger import record_model as rm
+from data_roots import OUTPUTS, PIPELINE_ROOT, skip_module_unless, under
 from golden_values import digest, frame_digest, load
 
-ROOT = Path("/ssd2/ming/ttf_run/public_view")
-OUTPUTS = Path("/ssd2/ming/ttf_run/public_view_outputs")
+skip_module_unless(under(PIPELINE_ROOT, "results/record_model/checkpoints"), OUTPUTS)
+ROOT = PIPELINE_ROOT
 CALIBRATED_CKPTS = ROOT / "results/record_model/checkpoints"
 RECORDSCALAR_RUN = OUTPUTS / "record_model_runs/recordscalar_ffpp"
 RECORDSCALAR_FEATURES = OUTPUTS / "features_record_scalar"
-
-pytestmark = pytest.mark.skipif(not CALIBRATED_CKPTS.exists(), reason="public_view checkpoints not available")
 
 
 @pytest.fixture(scope="module")
@@ -96,7 +94,7 @@ def test_joint_policy_and_copy_ring_predict(old_experiments):
             scores = rm.record_model_scores(fitted, df)
             assert digest(np.stack([scores["S_rel"], scores["S_key"]], axis=1)) == joint[f"{seed}|{frame_name}"]
 
-    # copy_ring_canonical.py: mean over the three seeds, NaN -> 0
+    # ring_transplant.py: mean over the three seeds, NaN -> 0
     for frame_name, df in frames.items():
         per_seed = [rm.record_model_scores(rm.load_checkpoint(str(checkpoint).format(s)), df, missing="zero")
                     for s in range(3)]

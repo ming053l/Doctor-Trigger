@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from PIL import Image
 import pytest
 from skimage.metrics import structural_similarity
@@ -30,20 +29,17 @@ from doctor_trigger.enrollment import (
 )
 from doctor_trigger.key import Ring
 from doctor_trigger.record import UnitId, save_record, stored_arrays
+from data_roots import ENROLLMENTS, enrollment_subset, requires
 from golden_values import digest, load
 
 REPO = Path(__file__).resolve().parents[1]
-CANONICAL_ENROLLMENTS = Path(
-    "/ssd2/huanghungkai/Doctor_Trigger_handoff_v2/workflow_v1/manifests/full_v1_enrollments.csv"
-)
-SUBSET_ENROLLMENTS = Path("/ssd2/ming/refactor_baseline/subset_enrollments.csv")
 
 
 OLD_ENROLL = load("enroll_script")
 
-subset = pd.read_csv(SUBSET_ENROLLMENTS)
-ALL_SUBSET_ROWS = pd.read_csv(CANONICAL_ENROLLMENTS).merge(subset[["enrollment_id"]], on="enrollment_id")
-ROWS = pd.concat([ALL_SUBSET_ROWS[ALL_SUBSET_ROWS.dataset == name].head(count) for name, count in {"FF++": 3, "DFDC": 3, "CelebDF": 2}.items()])
+NEEDS_ENROLLMENTS = requires(ENROLLMENTS)
+ALL_SUBSET_ROWS = enrollment_subset()
+ROWS = enrollment_subset({"FF++": 3, "DFDC": 3, "CelebDF": 2})
 ROW_LIST = list(ROWS.itertuples(index=False))
 SETTINGS = EnrollmentSettings()
 
@@ -97,6 +93,7 @@ def test_enroll_reproduces_canonical_files(row, tmp_path):
     assert result.ssim == float(structural_similarity(original, reread, channel_axis=2, data_range=255))
 
 
+@NEEDS_ENROLLMENTS
 def test_ladder_steps_down_like_enroll_script(tmp_path):
     # The alpha loop of workflow/scripts/enroll.py:process_enrollment on the ladder below.
     row = ROW_LIST[0]
@@ -112,6 +109,7 @@ def test_ladder_steps_down_like_enroll_script(tmp_path):
         assert digest(new_arrays[name]) == array_digest, name
 
 
+@NEEDS_ENROLLMENTS
 def test_rejection_reason_matches_enroll_script():
     row = ROW_LIST[3]
     original = original_of(row)
@@ -121,6 +119,7 @@ def test_rejection_reason_matches_enroll_script():
     assert f"{type(raised.value).__name__}:{raised.value}" == OLD_ENROLL["rejection"]
 
 
+@NEEDS_ENROLLMENTS
 def test_enroll_many_streams_outcomes():
     rows = ROW_LIST[:2]
     requests = ((UnitId(str(row.sample_id)), original_of(row), alpha_ladder(row.dataset)) for row in rows)
@@ -134,6 +133,7 @@ def test_enroll_many_streams_outcomes():
         assert outcome.unit == unit and outcome.released.tobytes() == single.released.tobytes()
 
 
+@NEEDS_ENROLLMENTS
 def test_fidelity_gate_and_metrics():
     assert passes_fidelity_gate(35.0, 0.98, SETTINGS)
     assert not passes_fidelity_gate(34.999, 0.99, SETTINGS)
@@ -145,6 +145,7 @@ def test_fidelity_gate_and_metrics():
     assert ssim(image, noisy) == float(structural_similarity(image, noisy, channel_axis=2, data_range=255))
 
 
+@NEEDS_ENROLLMENTS
 def test_video_units_are_not_enrolled():
     with pytest.raises(ValueError):
         enroll(original_of(ROW_LIST[0]), UnitId("asset", frame_index=0), DEFAULT_ALPHA_LADDER)

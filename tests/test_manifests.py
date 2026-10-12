@@ -1,28 +1,25 @@
-"""doctor_trigger.manifests against the pasted pandas filters it replaces, on public_view.
+"""doctor_trigger.manifests against the pasted pandas filters it replaces, on a pipeline root.
 
 Each reference below is a filter copied from an experiment (file noted); the loader must return
 an identical DataFrame (same rows, order, index, dtypes). ``sha256_file`` must equal the
-workflow's chunked hasher and the hashes recorded in cases.csv.
+whole-file SHA-256 and the hashes recorded in cases.csv.
 """
 
 from __future__ import annotations
 
 import hashlib
-import importlib.util
-import sys
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
+from data_roots import PIPELINE_ROOT, requires, under
 from doctor_trigger import config, manifests
 
-REPO = Path(__file__).resolve().parents[1]
-ROOT = Path("/ssd2/ming/ttf_run/public_view")
-CASES = ROOT / "common/cases.csv"
-QUERIES = ROOT / "manifests/queries.csv"
+ROOT = PIPELINE_ROOT
+CASES = under(ROOT, "common/cases.csv")
+QUERIES = under(ROOT, "manifests/queries.csv")
 
-pytestmark = pytest.mark.skipif(not CASES.exists(), reason="public_view not available")
+pytestmark = requires(CASES, QUERIES)
 
 
 @pytest.fixture(scope="module")
@@ -43,7 +40,7 @@ def same(a: pd.DataFrame, b: pd.DataFrame) -> None:
 def test_case_filters(cases):
     new = lambda **kw: manifests.read_cases(CASES, **kw)  # noqa: E731
     same(new(), cases)
-    same(new(split="test", dataset="FF++"), cases[(cases.split == "test") & (cases.dataset == "FF++")])  # benign_canonical
+    same(new(split="test", dataset="FF++"), cases[(cases.split == "test") & (cases.dataset == "FF++")])  # benign_channels
     same(new(dataset="FF++", split="test", protocol="benign"),
          cases[(cases.dataset == "FF++") & (cases.split == "test") & (cases.protocol == "benign")])  # build_fig_keymatch
     same(new(split="test", protocol="benign"), cases[(cases.split == "test") & (cases.protocol == "benign")])  # release_evidence
@@ -59,7 +56,7 @@ def test_query_filters(queries):
     new = lambda **kw: manifests.read_queries(QUERIES, **kw)  # noqa: E731
     same(new(), man)
     same(new(dataset="FF++", split="test", protocol="swap"),
-         man[(man.dataset == "FF++") & (man.split == "test") & (man.protocol == "swap")])  # copy_ring_canonical
+         man[(man.dataset == "FF++") & (man.split == "test") & (man.protocol == "swap")])  # ring_transplant
     same(new(dataset="FF++", split="train", protocol="benign").head(200),
          man[(man.dataset == "FF++") & (man.split == "train") & (man.protocol == "benign")].head(200))
     same(new(dataset="FF++", split="test"), man[(man.dataset == "FF++") & (man.split == "test")])  # adaptive_attacks
@@ -76,15 +73,7 @@ def test_queries_path_comes_from_config(tmp_path, monkeypatch):
 
 
 def test_sha256_file(cases):
-    spec = importlib.util.spec_from_file_location("old_finalize_receipt", REPO / "workflow/scripts/finalize_receipt.py")
-    sys.path.insert(0, str(REPO / "workflow"))
-    try:
-        old = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(old)
-    finally:
-        sys.path.remove(str(REPO / "workflow"))
-    assert manifests.sha256_file(CASES) == old.sha256_file(CASES)
-    assert manifests.sha256_file(CASES) == hashlib.sha256(CASES.read_bytes()).hexdigest()  # table4 variant
+    assert manifests.sha256_file(CASES) == hashlib.sha256(CASES.read_bytes()).hexdigest()
     for row in cases.head(5).itertuples():
         assert manifests.sha256_file(row.input_path) == row.input_sha256
         assert manifests.sha256_file(row.doctor_trigger_template_path) == row.doctor_trigger_template_sha256

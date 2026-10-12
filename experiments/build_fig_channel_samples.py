@@ -21,7 +21,7 @@ from PIL import Image
 from doctor_trigger import config, manifests
 from doctor_trigger.calibration import lower_tail_threshold
 from doctor_trigger.channels import jpeg
-from doctor_trigger.readings import SumForm, spectral_agreement
+from doctor_trigger.readings import spectral_agreement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import luminance_phase, subband_b
 
@@ -37,13 +37,12 @@ def rgb(path):
 
 def subband_agreement(image, record_path):
     """C_B: amplitude-weighted cosine against the template T_I on K_eff within sub-band B (Eq. 5),
-    summed over the uncentered grid with stabilizer 1e-8."""
+    read in the uncentered layout."""
     record = load_record(record_path)
     template = np.fft.ifftshift(record.template_phase)
     bins = np.fft.ifftshift(record.active_bins) & subband_b(record.shape, centered=False)
     return spectral_agreement(luminance_phase(image, centered=False), template,
-                              np.fft.ifftshift(record.amplitude_weights), bins,
-                              stabilizer=1e-8, form=SumForm.WEIGHT_MAP)
+                              np.fft.ifftshift(record.amplitude_weights), bins)
 
 
 queries = manifests.read_queries()

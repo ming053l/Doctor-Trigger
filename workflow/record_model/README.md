@@ -23,6 +23,3 @@ Outputs under `output_dir`: `checkpoints/<variant>_seed<k>_<run>.pt`,
 `scores/<run>_<variant>_seed<k>_<eval>_scores.csv` (S_fake, S_rel, S_key and the targets per query),
 `metrics/record_model_release_<run>_metrics.csv` (AUC, EER, TPR at FPR 1e-2/1e-3/1e-4 per score)
 and `matrix/` (run manifest and seed-mean summary).
-
-`src/` holds the earlier record-model and reading code that the tests in `tests/` compare
-`doctor_trigger` against; the pipeline does not use it.

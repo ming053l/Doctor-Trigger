@@ -22,9 +22,9 @@ from PIL import Image
 from doctor_trigger import config
 from doctor_trigger.manifests import read_queries, select
 from doctor_trigger.metrics import robust_z, roc_auc
-from doctor_trigger.readings import SumForm, spectral_agreement
+from doctor_trigger.readings import spectral_agreement, subband_bins
 from doctor_trigger.record import load_record
-from doctor_trigger.spectrum import luminance_phase, subband_b
+from doctor_trigger.spectrum import luminance_phase
 from experiments.shared.image_only_detector import checkpoint_path, image_only_score, load_image_only_detector
 
 OUT = Path(config.path("outputs_root")) / "copy_ring"
@@ -32,7 +32,6 @@ TEST_COUNT = int(os.environ.get("DT_COPY_N", "200"))
 CALIBRATION_COUNT = 200
 DATASET = os.environ.get("DT_COPY_DATASET", "FF++")      # target corpus; the detector stays FF++-trained
 SUFFIX = "" if DATASET == "FF++" else "_" + DATASET.lower().replace("+", "p")
-SUBBAND_STABILIZER = 1e-8
 EXAMPLE_COUNT = 4
 
 # the FF++-trained deployed detector (IMAGE_DETECTOR_CKPT is not consulted here)
@@ -56,15 +55,9 @@ def transplant(query, donor, mask_centered):
 
 
 def relation_error(image, record):
-    """1 - C_B against the stored template, summed in the unshifted layout."""
-    agreement = spectral_agreement(
-        luminance_phase(image, centered=False),
-        np.fft.ifftshift(record.template_phase),
-        np.fft.ifftshift(record.amplitude_weights),
-        np.fft.ifftshift(record.active_bins) & subband_b(record.shape, centered=False),
-        stabilizer=SUBBAND_STABILIZER,
-        form=SumForm.WEIGHT_MAP,
-    )
+    """1 - C_B against the stored template."""
+    agreement = spectral_agreement(luminance_phase(image, centered=True), record.template_phase,
+                                   record.amplitude_weights, subband_bins(record))
     return 1.0 - agreement
 
 

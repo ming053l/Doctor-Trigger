@@ -13,12 +13,11 @@ from PIL import Image
 from doctor_trigger.channels import apply_channel
 from doctor_trigger.manifests import read_cases
 from doctor_trigger.metrics import roc_auc
-from doctor_trigger.readings import SumForm, amplitude_weighted_mean
+from doctor_trigger.readings import amplitude_weighted_mean
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import kappa_grid, luminance_phase, wrap_phase
 
 N = 150
-STABILIZER = 1e-8
 
 te = read_cases(dataset="FF++", split="test")
 ben = te[te.protocol == "benign"].drop_duplicates("enrollment_id")[
@@ -31,7 +30,7 @@ CHANNELS = ["blur_k7", "x264_crf35", "jpeg_q50"]
 scores = {(c, k): {"b": [], "f": []} for c in CHANNELS for k in CUTS}
 for _, q in pool.iterrows():
     record = load_record(q.doctor_trigger_template_path)
-    # uncentered layout: the weight-map sums below run in this order
+    # uncentered layout
     template = np.fft.ifftshift(record.template_phase)
     active = np.fft.ifftshift(record.active_bins)
     weights = np.fft.ifftshift(record.amplitude_weights)
@@ -47,7 +46,7 @@ for _, q in pool.iterrows():
             bins = active & (kappa <= k)
             for values, side in ((cos_benign, "b"), (cos_fake, "f")):
                 scores[(ch, k)][side].append(amplitude_weighted_mean(
-                    values, weights, bins, stabilizer=STABILIZER, form=SumForm.WEIGHT_MAP))
+                    values, weights, bins))
 
 print(f"{'channel':11s}" + "".join(f"  cut<={k:.2f}" for k in CUTS) + "   (AUC, benign-H mean)")
 for ch in CHANNELS:

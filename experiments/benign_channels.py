@@ -16,12 +16,11 @@ from PIL import Image
 from doctor_trigger.channels import apply_channel
 from doctor_trigger.manifests import read_cases
 from doctor_trigger.metrics import roc_auc
-from doctor_trigger.readings import SizeMismatch, SumForm, query_phase, spectral_agreement
+from doctor_trigger.readings import SizeMismatch, query_phase, spectral_agreement
 from doctor_trigger.record import load_record
 from experiments.shared.image_only_detector import deployed_checkpoint_path, image_only_score, load_image_only_detector
 
 DEVICE = "cuda"
-STABILIZER = 1e-12
 DATASET = sys.argv[1] if len(sys.argv) > 1 else "FF++"
 CHANNELS = ["clean", "jpeg_q90", "jpeg_q70", "jpeg_q50", "blur_k7", "x264_crf30", "x264_crf35", "x264_crf40", "scale_0.5"]
 FAMILIES = {"JPEG": ["jpeg_q90", "jpeg_q70", "jpeg_q50"], "blur": ["blur_k7"],
@@ -32,11 +31,10 @@ image_detector = load_image_only_detector(deployed_checkpoint_path(DATASET), DEV
 
 
 def original_reference_agreement(image, record_path):
-    """Full-ring H of a query against its record (weight-map summation, stabilizer 1e-12)."""
+    """Full-ring H of a query against its record."""
     record = load_record(record_path)
     phase = query_phase(image, record.shape, SizeMismatch.RESIZE, centered=True)
-    return spectral_agreement(phase, record.original_phase, record.amplitude_weights, record.active_bins,
-                              stabilizer=STABILIZER, form=SumForm.WEIGHT_MAP)
+    return spectral_agreement(phase, record.original_phase, record.amplitude_weights, record.active_bins)
 
 
 results = {}

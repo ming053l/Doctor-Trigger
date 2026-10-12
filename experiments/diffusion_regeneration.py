@@ -26,7 +26,7 @@ from PIL import Image
 from doctor_trigger import config
 from doctor_trigger.manifests import read_queries
 from doctor_trigger.metrics import robust_z, roc_auc
-from doctor_trigger.readings import SumForm, spectral_agreement
+from doctor_trigger.readings import spectral_agreement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import luminance_phase, subband_b
 from experiments.shared.image_only_detector import checkpoint_path, image_only_score, load_image_only_detector
@@ -55,9 +55,9 @@ def record_arrays(tp):
 
 
 def template_mismatch(img, tm, w, bins):
-    """1 - C_B (whole-grid sum in the cosine's memory layout, stabilizer 1e-8)."""
+    """1 - C_B."""
     ph = luminance_phase(np.asarray(img.convert("RGB")), centered=False)
-    return 1.0 - spectral_agreement(ph, tm, w, bins, stabilizer=1e-8, form=SumForm.WEIGHT_MAP_VALUE_LAYOUT)
+    return 1.0 - spectral_agreement(ph, tm, w, bins)
 
 
 @torch.no_grad()

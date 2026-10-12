@@ -175,7 +175,7 @@ features-record-scalar:
   paper: 'record-model inputs: C from the stored template, key projections divided by 9 release scalars
     stored at enrollment'
 record-model-recordscalar:
-  cmd: python scripts/train_eval_record_model_matrix.py --config {repo_root}/configs/record_model/recordscalar_{pin}_to_all.yaml
+  cmd: python train_record_model.py --config {repo_root}/configs/record_model/recordscalar_{pin}_to_all.yaml
   cwd: '{repo_root}/workflow/record_model'
   impl: migrated
   needs: features-record-scalar

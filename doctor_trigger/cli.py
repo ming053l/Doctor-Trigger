@@ -12,9 +12,11 @@
 directory (``cwd``), shell command (``cmd``), outputs and notes; ``{placeholders}`` are filled from
 config.yaml (``doctor_trigger.config``) and from ``k=v`` arguments. ``reproduce`` exports the
 ``DT_*`` path variables (for the workflow shell scripts and peer subprocesses that read paths from
-the environment), puts this Python first on PATH, maps ``head=<tag>`` / ``plain_head=<tag>`` to
-``IMAGE_DETECTOR_CKPT`` (the image-only detector checkpoint) and runs the command through the shell
-in its working directory. ``run`` is accepted as another name for ``reproduce``.
+the environment), puts this Python first on PATH and the repository root first on PYTHONPATH (so
+the commands run from a fresh clone without installing the package), maps ``head=<tag>`` /
+``plain_head=<tag>`` to ``IMAGE_DETECTOR_CKPT`` (the image-only detector checkpoint) and runs the
+command through the shell in its working directory. ``run`` is accepted as another name for
+``reproduce``.
 """
 
 from __future__ import annotations
@@ -84,6 +86,9 @@ def reproduce_environment(cfg: config.Config, extra: Mapping[str, str]) -> dict[
     for name, value in cfg.environment().items():
         env.setdefault(name, value)
     env["PATH"] = os.path.dirname(sys.executable) + os.pathsep + env.get("PATH", "")
+    # The commands import doctor_trigger, experiments.* and workflow.* from this checkout, so they
+    # run from a fresh clone without ``pip install -e .``.
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(config.REPO_ROOT), env.get("PYTHONPATH")]))
     if "head" in extra:            # deployed image-only detector (augmentation recipe)
         env["IMAGE_DETECTOR_CKPT"] = os.path.join(cfg.path("checkpoints.image_detector_aug"), extra["head"],
                                                   "best_val_auc.pt")

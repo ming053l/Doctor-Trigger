@@ -18,11 +18,12 @@ authors = [
     { name = "Chih-Chung Hsu" },
 ]
 # The method itself (spectrum, key, record, enrollment, readings, calibration, decision, channels,
-# config, manifests) needs only these.
+# metrics, config, manifests) needs only these.
 dependencies = [
     "numpy",
     "pillow",
     "scikit-image",
+    "scikit-learn",
     "pyyaml",
     "pandas",
 ]
@@ -30,15 +31,18 @@ dependencies = [
 [project.optional-dependencies]
 # the record model f_θ (doctor_trigger.record_model)
 record-model = ["torch"]
-# experiments: image-only detector, ArcFace control, metrics, swap engines
+# experiments and the pipeline: image-only detector (and its augmentation), ArcFace control, face
+# alignment, swap engines, diffusion regeneration, figures
 experiments = [
     "torch",
     "torchvision",
-    "scikit-learn",
+    "albumentations",
     "insightface",
     "onnxruntime-gpu",
     "opencv-python",
     "matplotlib",
+    "diffusers",
+    "munch",
 ]
 test = ["pytest"]
 

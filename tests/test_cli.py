@@ -133,6 +133,20 @@ def test_reproduce_environment(monkeypatch):
     assert env["IMAGE_DETECTOR_CKPT"] == os.path.join(cfg.path("checkpoints.image_detector"), "dfdc", "best_val_auc.pt")
     assert env["PATH"].startswith(os.path.dirname(sys.executable) + os.pathsep)
     assert "IMAGE_DETECTOR_CKPT" not in cli.reproduce_environment(cfg, {})
+    monkeypatch.setenv("PYTHONPATH", "/elsewhere")
+    assert cli.reproduce_environment(cfg, {})["PYTHONPATH"] == f"{config.REPO_ROOT}{os.pathsep}/elsewhere"
+    monkeypatch.delenv("PYTHONPATH")
+    assert cli.reproduce_environment(cfg, {})["PYTHONPATH"] == str(config.REPO_ROOT)
+
+
+def test_reproduce_imports_the_package_without_installing(tmp_path, monkeypatch):
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    cfg = config.load_config(REPO / "config.example.yaml")
+    marker = tmp_path / "module.txt"
+    registry = {"probe": {"cwd": str(tmp_path), "cmd": f"{sys.executable} -c \"import doctor_trigger; "
+                          f"open('{marker}','w').write(doctor_trigger.__file__)\""}}
+    assert cli.cmd_reproduce(registry, "probe", [], cfg) == 0
+    assert marker.read_text() == str(REPO / "doctor_trigger" / "__init__.py")
 
 
 # ----------------------------------------------------------------------------- method commands

@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import pytest
 
+from data_roots import ENROLLMENTS, PIPELINE_ROOT, enrollment_subset, requires, under
 from doctor_trigger.key import Ring
 from doctor_trigger.record import (
     RecordStore,
@@ -18,17 +18,10 @@ from doctor_trigger.record import (
     save_record,
 )
 
-CANONICAL_ENROLLMENTS = Path(
-    "/ssd2/huanghungkai/Doctor_Trigger_handoff_v2/workflow_v1/manifests/full_v1_enrollments.csv"
-)
-SUBSET_ENROLLMENTS = Path("/ssd2/ming/refactor_baseline/subset_enrollments.csv")
-PUBLIC_VIEW_TEMPLATES = Path("/ssd2/ming/ttf_run/public_view/private/templates")
+PUBLIC_VIEW_TEMPLATES = under(PIPELINE_ROOT, "private/templates")
 
-subset = pd.read_csv(SUBSET_ENROLLMENTS)
-ALL_SUBSET_ROWS = pd.read_csv(CANONICAL_ENROLLMENTS).merge(subset[["enrollment_id"]], on="enrollment_id")
-ROWS = pd.concat(
-    [ALL_SUBSET_ROWS[ALL_SUBSET_ROWS.dataset == name].head(count) for name, count in {"FF++": 3, "DFDC": 3, "CelebDF": 2}.items()]
-)
+ALL_SUBSET_ROWS = enrollment_subset()
+ROWS = enrollment_subset({"FF++": 3, "DFDC": 3, "CelebDF": 2})
 ROW_LIST = list(ROWS.itertuples(index=False))
 
 
@@ -65,11 +58,13 @@ def test_save_record_round_trip_is_byte_identical(row, tmp_path):
         assert getattr(again, name) == getattr(record, name)
 
 
+@requires(ENROLLMENTS)
 def test_enrollment_id_matches_manifest():
     for row in ALL_SUBSET_ROWS.itertuples(index=False):
         assert enrollment_id(str(row.sample_id)) == row.enrollment_id
 
 
+@requires(ENROLLMENTS, PUBLIC_VIEW_TEMPLATES)
 def test_record_store_matches_today_layout():
     units = [(UnitId(str(row.sample_id)), row.dataset, row.split) for row in ALL_SUBSET_ROWS.itertuples(index=False)]
     canonical_root = Path(ALL_SUBSET_ROWS.iloc[0].template_artifact).parents[2]

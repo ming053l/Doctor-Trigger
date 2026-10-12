@@ -42,7 +42,6 @@ ENVIRONMENT_KEYS: dict[str, str] = {
     "DT_MODEL_SNAPSHOT": "model_snapshot",
     "DT_PEERS_ROOT": "peers_root",
     "DT_CKPTS_ROOT": "ckpts_root",
-    "DT_LEGACY_OUTPUTS": "legacy_outputs",
     "DT_IMAGE_DETECTOR": "checkpoints.image_detector",
     "DT_IMAGE_DETECTOR_AUG": "checkpoints.image_detector_aug",
     "DT_ENGINE_CACHE": "engine_cache",
@@ -51,7 +50,6 @@ ENVIRONMENT_KEYS: dict[str, str] = {
     "DT_MANIFEST_FFPP": "source_manifests.ffpp",
     "DT_MANIFEST_DFDC": "source_manifests.dfdc",
     "DT_MANIFEST_CELEBDF": "source_manifests.celebdf",
-    "DT_PAPER_REPO": "paper_repo",
     "DT_LEGACY_TRIGGER_GLOB": "legacy_trigger_glob",
     "DT_RECORD_MODEL_RUNS": "record_model_runs",
 }

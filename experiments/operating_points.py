@@ -21,13 +21,12 @@ from PIL import Image
 from doctor_trigger import config
 from doctor_trigger.manifests import read_queries, select
 from doctor_trigger.metrics import roc_auc, tpr_at_fpr
-from doctor_trigger.readings import SumForm, spectral_agreement
+from doctor_trigger.readings import spectral_agreement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import luminance_phase, subband_b
 
 OUT = Path(config.path("outputs_root"))
 ENGINE_CACHE = Path(config.path("engine_cache"))
-SUBBAND_STABILIZER = 1e-8
 
 
 def relation_error(image_and_record):
@@ -39,8 +38,7 @@ def relation_error(image_and_record):
     if phase.shape != template.shape:
         return np.nan
     bins = np.fft.ifftshift(record.active_bins) & subband_b(record.shape, centered=False)
-    agreement = spectral_agreement(phase, template, np.fft.ifftshift(record.amplitude_weights), bins,
-                                   stabilizer=SUBBAND_STABILIZER, form=SumForm.WEIGHT_MAP_VALUE_LAYOUT)
+    agreement = spectral_agreement(phase, template, np.fft.ifftshift(record.amplitude_weights), bins)
     return 1.0 - agreement
 
 

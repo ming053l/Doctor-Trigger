@@ -37,7 +37,6 @@ from experiments.shared.face_identity import face_analysis, identity_embedding, 
 CAL_PER_DATASET = int(sys.argv[1]) if len(sys.argv) > 1 else 100
 TEST_COUNT = 400
 OUT = Path(config.path("outputs_root")) / f"original_control_cal{CAL_PER_DATASET}"
-AGREEMENT_STABILIZER = 1e-12
 
 
 def main():
@@ -66,8 +65,8 @@ def main():
             rows.append(dict(
                 enrollment_id=case.enrollment_id, dataset=case.dataset, source_group_id=case.source_group_id,
                 cohort=case.cohort, kind=kind,
-                H=spectral_agreement(phase, original_phase, weights, active, stabilizer=AGREEMENT_STABILIZER),
-                C=spectral_agreement(phase, template_phase, weights, active, stabilizer=AGREEMENT_STABILIZER),
+                H=spectral_agreement(phase, original_phase, weights, active),
+                C=spectral_agreement(phase, template_phase, weights, active),
                 G_s=release_normalized(key_projection(phase_drift(phase, original_phase), displacement, weights, active),
                                        template_projection),
                 ssim=float(structural_similarity(np.asarray(image.convert("L")), released_gray, data_range=255)),

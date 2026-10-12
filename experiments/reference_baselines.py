@@ -23,17 +23,15 @@ from skimage.metrics import structural_similarity as ssim
 from doctor_trigger import config
 from doctor_trigger.manifests import read_cases
 from doctor_trigger.metrics import roc_auc
-from doctor_trigger.readings import SizeMismatch, SumForm, query_phase, spectral_agreement
+from doctor_trigger.readings import SizeMismatch, query_phase, spectral_agreement
 from doctor_trigger.record import load_record
 from experiments.shared.face_identity import face_analysis, identity_embedding, identity_similarity
 
-AGREEMENT_STABILIZER = 1e-8
 
 
 def agreement_with(phase, record, reference_phase):
-    """Spectral agreement of a query phase with one stored reference phase (weight-map form)."""
-    return spectral_agreement(phase, reference_phase, record.amplitude_weights, record.active_bins,
-                              stabilizer=AGREEMENT_STABILIZER, form=SumForm.WEIGHT_MAP)
+    """Spectral agreement of a query phase with one stored reference phase."""
+    return spectral_agreement(phase, reference_phase, record.amplitude_weights, record.active_bins)
 
 
 face = face_analysis()

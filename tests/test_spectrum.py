@@ -10,18 +10,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from PIL import Image
 import pytest
 
 from doctor_trigger import spectrum
+from data_roots import enrollment_subset
 from golden_values import digest, load
 
 REPO = Path(__file__).resolve().parents[1]
-CANONICAL_ENROLLMENTS = Path(
-    "/ssd2/huanghungkai/Doctor_Trigger_handoff_v2/workflow_v1/manifests/full_v1_enrollments.csv"
-)
-SUBSET_ENROLLMENTS = Path("/ssd2/ming/refactor_baseline/subset_enrollments.csv")
 SHAPES = [(256, 256), (268, 330), (569, 512), (7, 5), (1, 4)]
 
 
@@ -29,13 +25,7 @@ OLD_ENROLL = load("enroll_script")
 OLD_FEATURES = load("extract_features_script")
 
 
-def subset_rows(per_dataset: dict[str, int]) -> pd.DataFrame:
-    subset = pd.read_csv(SUBSET_ENROLLMENTS)
-    rows = pd.read_csv(CANONICAL_ENROLLMENTS).merge(subset[["enrollment_id"]], on="enrollment_id")
-    return pd.concat([rows[rows.dataset == name].head(count) for name, count in per_dataset.items()])
-
-
-ROWS = subset_rows({"FF++": 3, "DFDC": 3, "CelebDF": 2})
+ROWS = enrollment_subset({"FF++": 3, "DFDC": 3, "CelebDF": 2})
 
 
 @pytest.fixture(scope="module", params=list(ROWS.itertuples(index=False)), ids=lambda row: row.enrollment_id)

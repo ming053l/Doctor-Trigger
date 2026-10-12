@@ -18,7 +18,7 @@ mpl.rcParams.update({"font.family": "Liberation Serif",
                      "mathtext.fontset": "dejavuserif", "pdf.fonttype": 42})
 from doctor_trigger import config, manifests
 from doctor_trigger.key import displacement, wrong_keys
-from doctor_trigger.readings import SumForm, key_projection, phase_drift, wrong_key_displacement
+from doctor_trigger.readings import key_projection, phase_drift, wrong_key_displacement
 from doctor_trigger.record import load_record
 from doctor_trigger.spectrum import luminance_phase
 
@@ -38,8 +38,8 @@ wrong_delta = wrong_key_displacement(record, wrong_keys(record.key, 1)[0])
 
 
 def projection(displacement_map):
-    """G_s (Eq. 6) on the active bins, whole-grid weight map, eps_0 = 1e-12."""
-    return key_projection(drift, displacement_map, weights, active, form=SumForm.WEIGHT_MAP)
+    """G_s (Eq. 6) on the active bins."""
+    return key_projection(drift, displacement_map, weights, active)
 g_correct, g_wrong = projection(delta), projection(wrong_delta)
 
 # central 220 x 220 bins of the shifted spectrum
