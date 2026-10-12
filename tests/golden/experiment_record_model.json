@@ -1,0 +1,41 @@
+{
+ "source": "experiments/joint_policy.py and experiments/copy_ring_canonical.py at afa157b",
+ "calibrate_joint": {
+  "CelebDF": {
+   "thresholds": "afdbdf268dc06425ad7e05760c4ddb420efd6ff7d08ff3c798e3c2290c16c744",
+   "quantile": 0.009983361064893203,
+   "calibration_rejection": 0.00997506234413965
+  },
+  "DFDC": {
+   "thresholds": "9c90deea9d3899899165d7a3255e9766896c73c30ec0929e42a81a4da56a7ea1",
+   "quantile": 0.009499683343888904,
+   "calibration_rejection": 0.00949367088607595
+  },
+  "FF++": {
+   "thresholds": "3edf259f035b1adcda3f42013778c25f079540705e09ed6272be88f8dd95326d",
+   "quantile": 0.009623797025378819,
+   "calibration_rejection": 0.009615384615384616
+  },
+  "learned_like": {
+   "thresholds": "68fc6bf5988ebc76a71ba339fb75d8c1a2a1dae54005b3e165f02b31c2de0348",
+   "quantile": 0.004008016032064133,
+   "calibration_rejection": 0.01
+  }
+ },
+ "joint_policy_predict": {
+  "0|frame": "844d15fccdabe09259ecbede34788b0ff59c86ac8d72c62a6496c1253748e8bb",
+  "0|with_nan": "b165362f4d2d66271249d4d802239f8d86e0304a0923c28cd9608e7cf2e5c395",
+  "1|frame": "96376957347f9e93436665050f760967f2f478cb3c23efe7268adeaa83ec22e2",
+  "1|with_nan": "82dca285cf8b5165ea0a9063e0f35bb185a523b975adb862b45c11c2c4eaf3f3",
+  "2|frame": "e98303bad1655b9f4afa25734510f41484c0dbad45cacc18c6dfb9bb03f8cb73",
+  "2|with_nan": "2eebd634204c650ded09050359136272cb47512f75319b04c0217140d0a3e438"
+ },
+ "copy_ring_predict": {
+  "frame|S_rel": "c444d9a951c2f0d9d3c82eaa805a66f2fb1819d286a9e7ea55cb75d84907f135",
+  "frame|S_key": "720403ace9f32b868b90e0d7daafd6de78cd2c1d78e0ca08155e3c22e12ec23a",
+  "frame|S_fake": "fbb63f51a42b648ad152ac6e6ea3f2ba42f5aeef3e38ff3be7ce0a974f5f2035",
+  "with_nan|S_rel": "5c861a681c81260fb99ac87e44641776379ef1eba93b75773cfd76a30dec19c8",
+  "with_nan|S_key": "c2d88cecafd18a2e38eaa02d29736ccdbfce3558f58fcecf225b4f198fe1f733",
+  "with_nan|S_fake": "f38ce8c458ec04e6d59347cb24a79029836d4c1cb291f8d50e4a21843f355f58"
+ }
+}

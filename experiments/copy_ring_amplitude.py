@@ -9,9 +9,9 @@ that check by construction but writes the released face's ring content back into
 its cost is reported as PSNR against the manipulated image and against the release.
 
 Per corpus (FF++, CelebDF, DFDC): 200 test manipulated queries, thresholds at 1% FPR on 200 train releases.
-Env: DT_CANON_ROOT, DT_OUTPUTS, optional DT_COPY_N. Writes $DT_OUTPUTS/copy_ring/amplitude_{per_query,summary}.csv.
+Paths: config.yaml (queries_csv, outputs_root); optional env DT_COPY_N. Writes $DT_OUTPUTS/copy_ring/amplitude_{per_query,summary}.csv.
 """
-import os
+import os, sys
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -19,18 +19,20 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
-R = os.environ["DT_CANON_ROOT"]
-OUT = Path(os.environ["DT_OUTPUTS"]) / "copy_ring"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root: doctor_trigger
+from doctor_trigger import config  # noqa: E402
+from doctor_trigger.manifests import read_queries, select  # noqa: E402
+from doctor_trigger.readings import SumForm, spectral_agreement  # noqa: E402
+from doctor_trigger.record import load_record  # noqa: E402
+from doctor_trigger.spectrum import luminance_spectrum, subband_b  # noqa: E402
+
+OUT = Path(config.path("outputs_root")) / "copy_ring"
 N = int(os.environ.get("DT_COPY_N", "200"))
-CUT = 0.15
+SUBBAND_STABILIZER = 1e-8
 
 
 def rgb(p):
     return np.asarray(Image.open(p).convert("RGB"), dtype=np.float64)
-
-
-def lum_fft(a):
-    return np.fft.fft2(0.299 * a[:, :, 0] + 0.587 * a[:, :, 1] + 0.114 * a[:, :, 2])
 
 
 def transplant(query, donor, m, magnitude):
@@ -44,10 +46,10 @@ def transplant(query, donor, m, magnitude):
 
 
 def scores(a, rec):
-    f = lum_fft(a)
-    r = np.cos((np.angle(f) - rec["tm"] + np.pi) % (2 * np.pi) - np.pi)
-    w = np.where(rec["sub"], rec["amp"], 0.0)
-    out = {"rel_err": 1.0 - float(np.sum(r * w) / (np.sum(w) + 1e-8))}
+    f = luminance_spectrum(a)
+    agreement = spectral_agreement(np.angle(f), rec["tm"], rec["amp"], rec["sub"],
+                                   stabilizer=SUBBAND_STABILIZER, form=SumForm.WEIGHT_MAP)
+    out = {"rel_err": 1.0 - agreement}
     la = np.log1p(np.abs(f))
     for name, m in (("amp_err_ring", rec["sup"]), ("amp_err_sub", rec["sub"])):
         out[name] = 1.0 - float(np.corrcoef(la[m], rec["lamp"][m])[0, 1])
@@ -55,13 +57,12 @@ def scores(a, rec):
 
 
 def load_rec(tp):
-    with np.load(tp) as z:
-        sup = np.fft.ifftshift(z["support"].astype(bool))
-        amp = np.fft.ifftshift(z["host_amplitude"].astype(np.float64))
-        tm = np.fft.ifftshift(z["template_phase"].astype(np.float64))
-    fy = np.fft.fftfreq(sup.shape[0]).reshape(-1, 1)
-    fx = np.fft.fftfreq(sup.shape[1]).reshape(1, -1)
-    sub = sup & (np.sqrt(fy * fy + fx * fx) / np.sqrt(0.5) <= CUT)
+    """Record arrays in the unshifted layout, with K_eff and its sub-band B."""
+    record = load_record(tp)
+    sup = np.fft.ifftshift(record.active_bins)
+    amp = np.fft.ifftshift(record.amplitude_weights)
+    tm = np.fft.ifftshift(record.template_phase)
+    sub = sup & subband_b(record.shape, centered=False)
     return dict(sup=sup, sub=sub, amp=amp, lamp=np.log1p(amp), tm=tm)
 
 
@@ -86,12 +87,11 @@ def work_cal(q):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    man = pd.read_csv(f"{R}/manifests/queries.csv")
-    man = man[man.status == "pass"]
+    man = read_queries()
     tests, cals = [], []
     for ds in ("FF++", "CelebDF", "DFDC"):
-        tests += man[(man.dataset == ds) & (man.split == "test") & (man.protocol == "swap")].head(N).to_dict("records")
-        cals += man[(man.dataset == ds) & (man.split == "train") & (man.protocol == "benign")].head(200).to_dict("records")
+        tests += select(man, dataset=ds, split="test", protocol="swap").head(N).to_dict("records")
+        cals += select(man, dataset=ds, split="train", protocol="benign").head(200).to_dict("records")
     with Pool(24) as p:
         df = pd.DataFrame([r for rs in p.map(work_test, tests) for r in rs])
         cal = pd.DataFrame(p.map(work_cal, cals))

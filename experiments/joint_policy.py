@@ -13,14 +13,10 @@ record-scalar features. Reported rates are percentages per test query type (beni
 wrong_key); learned rates are mean and std over seeds. The FF++ delivery panel of Table 13 is not
 reproduced by this script.
 
-Env: DT_CANON_ROOT, DT_OUTPUTS, DT_FEATURES_CSV (record-scalar features), DT_CKPT_DIR (checkpoints
+Paths: config.yaml (outputs_root); env DT_FEATURES_CSV (record-scalar features), DT_CKPT_DIR (checkpoints
 of the recordscalar_ffpp run). Writes $DT_OUTPUTS/joint_policy/{rates.csv, thresholds.csv}.
 """
-import os as _dtos
-def _dt(env, rest=""):
-    v = _dtos.environ.get(env)
-    assert v, f"{env} unset: run through run.py, or export it (see config.example.yaml)"
-    return v + rest
+import os
 import sys
 from pathlib import Path
 
@@ -28,54 +24,41 @@ import numpy as np
 import pandas as pd
 import torch
 
-R = _dt("DT_CANON_ROOT")
-sys.path.insert(0, f"{R}/record_model")
-from src.record_model import RecordModelConfig, RecordModelMLP
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root: doctor_trigger
+from doctor_trigger import config  # noqa: E402
+from doctor_trigger.calibration import joint_rejection, joint_thresholds, lower_tail_threshold  # noqa: E402
+from doctor_trigger.record_model import load_checkpoint, record_model_scores  # noqa: E402
 
-OUT = Path(_dt("DT_OUTPUTS")) / "joint_policy"
+
+def _required_env(name):
+    value = os.environ.get(name)
+    assert value, f"{name} unset: run through run.py, or export it (see config.example.yaml)"
+    return value
+
+
+OUT = Path(config.path("outputs_root")) / "joint_policy"
 TARGET = 0.01
-
-
-def calibrate_joint(scores, target=TARGET):
-    """Equal marginal quantiles, the largest whose joint rejection stays within the budget."""
-    lo, hi = 0.0, target
-    for _ in range(60):
-        qt = (lo + hi) / 2
-        cut = np.quantile(scores, qt, axis=0, method="linear")
-        if np.any(scores < cut, axis=1).mean() <= target:
-            lo = qt
-        else:
-            hi = qt
-    cut = np.quantile(scores, lo, axis=0, method="linear")
-    return cut, lo, float(np.any(scores < cut, axis=1).mean())
 
 
 def load_models():
     out = []
-    for path in sorted(Path(_dt("DT_CKPT_DIR")).glob("full_record_model_seed*.pt")):
-        ck = torch.load(path, map_location="cpu", weights_only=False)
-        m = RecordModelMLP(RecordModelConfig(variant="full_record_model", input_dim=len(ck["feature_columns"]),
-                                             hidden_dim=ck["state_dict"]["encoder.0.weight"].shape[0]))
-        m.load_state_dict(ck["state_dict"])
-        m.eval()
-        out.append((int(ck["seed"]), m, ck))
+    for path in sorted(Path(_required_env("DT_CKPT_DIR")).glob("full_record_model_seed*.pt")):
+        fitted = load_checkpoint(path)
+        out.append((fitted.seed, fitted))
     if not out:
         raise SystemExit("no full_record_model_seed*.pt in DT_CKPT_DIR")
     return out
 
 
-def predict(model, ck, df):
-    x = df[ck["feature_columns"]].apply(pd.to_numeric, errors="coerce").to_numpy(np.float64)
-    x = (np.nan_to_num(x, nan=ck["mean"]) - ck["mean"]) / ck["std"]
-    with torch.no_grad():
-        o = model(torch.tensor(x.astype(np.float32)))
-    return np.stack([torch.sigmoid(o["S_rel"]).numpy(), torch.sigmoid(o["S_key"]).numpy()], axis=1)
+def predict(fitted, df):
+    scores = record_model_scores(fitted, df)
+    return np.stack([scores["S_rel"], scores["S_key"]], axis=1)
 
 
 def main():
     torch.set_num_threads(4)
     OUT.mkdir(parents=True, exist_ok=True)
-    feats = pd.read_csv(_dt("DT_FEATURES_CSV"))
+    feats = pd.read_csv(_required_env("DT_FEATURES_CSV"))
     models = load_models()
     rates, thresholds = [], []
 
@@ -94,15 +77,16 @@ def main():
         assert len(cal) and len(test) and not set(cal.source_group_id) & set(test.source_group_id)
         prot = test.protocol.to_numpy()
         direct_cal = cal[["C", "G_s"]].to_numpy(np.float64)
-        cut, qt, rej = calibrate_joint(direct_cal)
-        record(ds, "matched", "direct", -1, direct_cal, test[["C", "G_s"]].to_numpy(np.float64), prot, cut, qt, rej)
-        for seed, m, ck in models:
-            lc, lt = predict(m, ck, cal), predict(m, ck, test)
-            per_head = np.quantile(lc, TARGET, axis=0)
-            record(ds, "per_head", "learned", seed, lc, lt, prot, per_head, TARGET,
-                   float(np.any(lc < per_head, axis=1).mean()))
-            cut, qt, rej = calibrate_joint(lc)
-            record(ds, "matched", "learned", seed, lc, lt, prot, cut, qt, rej)
+        joint = joint_thresholds(direct_cal, frr=TARGET)
+        record(ds, "matched", "direct", -1, direct_cal, test[["C", "G_s"]].to_numpy(np.float64), prot,
+               joint.thresholds, joint.quantile, joint.calibration_rejection)
+        for seed, fitted in models:
+            lc, lt = predict(fitted, cal), predict(fitted, test)
+            per_head = lower_tail_threshold(lc, TARGET, axis=0)
+            record(ds, "per_head", "learned", seed, lc, lt, prot, per_head, TARGET, joint_rejection(lc, per_head))
+            joint = joint_thresholds(lc, frr=TARGET)
+            record(ds, "matched", "learned", seed, lc, lt, prot, joint.thresholds, joint.quantile,
+                   joint.calibration_rejection)
 
     rates = pd.DataFrame(rates)
     rates.to_csv(OUT / "rates.csv", index=False)

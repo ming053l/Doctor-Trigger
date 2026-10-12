@@ -8,50 +8,50 @@ AUC, and the recall left at a false-alarm rate of 1e-2 and 1e-3 on the benign si
 Engines come from the cached swaps of the engines experiment; SimSwap rows are the canonical swap queries
 queries of each corpus, scored against each asset's own record.
 
-Env: DT_CANON_ROOT, DT_OUTPUTS, DT_ENGINE_CACHE. Writes $DT_OUTPUTS/operating_points.csv.
+Paths: config.yaml (queries_csv, outputs_root, engine_cache). Writes $DT_OUTPUTS/operating_points.csv.
 """
-import os
+import sys
 from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np, pandas as pd
 from PIL import Image
-from sklearn.metrics import roc_auc_score, roc_curve
 
-R = os.environ["DT_CANON_ROOT"]; OUT = Path(os.environ["DT_OUTPUTS"])
-CACHE = Path(os.environ["DT_ENGINE_CACHE"])
-CUT = 0.15
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root: doctor_trigger
+from doctor_trigger import config  # noqa: E402
+from doctor_trigger.manifests import read_queries, select  # noqa: E402
+from doctor_trigger.metrics import roc_auc, tpr_at_fpr  # noqa: E402
+from doctor_trigger.readings import SumForm, spectral_agreement  # noqa: E402
+from doctor_trigger.record import load_record  # noqa: E402
+from doctor_trigger.spectrum import luminance_phase, subband_b  # noqa: E402
+
+OUT = Path(config.path("outputs_root"))
+CACHE = Path(config.path("engine_cache"))
+SUBBAND_STABILIZER = 1e-8
 
 
 def rel_err(args):
+    """1 - C_B of an image against a record, summed in the unshifted layout; NaN on a size mismatch."""
     path, tp = args
-    with np.load(tp) as z:
-        tm = np.fft.ifftshift(z["template_phase"].astype(np.float64))
-        sup = np.fft.ifftshift(z["support"].astype(bool))
-        amp = np.fft.ifftshift(z["host_amplitude"].astype(np.float64))
-    fy = np.fft.fftfreq(tm.shape[0])[:, None]; fx = np.fft.fftfreq(tm.shape[1])[None, :]
-    w = np.where(sup & (np.sqrt(fy * fy + fx * fx) / np.sqrt(0.5) <= CUT), amp, 0.0)
-    a = np.asarray(Image.open(path).convert("RGB"), dtype=np.float64)
-    lum = 0.299 * a[:, :, 0] + 0.587 * a[:, :, 1] + 0.114 * a[:, :, 2]
-    ph = np.angle(np.fft.fft2(lum))
+    record = load_record(tp)
+    tm = np.fft.ifftshift(record.template_phase)
+    ph = luminance_phase(np.asarray(Image.open(path).convert("RGB"), dtype=np.float64), centered=False)
     if ph.shape != tm.shape: return np.nan
-    return 1.0 - float((np.cos((ph - tm + np.pi) % (2 * np.pi) - np.pi) * w).sum() / (w.sum() + 1e-8))
-
-
-def tpr_at(y, s, target):
-    fpr, tpr, _ = roc_curve(y, s); ok = fpr <= target
-    return float(tpr[ok].max()) if ok.any() else 0.0
+    bins = np.fft.ifftshift(record.active_bins) & subband_b(record.shape, centered=False)
+    agreement = spectral_agreement(ph, tm, np.fft.ifftshift(record.amplitude_weights), bins,
+                                   stabilizer=SUBBAND_STABILIZER, form=SumForm.WEIGHT_MAP_VALUE_LAYOUT)
+    return 1.0 - agreement
 
 
 def main():
-    man = pd.read_csv(f"{R}/manifests/queries.csv"); man = man[man.status == "pass"]
+    man = read_queries()
     rows = []
     with Pool(24) as p:
         neg = {}
         for ds in ("FF++", "CelebDF", "DFDC"):
-            b = man[(man.dataset == ds) & (man.split == "test") & (man.protocol == "benign")]
+            b = select(man, dataset=ds, split="test", protocol="benign")
             neg[ds] = (b, np.array(p.map(rel_err, [(q.released_path, q.template_artifact) for q in b.itertuples()])))
-            t = man[(man.dataset == ds) & (man.split == "test") & (man.protocol == "swap")]
+            t = select(man, dataset=ds, split="test", protocol="swap")
             pos = np.array(p.map(rel_err, [(q.query_path, q.template_artifact) for q in t.itertuples()]))
             rows.append(("SimSwap", ds, neg[ds][1], pos))
             print(f"SimSwap {ds}: n={len(pos)}", flush=True)
@@ -68,7 +68,7 @@ def main():
         negs, poss = negs[np.isfinite(negs)], poss[np.isfinite(poss)]
         y = np.r_[np.zeros(len(negs)), np.ones(len(poss))]; s = np.r_[negs, poss]
         out.append(dict(re_rendering=name, dataset=ds, n_pos=len(poss), n_neg=len(negs),
-                        auc=roc_auc_score(y, s), tpr_1e2=tpr_at(y, s, 1e-2), tpr_1e3=tpr_at(y, s, 1e-3)))
+                        auc=roc_auc(y, s), tpr_1e2=tpr_at_fpr(y, s, 1e-2), tpr_1e3=tpr_at_fpr(y, s, 1e-3)))
     df = pd.DataFrame(out)
     df.to_csv(OUT / "operating_points.csv", index=False)
     print(df.round(4).to_string(index=False)); print("=== OPERATING POINTS DONE ===")

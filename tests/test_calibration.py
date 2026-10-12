@@ -1,41 +1,21 @@
-"""doctor_trigger.calibration equals experiments/joint_policy.py:calibrate_joint and the inline
+"""doctor_trigger.calibration equals experiments/joint_policy.py:calibrate_joint (frozen outputs in
+tests/golden/experiment_record_model.json) and the inline
 ``np.quantile(scores, 0.01)`` cutoffs, on the frozen record-scalar features (public_view_outputs)."""
 
 from __future__ import annotations
 
-import importlib.util
-import os
 from pathlib import Path
-import sys
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from doctor_trigger.calibration import JointCalibration, joint_rejection, joint_thresholds, lower_tail_threshold
+from golden_values import digest, load
 
-REPO = Path(__file__).resolve().parents[1]
-PUBLIC_VIEW = Path("/ssd2/ming/ttf_run/public_view")
 OUTPUTS = Path("/ssd2/ming/ttf_run/public_view_outputs")
 FEATURES = OUTPUTS / "features_record_scalar/recordscalar_features.csv"
 pytestmark = pytest.mark.skipif(not FEATURES.exists(), reason="public_view not available")
-
-
-@pytest.fixture(scope="module")
-def old_joint_policy(tmp_path_factory):
-    # joint_policy.py reads DT_CANON_ROOT / DT_OUTPUTS at import and imports src.record_model from the root.
-    saved_env, saved_path = dict(os.environ), list(sys.path)
-    os.environ["DT_CANON_ROOT"] = str(PUBLIC_VIEW)
-    os.environ["DT_OUTPUTS"] = str(tmp_path_factory.mktemp("outputs"))
-    try:
-        module_spec = importlib.util.spec_from_file_location("old_joint_policy", REPO / "experiments/joint_policy.py")
-        module = importlib.util.module_from_spec(module_spec)
-        module_spec.loader.exec_module(module)
-        yield module
-    finally:
-        os.environ.clear()
-        os.environ.update(saved_env)
-        sys.path[:] = saved_path
 
 
 @pytest.fixture(scope="module")
@@ -45,17 +25,17 @@ def calibration_sets() -> dict[str, np.ndarray]:
     return {dataset: group[["C", "G_s"]].to_numpy(np.float64) for dataset, group in benign_train.groupby("dataset")}
 
 
-def test_joint_thresholds_equal_calibrate_joint(old_joint_policy, calibration_sets):
-    rng = np.random.default_rng(0)
-    learned_like = rng.random((500, 2)).astype(np.float32)  # (S_rel, S_key) are float32 sigmoid outputs
-    for scores in [*calibration_sets.values(), learned_like]:
-        cut, quantile, rejection = old_joint_policy.calibrate_joint(scores)
+def test_joint_thresholds_equal_calibrate_joint(calibration_sets):
+    golden = load("experiment_record_model")["calibrate_joint"]
+    learned_like = np.random.default_rng(0).random((500, 2)).astype(np.float32)  # (S_rel, S_key) are float32
+    for name, scores in [*calibration_sets.items(), ("learned_like", learned_like)]:
+        old = golden[name]
         result = joint_thresholds(scores)
         assert isinstance(result, JointCalibration)
-        assert result.thresholds.dtype == cut.dtype and result.thresholds.tobytes() == cut.tobytes()
-        assert result.quantile == quantile and result.calibration_rejection == rejection
+        assert digest(result.thresholds) == old["thresholds"]
+        assert result.quantile == old["quantile"] and result.calibration_rejection == old["calibration_rejection"]
         assert result.calibration_rejection <= 0.01
-        assert joint_rejection(scores, result.thresholds) == rejection
+        assert joint_rejection(scores, result.thresholds) == old["calibration_rejection"]
 
 
 def test_lower_tail_threshold_equals_inline_quantiles(calibration_sets):

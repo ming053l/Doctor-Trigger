@@ -13,15 +13,9 @@ The paper's two panels use different calibration sizes:
   JPEG-q90 panel     python original_control.py 1580     (all 1,144 / 1,580 / 1,203 releases)
 Table 3's pass columns are the JPEG-q90 panel's original and JPEG-release acceptance.
 
-Env: DT_CANON_ROOT, DT_OUTPUTS. Writes $DT_OUTPUTS/original_control_cal<N>/
+Paths: config.yaml (cases_csv, outputs_root). Writes $DT_OUTPUTS/original_control_cal<N>/
 {scores.csv, rates.csv, thresholds.csv, summary.csv}.
 """
-import os as _dtos
-def _dt(env, rest=""):
-    v = _dtos.environ.get(env)
-    assert v, f"{env} unset: run through run.py, or export it (see config.example.yaml)"
-    return v + rest
-import io
 import sys
 from pathlib import Path
 
@@ -30,40 +24,27 @@ import pandas as pd
 from PIL import Image
 from skimage.metrics import structural_similarity
 
-R = _dt("DT_CANON_ROOT")
-sys.path.insert(0, R)
-from scripts.extract_features import projection, wrap_phase
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root: doctor_trigger
+from doctor_trigger import config  # noqa: E402
+from doctor_trigger.calibration import lower_tail_threshold  # noqa: E402
+from doctor_trigger.channels import jpeg  # noqa: E402
+from doctor_trigger.manifests import read_cases  # noqa: E402
+from doctor_trigger.readings import key_projection, phase_drift, release_normalized, spectral_agreement  # noqa: E402
+from doctor_trigger.record import load_record  # noqa: E402
+from doctor_trigger.spectrum import luminance_phase  # noqa: E402
+from experiments.shared.face_identity import face_analysis, identity_embedding, identity_similarity  # noqa: E402
 
 CAL_PER_DATASET = int(sys.argv[1]) if len(sys.argv) > 1 else 100
 TEST_COUNT = 400
-OUT = Path(_dt("DT_OUTPUTS")) / f"original_control_cal{CAL_PER_DATASET}"
-
-
-def jpeg(image):
-    buf = io.BytesIO()
-    image.save(buf, "JPEG", quality=90)
-    buf.seek(0)
-    return Image.open(buf).convert("RGB")
-
-
-def phase(image):
-    a = np.asarray(image, dtype=np.float64)
-    return np.fft.fftshift(np.angle(np.fft.fft2(0.299 * a[:, :, 0] + 0.587 * a[:, :, 1] + 0.114 * a[:, :, 2])))
+OUT = Path(config.path("outputs_root")) / f"original_control_cal{CAL_PER_DATASET}"
+AGREEMENT_STABILIZER = 1e-12
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    from insightface.app import FaceAnalysis
-    face = FaceAnalysis(name="buffalo_l", allowed_modules=["detection", "recognition"],
-                        providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
-    face.prepare(ctx_id=0, det_size=(320, 320), det_thresh=0.3)
+    face = face_analysis(allowed_modules=("detection", "recognition"))
 
-    def embedding(image):
-        faces = face.get(np.asarray(image)[:, :, ::-1])
-        return faces[0].normed_embedding if faces else None
-
-    cases = pd.read_csv(f"{R}/common/cases.csv")
-    benign = cases[cases.protocol == "benign"].drop_duplicates("enrollment_id")
+    benign = read_cases(protocol="benign").drop_duplicates("enrollment_id")
     train = benign[benign.split == "train"].groupby("dataset", group_keys=False).head(CAL_PER_DATASET)
     test = benign[benign.split == "test"].sample(TEST_COUNT, random_state=0)
     assert not set(train.source_group_id) & set(test.source_group_id)
@@ -72,26 +53,24 @@ def main():
     for i, q in enumerate(selected.itertuples()):
         released = Image.open(q.doctor_trigger_released_path).convert("RGB")
         original = Image.open(q.enrollment_input_path).convert("RGB")
-        with np.load(q.doctor_trigger_template_path) as z:
-            hp = z["host_phase"].astype(np.float64)
-            tp = z["template_phase"].astype(np.float64)
-            delta = z["delta"].astype(np.float64)
-            sup = z["support"].astype(bool)
-            w = z["host_amplitude"].astype(np.float64)
-        template_scale = max(abs(projection(tp, hp, delta, sup, w)), 1e-6)
-        er = embedding(released)
+        record = load_record(q.doctor_trigger_template_path)
+        hp, tp, delta = record.original_phase, record.template_phase, record.displacement
+        sup, w = record.active_bins, record.amplitude_weights
+        template_projection = key_projection(phase_drift(tp, hp), delta, w, sup)
+        er = identity_embedding(face, released)
         rgray = np.asarray(released.convert("L"))
-        for kind, image in [("release_clean", released), ("release_jpeg90", jpeg(released)), ("original", original)]:
-            ph = phase(image)
-            eq = er if kind == "release_clean" else embedding(image)
+        release_jpeg90 = Image.fromarray(jpeg(np.asarray(released), 90))
+        for kind, image in [("release_clean", released), ("release_jpeg90", release_jpeg90), ("original", original)]:
+            ph = luminance_phase(np.asarray(image, dtype=np.float64), centered=True)
+            eq = er if kind == "release_clean" else identity_embedding(face, image)
             rows.append(dict(
                 enrollment_id=q.enrollment_id, dataset=q.dataset, source_group_id=q.source_group_id,
                 cohort=q.cohort, kind=kind,
-                H=float(np.sum(w[sup] * np.cos(wrap_phase(ph - hp))[sup]) / (w[sup].sum() + 1e-12)),
-                C=float(np.sum(w[sup] * np.cos(wrap_phase(ph - tp))[sup]) / (w[sup].sum() + 1e-12)),
-                G_s=projection(ph, hp, delta, sup, w) / template_scale,
+                H=spectral_agreement(ph, hp, w, sup, stabilizer=AGREEMENT_STABILIZER),
+                C=spectral_agreement(ph, tp, w, sup, stabilizer=AGREEMENT_STABILIZER),
+                G_s=release_normalized(key_projection(phase_drift(ph, hp), delta, w, sup), template_projection),
                 ssim=float(structural_similarity(np.asarray(image.convert("L")), rgray, data_range=255)),
-                arc=float(np.dot(er, eq)) if er is not None and eq is not None else np.nan))
+                arc=identity_similarity(er, eq)))
         if (i + 1) % 250 == 0:
             print(f"processed {i + 1}/{len(selected)}", flush=True)
     df = pd.DataFrame(rows)
@@ -105,7 +84,7 @@ def main():
                 finite = cal[metric].dropna()
                 if len(finite) == 0:
                     raise ValueError(f"no calibration readings: {ds}/{metric}")
-                tau = float(finite.quantile(0.01))
+                tau = float(lower_tail_threshold(finite.to_numpy()))
                 thresholds.append(dict(dataset=ds, channel=channel, metric=metric, tau=tau,
                                        n=len(cal), available=len(finite)))
                 for kind, t in group[group.cohort == "test"].groupby("kind"):

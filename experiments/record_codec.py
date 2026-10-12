@@ -7,31 +7,28 @@ Variants, each verified on FF++ test (n=150) for H, G_s, and wrong-key AUC:
   q84    : derive + phase quantized to 8 bits, log-amplitude to 4 bits
   sub    : q84 restricted to the declared sub-band (kappa <= 0.15)
 Bytes are zlib-compressed serialized payloads."""
-import os as _dtos
-def _dt(env, rest=""):
-    v = _dtos.environ.get(env)
-    assert v, f"{env} unset"
-    return v + rest
-import io, sys, zlib
-import numpy as np, pandas as pd
+import io, os, sys, zlib
+from pathlib import Path
+
+import numpy as np
 from PIL import Image
-from sklearn.metrics import roc_auc_score
-R = _dt("DT_CANON_ROOT")
-sys.path.insert(0, R)
-import importlib.util
-spec = importlib.util.spec_from_file_location("hk_features", f"{R}/scripts/extract_features.py")
-feats = importlib.util.module_from_spec(spec); spec.loader.exec_module(feats)
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root: doctor_trigger
+from doctor_trigger.key import wrong_keys  # noqa: E402
+from doctor_trigger.manifests import read_cases  # noqa: E402
+from doctor_trigger.metrics import roc_auc  # noqa: E402
+from doctor_trigger.readings import SumForm, key_projection, phase_drift, spectral_agreement, wrong_key_displacement  # noqa: E402
+from doctor_trigger.record import load_record  # noqa: E402
+from doctor_trigger.spectrum import kappa_grid, luminance_phase  # noqa: E402
+
 N = 150
+AGREEMENT_STABILIZER = 1e-8
+PROJECTION_STABILIZER = 1e-6
 
-def phase_of(pil):
-    a = np.asarray(pil, dtype=np.float64)
-    lum = 0.299*a[:,:,0] + 0.587*a[:,:,1] + 0.114*a[:,:,2]
-    return np.angle(np.fft.fft2(lum))
 
-def radius_grid(shape):
-    fy = np.fft.fftfreq(shape[0]).reshape(-1, 1)
-    fx = np.fft.fftfreq(shape[1]).reshape(1, -1)
-    return np.sqrt(fy*fy + fx*fx) / np.sqrt(0.5)
+def phase_of(path):
+    """Unshifted luminance phase of an image file."""
+    return luminance_phase(np.asarray(Image.open(path).convert("RGB"), dtype=np.float64), centered=False)
 
 def payload_bytes(arrays):
     buf = io.BytesIO()
@@ -61,8 +58,7 @@ def dec_phase_amp(enc_d, mode):
     a = 10 ** (enc_d["a"].astype(np.float64) / 15 * (hi - lo) + lo)
     return t, a
 
-cases = pd.read_csv(f"{R}/common/cases.csv")
-te = cases[(cases.dataset == "FF++") & (cases.split == "test")]
+te = read_cases(dataset="FF++", split="test")
 ben = te[te.protocol == "benign"].drop_duplicates("enrollment_id")
 swaps = te[te.protocol == "swap"].drop_duplicates("enrollment_id")[["enrollment_id", "input_path"]]
 pool = ben.merge(swaps, on="enrollment_id", suffixes=("", "_swap")).head(N)
@@ -70,42 +66,38 @@ pool = ben.merge(swaps, on="enrollment_id", suffixes=("", "_swap")).head(N)
 MODES = ["derive", "q84", "sub"]
 sizes = {m: [] for m in MODES + ["full"]}
 res = {m: {"Hb": [], "Hf": [], "G": [], "Gw": []} for m in MODES}
-import os
 for _, q in pool.iterrows():
     sizes["full"].append(os.path.getsize(q.doctor_trigger_template_path))
-    with np.load(q.doctor_trigger_template_path) as z:
-        rec = {k: np.fft.ifftshift(z[k].astype(np.float64 if k != "support" else np.uint8)) for k in
-               ["template_phase", "host_phase", "support", "host_amplitude", "delta"]}
-        rec["support"] = rec["support"].astype(bool)
-        key, alpha, beta = int(z["key"][0]), float(z["alpha"][0]), float(z["beta"][0])
-    rad = radius_grid(rec["template_phase"].shape)
-    pb = phase_of(Image.open(q.input_path).convert("RGB"))
-    pf = phase_of(Image.open(q.input_path_swap).convert("RGB"))
+    record = load_record(q.doctor_trigger_template_path)
+    rec = {"template_phase": np.fft.ifftshift(record.template_phase),
+           "support": np.fft.ifftshift(record.active_bins),
+           "host_amplitude": np.fft.ifftshift(record.amplitude_weights)}
+    rad = kappa_grid(record.shape, centered=False)
+    pb = phase_of(q.input_path)
+    pf = phase_of(q.input_path_swap)
     # regenerate delta from key (the derivable field)
-    delta_full = np.fft.ifftshift(feats.wrong_delta(key, rec["template_phase"].shape, alpha, beta,
-                                                    np.fft.fftshift(rec["support"])))
-    wrongs = [np.fft.ifftshift(feats.wrong_delta(wk, rec["template_phase"].shape, alpha, beta,
-              np.fft.fftshift(rec["support"]))) for wk in feats.wrong_keys(key, 4)]
+    delta_full = np.fft.ifftshift(wrong_key_displacement(record, record.key))
+    wrongs = [np.fft.ifftshift(wrong_key_displacement(record, wk)) for wk in wrong_keys(record.key, 4)]
     for m in MODES:
         e, act = enc(rec, rad, m)
         sizes[m].append(payload_bytes(e))
         t, a = dec_phase_amp(e, m)
+        every_bin = np.ones(t.shape, dtype=bool)
         host = t - delta_full[act]
         for tag, ph in [("Hb", pb), ("Hf", pf)]:
-            r = np.cos((ph[act] - t + np.pi) % (2*np.pi) - np.pi)
-            res[m][tag].append(float(np.sum(r*a) / (np.sum(a) + 1e-8)))
-        resid = (pb[act] - host + np.pi) % (2*np.pi) - np.pi
+            res[m][tag].append(spectral_agreement(ph[act], t, a, every_bin, stabilizer=AGREEMENT_STABILIZER,
+                                                  form=SumForm.WEIGHT_MAP))
+        resid = phase_drift(pb[act], host)
         d = delta_full[act]
-        res[m]["G"].append(float(np.sum(a*d*np.sin(resid)) / (np.sum(a*d*d) + 1e-6)))
+        res[m]["G"].append(key_projection(resid, d, a, every_bin, stabilizer=PROJECTION_STABILIZER))
         for wd in wrongs:
-            w_ = wd[act]
-            res[m]["Gw"].append(float(np.sum(a*w_*np.sin(resid)) / (np.sum(a*w_*w_) + 1e-6)))
+            res[m]["Gw"].append(key_projection(resid, wd[act], a, every_bin, stabilizer=PROJECTION_STABILIZER))
 
 print(f"{'variant':8s} {'KiB':>7s} {'det AUC':>8s} {'benH':>7s} {'keyAUC':>7s}")
 print(f"{'full':8s} {np.mean(sizes['full'])/1024:7.1f}    (shipped NPZ)")
 for m in MODES:
     y = np.r_[np.zeros(N), np.ones(N)]
-    det = roc_auc_score(y, np.r_[1-np.array(res[m]['Hb']), 1-np.array(res[m]['Hf'])])
+    det = roc_auc(y, np.r_[1-np.array(res[m]['Hb']), 1-np.array(res[m]['Hf'])])
     pos, neg = np.array(res[m]["G"]), np.array(res[m]["Gw"])
-    key_auc = roc_auc_score(np.r_[np.ones_like(pos), np.zeros_like(neg)], np.r_[pos, neg])
+    key_auc = roc_auc(np.r_[np.ones_like(pos), np.zeros_like(neg)], np.r_[pos, neg])
     print(f"{m:8s} {np.mean(sizes[m])/1024:7.1f} {det:8.3f} {np.mean(res[m]['Hb']):7.3f} {key_auc:7.3f}")

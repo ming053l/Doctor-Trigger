@@ -9,20 +9,26 @@ construction. This script reruns the same extraction with the stored template ph
 it restores the released reference on a subset and requires an exact match with the pipeline's feature CSV, so
 the only difference in the output is the reference.
 
-Env: DT_CANON_ROOT, DT_OUTPUTS. Output: $DT_OUTPUTS/features_record_ref/recordref_features.csv
+Paths: config.yaml (canonical_root, queries_csv, outputs_root). Output: $DT_OUTPUTS/features_record_ref/recordref_features.csv
 and per-split files named like the pipeline's (..._{ffpp,dfdc,celebdf}_{train,val,test}.csv).
 """
-import hashlib, os, sys, time
+import os, sys, time
 from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from PIL import Image
 
-R = os.environ["DT_CANON_ROOT"]
-OUT = Path(os.environ["DT_OUTPUTS"]) / "features_record_ref"
-sys.path.insert(0, R)
-from scripts.extract_features import feature_row, query_phase  # noqa: E402  (pipeline code, unchanged)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root: doctor_trigger
+from doctor_trigger import config  # noqa: E402
+from doctor_trigger.key import wrong_key_query_key  # noqa: E402
+from doctor_trigger.manifests import read_queries  # noqa: E402
+from doctor_trigger.readings import SizeMismatch, query_phase, record_features  # noqa: E402
+from doctor_trigger.record import load_record  # noqa: E402
+
+R = config.path("canonical_root")
+OUT = Path(config.path("outputs_root")) / "features_record_ref"
 
 N_WRONG, N_BANDS = 8, 8
 WORKERS = int(os.environ.get("DT_FEAT_WORKERS", "48"))
@@ -33,13 +39,15 @@ def rows_for_query(q, use_released):
     path = Path(q["query_path"]).resolve()
     template = Path(q["template_artifact"]).resolve()
     released = Path(q["released_path"]).resolve()
+    record = load_record(template)
     if use_released:                                   # the pipeline's arrangement, for the equivalence check
-        ref_phase = query_phase(released)
-        phase = ref_phase if path == released else query_phase(path)
-        kw = dict(reference_path=released, phase_override=phase, reference_phase_override=ref_phase)
+        reference = query_phase(Image.open(released), record.shape, SizeMismatch.RAISE)
+        phase = reference if path == released else query_phase(Image.open(path), record.shape, SizeMismatch.RAISE)
     else:                                              # the fix: reference = stored template phase
-        kw = dict(reference_path=None)
-    feats, k0 = feature_row(path, template, n_wrong=N_WRONG, n_bands=N_BANDS, **kw)
+        reference = None
+        phase = query_phase(Image.open(path), record.shape, SizeMismatch.RAISE)
+    k0 = record.key
+    feats = record_features(phase, record, reference_phase=reference, wrong_key_count=N_WRONG, band_count=N_BANDS)
     base = dict(sample_id=q["query_id"], query_id=q["query_id"], enrollment_id=q["enrollment_id"],
                 source_group_id=q["source_group_id"], dataset=q["dataset"], split=q["split"],
                 protocol=q["protocol"], source_path=str(path), template_id=str(template), key_id=k0,
@@ -47,8 +55,9 @@ def rows_for_query(q, use_released):
                 y_fake=q["y_fake"], y_rel=q["y_rel"], y_keycorr=q["y_keycorr"])
     rows = [{**base, **feats}]
     if q["protocol"] == "benign":
-        wk = int(hashlib.sha256(f"wrong-key\x1f{k0}".encode()).hexdigest()[:16], 16)
-        wf, _ = feature_row(path, template, n_wrong=N_WRONG, n_bands=N_BANDS, projection_key=wk, **kw)
+        wk = wrong_key_query_key(k0)
+        wf = record_features(phase, record, reference_phase=reference, projection_key=wk,
+                             wrong_key_count=N_WRONG, band_count=N_BANDS)
         rows.append({**base, "sample_id": f"{q['query_id']}_wrong_key", "protocol": "wrong_key", "key_id": wk,
                      "y_fake": 0, "y_rel": 1, "y_keycorr": 0, **wf})
     return rows
@@ -60,9 +69,7 @@ def work_record(q): return rows_for_query(q, False)
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    qs = pd.read_csv(f"{R}/manifests/queries.csv")
-    qs = qs[qs["status"] == "pass"]
-    recs = qs.to_dict("records")
+    recs = read_queries().to_dict("records")
     print(f"queries passing: {len(recs)}", flush=True)
 
     # 1) equivalence: restoring the released reference must reproduce the pipeline's feature CSV exactly

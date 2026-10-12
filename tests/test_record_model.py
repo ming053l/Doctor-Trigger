@@ -4,15 +4,15 @@ References (imported by file path, except where noted):
 * workflow/record_model/src/record_model.py           columns, model, loss
 * the record-model trainer's former standardize, fit and predict (now calls into this module):
   frozen outputs in tests/golden/record_model_trainer.json (see golden_values.py)
-* experiments/joint_policy.py  load_models / predict  (NaN -> column mean)
-* experiments/copy_ring_canonical.py  predict          (NaN -> 0)
+* experiments/joint_policy.py load_models / predict (NaN -> column mean) and
+  experiments/copy_ring_canonical.py predict (NaN -> 0), now calls into this module: frozen outputs
+  in tests/golden/experiment_record_model.json
 Every comparison is exact (``np.array_equal`` / ``torch.equal``, or SHA-256 digests of the bytes).
 """
 
 from __future__ import annotations
 
 import importlib.util
-import os
 import sys
 from pathlib import Path
 
@@ -90,44 +90,37 @@ def test_trainer_predict_bit_identical(old_trainer, eval_name):
 
 
 @pytest.fixture(scope="module")
-def experiment_env():
-    env = {"DT_CANON_ROOT": str(ROOT), "DT_OUTPUTS": str(OUTPUTS),
-           "DT_RECORD_MODEL_RUNS": str(OUTPUTS / "record_model_runs"),
-           "DT_CKPT_DIR": str(RECORDSCALAR_RUN / "checkpoints")}
-    saved = {k: os.environ.get(k) for k in env}
-    os.environ.update(env)
-    yield
-    for k, v in saved.items():
-        if v is None:
-            os.environ.pop(k, None)
-        else:
-            os.environ[k] = v
+def old_experiments():
+    return load("experiment_record_model")
 
 
 @pytest.mark.skipif(not RECORDSCALAR_RUN.exists(), reason="record-scalar run not available")
-def test_joint_policy_and_copy_ring_predict(experiment_env):
+def test_joint_policy_and_copy_ring_predict(old_experiments):
     frame = pd.read_csv(RECORDSCALAR_FEATURES / "recordscalar_features_ffpp_train.csv")
     frame = frame[frame.protocol == "benign"].reset_index(drop=True)
     with_nan = frame.head(300).copy()
     with_nan.loc[::7, "G_z"] = np.nan  # exercise the two NaN policies
     with_nan["C_b3"] = with_nan["C_b3"].astype(object)
     with_nan.loc[::11, "C_b3"] = "not-a-number"
+    frames = {"frame": frame, "with_nan": with_nan}
+    checkpoint = RECORDSCALAR_RUN / "checkpoints/full_record_model_seed{}_recordscalar_ffpp_to_all.pt"
 
-    joint = import_by_path("old_joint_policy", REPO / "experiments/joint_policy.py")
-    for seed, model, ck in joint.load_models():
-        fitted = rm.load_checkpoint(RECORDSCALAR_RUN / f"checkpoints/full_record_model_seed{seed}_recordscalar_ffpp_to_all.pt")
-        for df in (frame, with_nan):
+    # joint_policy.py: (S_rel, S_key) per seed, NaN -> column mean
+    joint = old_experiments["joint_policy_predict"]
+    assert len(joint) == 6
+    for seed in range(3):
+        fitted = rm.load_checkpoint(str(checkpoint).format(seed))
+        for frame_name, df in frames.items():
             scores = rm.record_model_scores(fitted, df)
-            assert np.array_equal(joint.predict(model, ck, df), np.stack([scores["S_rel"], scores["S_key"]], axis=1))
+            assert digest(np.stack([scores["S_rel"], scores["S_key"]], axis=1)) == joint[f"{seed}|{frame_name}"]
 
-    copy_ring = import_by_path("old_copy_ring_canonical", REPO / "experiments/copy_ring_canonical.py")
-    for df in (frame, with_nan):
-        old = copy_ring.predict(df)
-        per_seed = [rm.record_model_scores(rm.load_checkpoint(
-            RECORDSCALAR_RUN / f"checkpoints/full_record_model_seed{s}_recordscalar_ffpp_to_all.pt"), df, missing="zero")
-            for s in range(3)]
+    # copy_ring_canonical.py: mean over the three seeds, NaN -> 0
+    for frame_name, df in frames.items():
+        per_seed = [rm.record_model_scores(rm.load_checkpoint(str(checkpoint).format(s)), df, missing="zero")
+                    for s in range(3)]
         for name in ("S_rel", "S_key", "S_fake"):
-            assert np.array_equal(old[name], np.mean([p[name] for p in per_seed], axis=0)), name
+            mean = np.mean([p[name] for p in per_seed], axis=0)
+            assert digest(mean) == old_experiments["copy_ring_predict"][f"{frame_name}|{name}"], name
 
 
 def test_standardize(old_trainer):

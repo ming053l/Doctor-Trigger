@@ -13,21 +13,25 @@ raw projection / template projection, which is 1 up to rounding. So this file ta
 the pipeline's feature CSV and C, C_b* (and every other column) from the template-reference CSV, after checking
 that no other column differs and that the two G families differ by one scale per row and band.
 
-Env: DT_CANON_ROOT, DT_OUTPUTS. Output: $DT_OUTPUTS/features_record_scalar/recordscalar_features.csv
+Paths: config.yaml (canonical_root, outputs_root). Output: $DT_OUTPUTS/features_record_scalar/recordscalar_features.csv
 plus per dataset/split files.
 """
-import os
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-R = os.environ["DT_CANON_ROOT"]
-OUT = Path(os.environ["DT_OUTPUTS"]) / "features_record_scalar"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root: doctor_trigger
+from doctor_trigger import config  # noqa: E402
+
+R = config.path("canonical_root")
+OUTPUTS = Path(config.path("outputs_root"))
+OUT = OUTPUTS / "features_record_scalar"
 N_BANDS = 8
 
 old = pd.read_csv(f"{R}/features/calibrated_features.csv")
-new = pd.read_csv(Path(os.environ["DT_OUTPUTS"]) / "features_record_ref/recordref_features.csv")
+new = pd.read_csv(OUTPUTS / "features_record_ref/recordref_features.csv")
 assert len(old) == len(new) and (old.sample_id.values == new.sample_id.values).all(), "row order differs"
 
 C_FAMILY = ["C"] + [f"C_b{i}" for i in range(N_BANDS)]
