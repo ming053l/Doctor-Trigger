@@ -1,5 +1,6 @@
-"""Code the experiments import from the original training project, trimmed to what they call."""
+"""Model code from the image-only detector's training project and peer re-implementations,
+trimmed to what the experiments call."""
 
-# Import torch before numpy-heavy modules; the original package did this to avoid an OpenMP
-# shared-memory initialization failure when numpy loads first.
+# torch is imported before the numpy-heavy modules: the other order has failed with an OpenMP
+# shared-memory initialization error on the training machines.
 import torch  # noqa: F401

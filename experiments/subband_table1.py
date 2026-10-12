@@ -1,11 +1,13 @@
-"""All eleven Table-1 cells for the declared sub-band reading (kappa <= 0.15).
+"""The C_B row of Table 1 (and the direct 1 - C_B row of Table 2): AUC of 1 - C_B per cell.
 
-Same protocol as the deployed row: benign families are severity means over the
-full FF++ test split with the exact seeds of the deployed measurement; dataset
-cells are clean SimSwap detection on each canonical test split; engine cells
-re-score the cached engine swaps. The reading is C_B, the agreement with the
-template T_I on K_eff and sub-band B. CPU-only. Usage: subband_table1.py <part>
-where part is benign | datasets | engines."""
+C_B is the agreement with the template T_I on K_eff and sub-band B (kappa <= 0.15). CPU only.
+Usage: subband_table1.py <part>
+  benign    the four benign families on the full FF++ test split, each the mean AUC over its
+            severities, with the channel seeds (k + 17) * 1009 of the full-ring row
+  datasets  clean SimSwap detection on each dataset's test split
+  engines   the other face manipulations: released image vs its cached engine swap
+            (<engine_cache>/<engine>/<enrollment_id>.png, written by other_manipulations.py)
+"""
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -13,14 +15,13 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
-from doctor_trigger import config  # noqa: E402
-from doctor_trigger.channels import apply_channel  # noqa: E402
-from doctor_trigger.manifests import read_cases  # noqa: E402
-from doctor_trigger.metrics import roc_auc  # noqa: E402
-from doctor_trigger.readings import SizeMismatch, SumForm, query_phase, spectral_agreement  # noqa: E402
-from doctor_trigger.record import load_record  # noqa: E402
-from doctor_trigger.spectrum import subband_b  # noqa: E402
+from doctor_trigger import config
+from doctor_trigger.channels import apply_channel
+from doctor_trigger.manifests import read_cases
+from doctor_trigger.metrics import roc_auc
+from doctor_trigger.readings import SizeMismatch, SumForm, query_phase, spectral_agreement
+from doctor_trigger.record import load_record
+from doctor_trigger.spectrum import subband_b
 
 STABILIZER = 1e-8
 PART = sys.argv[1]
@@ -65,7 +66,7 @@ elif PART == "datasets":
         print(f"SUBBAND {ds}: {roc_auc(g.y_fake.values, ss):.3f}")
 
 elif PART == "engines":
-    CACHE = config.path("peers_root") + "/engine_cache"   # not config key engine_cache (kept as measured)
+    CACHE = config.path("engine_cache")
     te = read_cases(dataset="FF++", split="test")
     ben = te[te.protocol == "benign"].drop_duplicates("enrollment_id")
     for eng in ["stargan", "uniface", "inswapper", "sdinpaint"]:

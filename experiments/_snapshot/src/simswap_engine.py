@@ -1,12 +1,15 @@
-"""Lightweight SimSwap wrapper for single-image face swaps."""
+"""SimSwap wrapper for single-image face swaps (the attack engine of the experiments).
+
+Used through experiments/shared/swap_engines.py. Its ONNX Runtime provider order prefers TensorRT;
+the pipeline's copy (workflow/repo/src/simswap_engine.py) prefers CUDA. Each caller keeps the order
+its results were produced with."""
 
 from __future__ import annotations
 
 import sys
-import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 import cv2
 import numpy as np
@@ -14,9 +17,6 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
-
-logger = logging.getLogger(__name__)
-
 
 def _totensor(array_rgb: np.ndarray) -> torch.Tensor:
     tensor = torch.from_numpy(array_rgb).permute(2, 0, 1).contiguous()
@@ -55,13 +55,6 @@ class SimSwapConfig:
     det_thresh: float = 0.6
     det_size: Tuple[int, int] = (640, 640)
     model_name: str = "people"
-
-
-@dataclass
-class SimSwapRequest:
-    source_path: Path
-    target_path: Path
-    output_path: Path
 
 
 class SimSwapEngine:
@@ -190,102 +183,3 @@ class SimSwapEngine:
             norm=None,
             use_mask=False,
         )
-
-    def swap_batch(self, requests: list[SimSwapRequest], batch_size: int = 4) -> list[Optional[str]]:
-        """Swap multiple pairs in batches; returns per-request error strings (None if ok)."""
-        if not requests:
-            return []
-        batch_size = max(1, int(batch_size))
-        crop_size = int(self.cfg.crop_size)
-
-        errors: list[Optional[str]] = [None] * len(requests)
-        req_data: list[dict | None] = [None] * len(requests)
-        face_entries: list[tuple[int, int, torch.Tensor, torch.Tensor]] = []
-
-        for idx, req in enumerate(requests):
-            try:
-                source_bgr = cv2.imread(str(req.source_path), cv2.IMREAD_COLOR)
-                if source_bgr is None:
-                    raise FileNotFoundError(f"SimSwap: failed to read source image: {req.source_path}")
-                target_bgr = cv2.imread(str(req.target_path), cv2.IMREAD_COLOR)
-                if target_bgr is None:
-                    raise FileNotFoundError(f"SimSwap: failed to read target image: {req.target_path}")
-
-                latend_id = self._latent_id(source_bgr)
-
-                target_align_crop_list, mats = self.detector.get(target_bgr, crop_size)
-                if target_align_crop_list is None or mats is None:
-                    raise RuntimeError("SimSwap: no face detected in target image")
-
-                b_tensors: list[torch.Tensor] = []
-                for b_align_crop in target_align_crop_list:
-                    b_rgb = cv2.cvtColor(b_align_crop, cv2.COLOR_BGR2RGB)
-                    b_tensor = _totensor(b_rgb)[None, ...].to(self.device)
-                    b_tensors.append(b_tensor)
-
-                req_data[idx] = {
-                    "target_bgr": target_bgr,
-                    "mats": mats,
-                    "b_tensors": b_tensors,
-                    "swap_results": [None] * len(b_tensors),
-                    "output_path": req.output_path,
-                }
-                for face_idx, b_tensor in enumerate(b_tensors):
-                    face_entries.append((idx, face_idx, b_tensor, latend_id))
-            except Exception as exc:  # pylint: disable=broad-except
-                errors[idx] = f"{type(exc).__name__}: {exc}"
-
-        if face_entries:
-            for start in range(0, len(face_entries), batch_size):
-                batch = face_entries[start : start + batch_size]
-                b_tensors = torch.cat([entry[2] for entry in batch], dim=0)
-                latents = torch.cat([entry[3] for entry in batch], dim=0)
-                with torch.no_grad():
-                    swap_out = self.model(None, b_tensors, latents, None, True)
-                if not isinstance(swap_out, torch.Tensor) or swap_out.shape[0] != len(batch):
-                    logger.warning(
-                        "SimSwap batch output mismatch (expected %d, got %s); falling back to per-sample forward.",
-                        len(batch),
-                        getattr(swap_out, "shape", None),
-                    )
-                    for entry in batch:
-                        req_idx, face_idx, b_tensor, latend_id = entry
-                        data = req_data[req_idx]
-                        if data is None:
-                            continue
-                        with torch.no_grad():
-                            single_out = self.model(None, b_tensor, latend_id, None, True)[0]
-                        if isinstance(single_out, torch.Tensor) and single_out.dim() == 4 and single_out.shape[0] == 1:
-                            single_out = single_out[0]
-                        data["swap_results"][face_idx] = single_out
-                    continue
-                for j, entry in enumerate(batch):
-                    req_idx, face_idx, _, _ = entry
-                    data = req_data[req_idx]
-                    if data is None:
-                        continue
-                    data["swap_results"][face_idx] = swap_out[j]
-
-        for idx, data in enumerate(req_data):
-            if errors[idx] or data is None:
-                continue
-            if any(item is None for item in data["swap_results"]):
-                errors[idx] = "RuntimeError: missing swap results"
-                continue
-            output_path = data["output_path"]
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            self._reverse2wholeimage(
-                data["b_tensors"],
-                data["swap_results"],
-                data["mats"],
-                crop_size,
-                data["target_bgr"],
-                None,
-                str(output_path),
-                True,
-                pasring_model=None,
-                norm=None,
-                use_mask=False,
-            )
-
-        return errors

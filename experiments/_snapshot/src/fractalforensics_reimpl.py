@@ -1,12 +1,9 @@
-"""FaceSigns-style fractal watermark reimplementation.
+"""FractalForensics peer, re-implemented: fractal-map watermark encoder and decoder.
 
-Trimmed to the definitions the peer comparison uses."""
+Only the definitions the peer comparison uses (experiments/peer_methods.py, method "fractal")."""
 
 from __future__ import annotations
-import hashlib
-import math
-from dataclasses import dataclass
-from typing import Iterable, List, Sequence, Tuple
+from typing import Sequence, Tuple
 import cv2
 import numpy as np
 import torch

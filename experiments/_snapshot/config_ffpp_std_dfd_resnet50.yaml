@@ -1,7 +1,26 @@
-# Image-only detector (S_df). build_model() reads only this section; weights come from checkpoints.image_detector*.
+# Image-only detector (S_df). Weights come from checkpoints.image_detector*.
+# model: the architecture (experiments/_snapshot/src/models.py: build_model).
+# train.albumentations: the deployed distortion-augmentation recipe used by
+# experiments/train_image_detector_aug.py (experiments/_snapshot/src/augmentation.py).
 model:
   backbone: resnet50
   pretrained: true
   trigger_head_dim: 128
-  loss_lambda: 0.0
-  use_cross_attn: false
+train:
+  albumentations:
+    enabled: true
+    jpeg:
+      p: 0.4
+      quality_min: 35
+      quality_max: 80
+    blur:
+      p: 0.2
+      blur_limit: [3, 7]
+    noise:
+      p: 0.2
+      var_limit: [3.0, 18.0]
+    color:
+      p: 0.25
+      hue_limit: 6
+      sat_limit: 12
+      val_limit: 10

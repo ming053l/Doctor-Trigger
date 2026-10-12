@@ -1,18 +1,16 @@
 #!/usr/bin/env python
-"""Table 4 and Fig. 7: one frozen evidence package with row-level lineage.
+"""Table 4 and Fig. 7 from one run: every row's scores, calibration and protocol, row by row.
 
-An audit found Table 4 assembled from three scripts with different cohorts, units
-and statistics, and Fig. 7 drawn from a fourth run. This script recomputes every Table 4 row under
-the protocol that produced it, records that protocol row by row, and writes the per-query scores
-Fig. 7 is drawn from, so the table and the figure come from one artifact.
+Each Table 4 row is computed under its own protocol (below) and that protocol is recorded next to
+the numbers; the per-query scores Fig. 7 is drawn from are written by the same run.
 
   python table4_artifact.py all          # still + clips + collect
   python table4_artifact.py still | clips | collect
 
 Protocols:
   still-image rows   Sub-band reading, kappa cut 0.15. FF++ test, first 200
-                     enrollments (groupby order); H_sub = amplitude-weighted cosine of query phase
-                     against the HOST phase on the support, radius/sqrt(0.5) <= 0.15; declared tau =
+                     enrollments (groupby order); H_sub = H_B, the amplitude-weighted cosine of the
+                     query phase against the original phase on K_eff and kappa <= 0.15; declared tau =
                      1% quantile of H_sub over all 1,144 FF++ train benign enrollments
                      sent through the same channel. G_release_sub (Fig. 7 y axis) = signed
                      projection divided by the released copy's own projection, same sub-band.
@@ -22,13 +20,15 @@ Protocols:
                      one-frame libx264 video (crf 30, yuv420p, 1 thread) and decoded; C_tmpl_sub =
                      cosine against the TEMPLATE phase, sub-band 0.15; clip score = mean over the
                      video's frames; tau = 1% quantile of the means of all 120 train clips.
-                     H_sub against the host phase is stored alongside.
+                     H_sub (H_B, against the original phase) is stored alongside.
 Paths from config.yaml (doctor_trigger.config): cases_csv, outputs_root.
 Calibration defaults to every FF++ training release and clip, as in the paper; DT_T4_NCAL=n and
-DT_T4_CLIP_TRAIN=n take the first n instead (an earlier draft used 100 and 100).
+DT_T4_CLIP_TRAIN=n take the first n instead.
 Debug only: DT_T4_LIMIT=k restricts every cohort to k items; DT_T4_WORKERS=n.
 Outputs in <outputs_root>/table4/: still_queries.csv, still_calibration.csv, clip_frames.csv,
-rows.csv, rows.tex, manifest.json.
+rows.csv, rows.tex, manifest.json (cohort ids, constants, input and output hashes, library
+versions; no absolute paths or host names: files are named relative to the repository, by
+config key or by module).
 """
 import hashlib, hmac, io, json, os, platform, subprocess, sys, time
 from multiprocessing import Pool
@@ -39,24 +39,24 @@ import pandas as pd
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
-import doctor_trigger.channels  # noqa: E402
-from doctor_trigger import config  # noqa: E402
-from doctor_trigger.calibration import lower_tail_threshold  # noqa: E402
-from doctor_trigger.channels import apply_channel  # noqa: E402
-from doctor_trigger.manifests import read_cases, sha256_file  # noqa: E402
-from doctor_trigger.metrics import roc_auc  # noqa: E402
-from doctor_trigger.readings import (SizeMismatch, SumForm, phase_drift, query_phase,  # noqa: E402
-                                     spectral_agreement, subband_bins)
-from doctor_trigger.record import load_record  # noqa: E402
-from doctor_trigger.spectrum import luminance, luminance_phase, wrap_phase  # noqa: E402
+import doctor_trigger.channels
+from doctor_trigger import config
+from doctor_trigger.calibration import lower_tail_threshold
+from doctor_trigger.channels import apply_channel
+from doctor_trigger.manifests import read_cases, sha256_file
+from doctor_trigger.metrics import roc_auc
+from doctor_trigger.readings import SizeMismatch, SumForm, phase_drift, query_phase, spectral_agreement, subband_bins
+from doctor_trigger.record import load_record
+from doctor_trigger.spectrum import luminance, luminance_phase, wrap_phase
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
 CASES_CSV = config.path("cases_csv")
 OUT = Path(config.path("outputs_root")) / "table4"
 
 EPS = 1e-12
-CUT = 0.15                    # readout band B: kappa = radius / sqrt(0.5) <= CUT
-TAU_CLEAN = 0.9821            # clean-copy cutoff: 1% FPR on FF++ train benign (canonical features)
+CUT = 0.15                    # sub-band B: kappa <= CUT
+TAU_CLEAN = 0.9821            # clean-copy cutoff: the 1% quantile of the full-ring H over the 1,144
+                              # FF++ train benign queries of the pipeline features (features_csv)
 N_TEST = 200
 N_CAL = int(os.environ.get("DT_T4_NCAL", "0")) or None                 # None: every train release
 CLIP_TRAIN_VIDEOS = int(os.environ.get("DT_T4_CLIP_TRAIN", "0")) or None  # None: every train clip
@@ -97,7 +97,7 @@ def clip_videos():
     return out
 
 
-# ---------------------------------------------------------------- metadata simulation (verbatim)
+# ---------------------------------------------------------------- credential (metadata) simulation
 def manifest_for(eid, sha):
     body = json.dumps({"asset_id": eid, "record_sha256": sha[:16]})
     sig = hmac.new(KEY, body.encode(), hashlib.sha256).hexdigest()[:32]
@@ -136,7 +136,7 @@ def resolve(img, eid):
         return False
 
 
-# ---------------------------------------------------------------- channels (verbatim)
+# ---------------------------------------------------------------- delivery channels of the still-image rows
 def ch_lossless(img, man):   return attach(img, man, "PNG", keep_meta=True)
 def ch_jpeg85(img, man):     return attach(img, man, "JPEG", 85, keep_meta=True)
 def ch_strip(img, man):      return attach(img, man, "PNG", keep_meta=False)
@@ -188,20 +188,21 @@ def phase_resized(img, shape):
     return query_phase(img, shape, SizeMismatch.RESIZE, centered=True)
 
 
-def h_host_sub(ph, rec):
+def original_agreement_b(ph, rec):
     """H_B: agreement with the original phase on K_eff and sub-band B (inline-product summation)."""
     return spectral_agreement(ph, rec.original_phase, rec.amplitude_weights, subband_bins(rec, CUT),
                               stabilizer=EPS, form=SumForm.WEIGHT_MAP_VALUE_LAYOUT)
 
 
-def c_tmpl_sub(ph, rec):
+def template_agreement_b(ph, rec):
     """C_B: agreement with the template T_I on K_eff and sub-band B (inline-product summation)."""
     return spectral_agreement(ph, rec.template_phase, rec.amplitude_weights, subband_bins(rec, CUT),
                               stabilizer=EPS, form=SumForm.WEIGHT_MAP_VALUE_LAYOUT)
 
 
 def g_raw_sub(ph, rec):
-    # G_s on sub-band B; ``w * dl ** 2`` is kept as measured (it rounds differently from Eq. (6)'s w delta delta)
+    """G_s (Eq. 6) on K_eff and sub-band B. The denominator is written ``w * dl ** 2``, which rounds
+    differently from ``w * dl * dl`` (readings.key_projection), so it stays inline."""
     s = subband_bins(rec, CUT)
     w, dl, res = rec.amplitude_weights[s], rec.displacement[s], phase_drift(ph, rec.original_phase)[s]
     return float(np.sum(w * dl * np.sin(res)) / (np.sum(w * dl ** 2) + EPS))
@@ -239,7 +240,7 @@ def work(t):
         ph = phase_resized(back, shape)
         g, ref = g_raw_sub(ph, rec), g_raw_sub(phase_resized(Image.open(t["rel_path"]), shape), rec)
         out = dict(kind=kind, enrollment_id=t["eid"], query_id=t["qid"], protocol=t["protocol"],
-                   channel=t["channel"], credential=int(resolve(back, t["eid"])), H_sub=h_host_sub(ph, rec),
+                   channel=t["channel"], credential=int(resolve(back, t["eid"])), H_sub=original_agreement_b(ph, rec),
                    G_raw_sub=g, G_ref_sub=ref, G_release_sub=g / max(abs(ref), 1e-6))
         if t["channel"] == "crop":
             out["H_forward"] = forward_h(crop90(Image.open(t["path"])), rec)
@@ -247,7 +248,7 @@ def work(t):
     if kind == "cal":
         back = CH[t["channel"]](Image.open(t["path"]), manifest_for(t["eid"], t["sha"]))
         return dict(kind=kind, enrollment_id=t["eid"], channel=t["channel"],
-                    H_sub=h_host_sub(phase_resized(back, rec.shape), rec))
+                    H_sub=original_agreement_b(phase_resized(back, rec.shape), rec))
     if kind == "cal_crop":
         return dict(kind=kind, enrollment_id=t["eid"], channel="crop",
                     H_forward=forward_h(crop90(Image.open(t["path"])), rec))
@@ -255,7 +256,7 @@ def work(t):
         frame = apply_channel("x264_crf30", Image.open(t["path"]).convert("RGB"), seed=stable_seed(t["qid"]))
         ph = phase_of(frame)
         return dict(kind=kind, split=t["split"], video=t["video"], query_id=t["qid"], protocol=t["protocol"],
-                    C_tmpl_sub=c_tmpl_sub(ph, rec), H_sub=h_host_sub(ph, rec))
+                    C_tmpl_sub=template_agreement_b(ph, rec), H_sub=original_agreement_b(ph, rec))
     raise ValueError(kind)
 
 
@@ -377,21 +378,22 @@ def stage_collect():
     (OUT / "rows.tex").write_text("% generated by experiments/table4_artifact.py from rows.csv; do not edit by hand\n"
                                   + "\n".join(lines) + "\n")
 
-    te_c, enr, cal_c, cal_crop = cohorts(); vids = clip_videos()
-    repo = Path(__file__).resolve().parents[1]
-    git = lambda *a: subprocess.run(["git", "-C", str(repo), *a], capture_output=True, text=True).stdout.strip()
+    _, enr, cal_c, cal_crop = cohorts(); vids = clip_videos()
+    git = lambda *a: subprocess.run(["git", "-C", str(REPO_ROOT), *a], capture_output=True, text=True).stdout.strip()
+    channels_file = Path(doctor_trigger.channels.__file__).resolve()
     try:
         ff = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True).stdout.splitlines()[0]
     except Exception:
         ff = "unavailable"
     import PIL, sklearn
     manifest = dict(
-        created_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), command=" ".join(sys.argv), limit=LIMIT,
-        script=dict(path=str(Path(__file__).resolve()), sha256=sha256_file(__file__),
+        created_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        command=" ".join([Path(sys.argv[0]).name, *sys.argv[1:]]), limit=LIMIT,
+        script=dict(path=str(Path(__file__).resolve().relative_to(REPO_ROOT)), sha256=sha256_file(__file__),
                     repo_rev=git("rev-parse", "HEAD"), repo_dirty=bool(git("status", "--porcelain"))),
-        inputs=dict(cases_csv=dict(path=CASES_CSV, sha256=sha256_file(CASES_CSV)),
-                    transform_source=dict(path=doctor_trigger.channels.__file__,
-                                          sha256=sha256_file(doctor_trigger.channels.__file__))),
+        inputs=dict(cases_csv=dict(path="config key cases_csv", sha256=sha256_file(CASES_CSV)),
+                    transform_source=dict(module=doctor_trigger.channels.__name__,
+                                          sha256=sha256_file(channels_file))),
         constants=dict(readout_band="radius/sqrt(0.5) <= 0.15", clean_cutoff=TAU_CLEAN, n_test=N_TEST, n_cal=N_CAL,
                        clip_train_videos=CLIP_TRAIN_VIDEOS, crop_search_px=2, threshold_quantile=0.01,
                        x264=X264, x264_seed="unused by the x264 channels of doctor_trigger.channels",
@@ -405,7 +407,7 @@ def stage_collect():
         rows=json.loads(rows_df.to_json(orient="records")),
         outputs={p.name: sha256_file(p) for p in sorted(OUT.glob("*")) if p.name != "manifest.json"},
         environment=dict(python=platform.python_version(), numpy=np.__version__, pandas=pd.__version__,
-                         pillow=PIL.__version__, sklearn=sklearn.__version__, ffmpeg=ff, host=platform.node()))
+                         pillow=PIL.__version__, sklearn=sklearn.__version__, ffmpeg=ff))
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=1))
     print(rows_df[["row", "unit", "n_benign", "credential_rate", "clean_preserved", "declared_tau",
                    "preserved", "flagged", "auc"]].to_string(index=False))

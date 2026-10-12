@@ -1,22 +1,21 @@
-"""Training-time augmentation for the image-only detector (the deployed recipe).
+"""Training-time distortion augmentation of the image-only detector (the deployed recipe, App. E.2).
 
-Trimmed from the original dataset module; only ``build_albu_transform`` is kept."""
+``build_augmentation(cfg)`` turns the ``train.albumentations`` block of
+config_ffpp_std_dfd_resnet50.yaml into an albumentations pipeline: JPEG recompression, Gaussian
+blur, Gaussian noise and hue/saturation/value jitter, each applied with its own probability.
+"""
 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-try:
-    import albumentations as A
-except ImportError:  # pragma: no cover - optional
-    A = None
+import albumentations as A
 
 
-def build_albu_transform(cfg: Optional[Dict[str, Any]]) -> Optional["A.Compose"]:
+def build_augmentation(cfg: Optional[Dict[str, Any]]) -> Optional[A.Compose]:
+    """The albumentations pipeline described by ``cfg``, or None when it is absent or not enabled."""
     if not cfg or not cfg.get("enabled", False):
         return None
-    if A is None:
-        raise RuntimeError("Albumentations is not installed but albumentations config is enabled.")
     transforms: List[Any] = []
     if cfg.get("jpeg"):
         jpeg_cfg = cfg["jpeg"]
@@ -43,14 +42,6 @@ def build_albu_transform(cfg: Optional[Dict[str, Any]]) -> Optional["A.Compose"]
                 var_limit=noise_cfg.get("var_limit", (5.0, 30.0)),
             )
         )
-    if cfg.get("gamma"):
-        gamma_cfg = cfg["gamma"]
-        transforms.append(
-            A.RandomGamma(
-                p=gamma_cfg.get("p", 0.3),
-                gamma_limit=gamma_cfg.get("gamma_limit", (80, 120)),
-            )
-        )
     if cfg.get("color"):
         color_cfg = cfg["color"]
         transforms.append(
@@ -59,16 +50,6 @@ def build_albu_transform(cfg: Optional[Dict[str, Any]]) -> Optional["A.Compose"]
                 hue_shift_limit=color_cfg.get("hue_limit", 8),
                 sat_shift_limit=color_cfg.get("sat_limit", 12),
                 val_shift_limit=color_cfg.get("val_limit", 12),
-            )
-        )
-    if cfg.get("affine"):
-        affine_cfg = cfg["affine"]
-        transforms.append(
-            A.Affine(
-                p=affine_cfg.get("p", 0.2),
-                scale=affine_cfg.get("scale", (0.95, 1.05)),
-                translate_percent=affine_cfg.get("translate", (0.0, 0.02)),
-                rotate=affine_cfg.get("rotate", (-2, 2)),
             )
         )
     if not transforms:

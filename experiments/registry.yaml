@@ -7,14 +7,14 @@ attribution-matrix:
   paper: 'Table 7 (private-reference comparisons), same-person release column: own record vs a sibling
     release of the same person, for H, G_s, ArcFace'
 benign-channels:
-  cmd: python benign_canonical.py {dataset}
+  cmd: python benign_channels.py {dataset}
   cwd: '{repo_root}/experiments'
   gpu: true
   impl: migrated
   paper: 'appendix Table 10 (benign channels per dataset): full-ring 1-H and the augmented image-only
     detector of that dataset; also the full-ring row of Table 1 (benign columns)'
 deployment-cost:
-  cmd: python {repo_root}/experiments/depcost.py && python {repo_root}/experiments/depcost_ours.py
+  cmd: python {repo_root}/experiments/deployment_cost_peers.py && python {repo_root}/experiments/deployment_cost_ours.py
   cwd: '{peers_root}'
   gpu: true
   impl: migrated
@@ -44,7 +44,7 @@ image-detector-eval:
   output: '{outputs_root}/image_detector_aug.csv'
   paper: Table 2 image-only S_df row, within and across datasets
 engines:
-  cmd: python engines_canonical.py {engine}
+  cmd: python other_manipulations.py {engine}
   cwd: '{repo_root}/experiments'
   gpu: true
   impl: migrated
@@ -70,7 +70,7 @@ hyperparam_sensitivity:
   script: experiments/hyperparam_sensitivity.py
   note: writes {outputs_root}/recordscalar_hyper/hyper_sensitivity.json; fig-hyper draws Fig 12 from it
 peers-detect:
-  cmd: python peer_canonical.py {method}
+  cmd: python peer_detection.py {method}
   cwd: '{repo_root}/experiments'
   gpu: true
   impl: migrated

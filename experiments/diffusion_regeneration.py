@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Diffusion regeneration against the deployed readings (Table: stress tests).
+"""Diffusion regeneration against the deployed scores (Table 17, SD-Turbo rows).
 
 The attacker does not touch the record; it rebuilds the pixels. Both the released image and its
 SimSwap re-rendering pass through the same image-to-image diffusion pass (sd-turbo, no template and
@@ -8,27 +8,28 @@ no key), at three strengths, in two scopes:
   global     the whole aligned crop is regenerated
   face-only  only the central face region is regenerated, the border is left untouched
 
-Reported per setting: AUC of the record path (1 - H over the declared sub-band), the image-only
-detector, and the standardized alarm, on FF++ test pairs. Chance is 0.500.
+Reported per setting: AUC of the template mismatch 1 - C_B (column ``rel_err``: agreement with
+the template T_I on K_eff and sub-band B), the image-only detector S_df, and the standardized alarm
+max(z(1 - C_B), min(z(S_df), 4)) with robust z against 200 FF++ train releases, on FF++ test pairs.
+Chance is 0.500. Each regeneration is seeded (k * 31 + label for the k-th pair).
 
 Paths from config.yaml (doctor_trigger.config): queries_csv, outputs_root, checkpoints.image_detector_aug;
 optional env DT_DIFF_N (default 200). Writes <outputs_root>/adaptive/{diffusion_per_query.csv,diffusion_summary.csv}.
 """
-import os, sys
+import os
 from pathlib import Path
 
 import numpy as np, pandas as pd, torch
+from diffusers import AutoPipelineForImage2Image
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
-from doctor_trigger import config  # noqa: E402
-from doctor_trigger.manifests import read_queries  # noqa: E402
-from doctor_trigger.metrics import robust_z, roc_auc  # noqa: E402
-from doctor_trigger.readings import SumForm, spectral_agreement  # noqa: E402
-from doctor_trigger.record import load_record  # noqa: E402
-from doctor_trigger.spectrum import luminance_phase, subband_b  # noqa: E402
-from experiments.shared.image_only_detector import (checkpoint_path, image_only_score,  # noqa: E402
-                                                    load_image_only_detector)
+from doctor_trigger import config
+from doctor_trigger.manifests import read_queries
+from doctor_trigger.metrics import robust_z, roc_auc
+from doctor_trigger.readings import SumForm, spectral_agreement
+from doctor_trigger.record import load_record
+from doctor_trigger.spectrum import luminance_phase, subband_b
+from experiments.shared.image_only_detector import checkpoint_path, image_only_score, load_image_only_detector
 
 OUT = Path(config.path("outputs_root")) / "adaptive"
 N = int(os.environ.get("DT_DIFF_N", "200")); CUT = 0.15; dev = "cuda"
@@ -36,17 +37,16 @@ STRENGTHS = [0.2, 0.3, 0.4]
 
 image_detector = load_image_only_detector(checkpoint_path("ffpp"), dev)
 
-from diffusers import AutoPipelineForImage2Image  # noqa: E402
 pipe = AutoPipelineForImage2Image.from_pretrained("stabilityai/sd-turbo", torch_dtype=torch.float16,
                                                   safety_checker=None).to(dev)
 pipe.set_progress_bar_config(disable=True)
 
 
-def prob(img):
+def detector_score(img):
     return image_only_score(image_detector, img, dev)
 
 
-def rec(tp):
+def record_arrays(tp):
     """Template T_I, weights w and the bins K_eff and kappa <= CUT of a record, uncentered."""
     record = load_record(tp)
     tm = np.fft.ifftshift(record.template_phase)
@@ -54,8 +54,8 @@ def rec(tp):
     return tm, np.fft.ifftshift(record.amplitude_weights), bins
 
 
-def rel_err(img, tm, w, bins):
-    """1 - C_B (inline-product summation, as measured)."""
+def template_mismatch(img, tm, w, bins):
+    """1 - C_B (whole-grid sum in the cosine's memory layout, stabilizer 1e-8)."""
     ph = luminance_phase(np.asarray(img.convert("RGB")), centered=False)
     return 1.0 - spectral_agreement(ph, tm, w, bins, stabilizer=1e-8, form=SumForm.WEIGHT_MAP_VALUE_LAYOUT)
 
@@ -86,22 +86,22 @@ def main():
     train = man[(man.dataset == "FF++") & (man.split == "train") & (man.protocol == "benign")].head(200)
     cal_h, cal_d = [], []
     for q in train.itertuples():
-        tm, w, bins = rec(q.template_artifact); img = Image.open(q.released_path).convert("RGB")
-        cal_h.append(rel_err(img, tm, w, bins)); cal_d.append(prob(img))
+        tm, w, bins = record_arrays(q.template_artifact); img = Image.open(q.released_path).convert("RGB")
+        cal_h.append(template_mismatch(img, tm, w, bins)); cal_d.append(detector_score(img))
 
     rows = []
     for k, q in enumerate(pos.itertuples(), 1):
         if q.enrollment_id not in neg.index: continue
-        tm, w, bins = rec(q.template_artifact)
+        tm, w, bins = record_arrays(q.template_artifact)
         for label, path, fake in (("benign", neg.loc[q.enrollment_id].released_path, 0), ("re-rendered", q.query_path, 1)):
             img = Image.open(path).convert("RGB")
             rows.append(dict(query_id=q.query_id, label=label, y=fake, setting="none", strength=0.0,
-                             rel_err=rel_err(img, tm, w, bins), S_df=prob(img)))
+                             rel_err=template_mismatch(img, tm, w, bins), S_df=detector_score(img)))
             for s in STRENGTHS:
                 for scope, fn in (("global", purify), ("face-only", face_only)):
                     out = fn(img, s, seed=(k * 31 + fake))
                     rows.append(dict(query_id=q.query_id, label=label, y=fake, setting=scope, strength=s,
-                                     rel_err=rel_err(out, tm, w, bins), S_df=prob(out)))
+                                     rel_err=template_mismatch(out, tm, w, bins), S_df=detector_score(out)))
         if k % 20 == 0: print(f"{k}/{len(pos)} pairs", flush=True)
 
     df = pd.DataFrame(rows)

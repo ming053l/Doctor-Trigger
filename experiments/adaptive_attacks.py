@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Adaptive attacks against the deployed readings (Table: stress tests).
+"""Targeted attacks against the deployed scores (Table 17, PGD / NES / transfer rows).
 
 Three access levels, all at L-infinity budget 8/255 on images in [0,1], on FF++ test pairs
 (released image as the negative, its SimSwap re-rendering as the positive):
@@ -8,27 +8,32 @@ Three access levels, all at L-infinity budget 8/255 on images in [0,1], on FF++ 
   score_only     NES with 24 score queries per image, one signed step.
   surrogate      PGD on a proxy image detector trained on another corpus, transferred.
 
-Each attack pushes every image toward the wrong verdict (benign down, re-rendered up), and we report
-AUC afterwards for the record path (1 - H over the declared sub-band), the image-only detector, and
-the standardized alarm. Chance is 0.500; 0.000 means the ranking is fully inverted.
+Each attack pushes every image toward the wrong verdict (benign up, re-rendered down in
+suspiciousness), and AUC is reported afterwards for the template mismatch 1 - C_B (column
+``rel_err``: agreement with the template T_I on K_eff and sub-band B), the image-only detector S_df
+and the standardized alarm max(z(1 - C_B), min(z(S_df), 4)), with robust z against 200 FF++ train
+releases. Chance is 0.500; 0.000 means the ranking is fully inverted. The record-model column of
+Table 17 is not computed here.
+
+The attacks are random: the PGD start and the NES directions are drawn from torch's unseeded
+global generator, as in the run behind Table 17, so a rerun reproduces the table up to sampling
+noise, not bit for bit.
 
 Paths from config.yaml (doctor_trigger.config): queries_csv, outputs_root, checkpoints.image_detector_aug;
 optional env DT_ADAPT_N (default 200). Writes <outputs_root>/adaptive/{per_query.csv,summary.csv}.
 """
-import os, sys
+import os
 from pathlib import Path
 
 import numpy as np, pandas as pd, torch
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
-from doctor_trigger import config  # noqa: E402
-from doctor_trigger.manifests import read_queries  # noqa: E402
-from doctor_trigger.metrics import robust_z, roc_auc  # noqa: E402
-from doctor_trigger.record import load_record  # noqa: E402
-from doctor_trigger.spectrum import subband_b  # noqa: E402
-from experiments.shared.image_only_detector import (checkpoint_path, image_only_logit,  # noqa: E402
-                                                    load_image_only_detector)
+from doctor_trigger import config
+from doctor_trigger.manifests import read_queries
+from doctor_trigger.metrics import robust_z, roc_auc
+from doctor_trigger.record import load_record
+from doctor_trigger.spectrum import subband_b
+from experiments.shared.image_only_detector import checkpoint_path, image_only_logit, load_image_only_detector
 
 OUT = Path(config.path("outputs_root")) / "adaptive"
 N = int(os.environ.get("DT_ADAPT_N", "200")); EPS = 8 / 255; STEPS = 40; CUT = 0.15
@@ -41,7 +46,7 @@ for p in list(image_detector.parameters()) + list(proxy.parameters()):
     p.requires_grad_(False)
 
 
-def rec(tp):
+def record_tensors(tp):
     """Template T_I and sub-band-B weights (K_eff, kappa <= CUT) of a record, uncentered, on the GPU."""
     record = load_record(tp)
     tm = np.fft.ifftshift(record.template_phase)
@@ -51,7 +56,8 @@ def rec(tp):
             torch.tensor(w, device=dev, dtype=torch.float32))
 
 
-def rel_err(x, tm, w):                        # 1 - H over the sub-band, differentiable
+def template_mismatch(x, tm, w):
+    """1 - C_B of an image batch x in [0, 1] (differentiable; weights w are zero outside the bins)."""
     lum = 0.299 * x[0, 0] + 0.587 * x[0, 1] + 0.114 * x[0, 2]
     ph = torch.angle(torch.fft.fft2(lum))
     d = ph - tm
@@ -62,7 +68,7 @@ def objective(x, tm, w, fake, kind):
     """Raise the loss on the true label: benign toward 'fake', re-rendered toward 'benign'."""
     s = 0.0
     if kind in ("white_box_record", "white_box_joint"):
-        e = rel_err(x, tm, w); s = s + (e if not fake else -e) * 100.0
+        e = template_mismatch(x, tm, w); s = s + (e if not fake else -e) * 100.0
     if kind in ("white_box_image", "white_box_joint"):
         g = image_only_logit(image_detector, x); s = s + (g if not fake else -g)
     if kind == "surrogate":
@@ -90,14 +96,14 @@ def nes(x0, tm, w, fake, queries=24, sigma=2 / 255):
     return (x0 + EPS * g.sign()).clamp(0, 1)
 
 
-def load(p):
+def load_image(p):
     a = np.asarray(Image.open(p).convert("RGB"), dtype=np.float32) / 255.0
     return torch.tensor(a, device=dev).permute(2, 0, 1)[None]
 
 
 @torch.no_grad()
 def scores(x, tm, w):
-    return float(rel_err(x, tm, w)), float(torch.sigmoid(image_only_logit(image_detector, x)))
+    return float(template_mismatch(x, tm, w)), float(torch.sigmoid(image_only_logit(image_detector, x)))
 
 
 def main():
@@ -110,15 +116,15 @@ def main():
 
     cal_h, cal_d = [], []
     for q in train.itertuples():
-        tm, w = rec(q.template_artifact); h, d = scores(load(q.released_path), tm, w)
+        tm, w = record_tensors(q.template_artifact); h, d = scores(load_image(q.released_path), tm, w)
         cal_h.append(h); cal_d.append(d)
 
     rows = []
     for k, q in enumerate(pos.itertuples(), 1):
         if q.enrollment_id not in neg.index: continue
-        tm, w = rec(q.template_artifact)
-        pair = [("benign", load(neg.loc[q.enrollment_id].released_path), False),
-                ("re-rendered", load(q.query_path), True)]
+        tm, w = record_tensors(q.template_artifact)
+        pair = [("benign", load_image(neg.loc[q.enrollment_id].released_path), False),
+                ("re-rendered", load_image(q.query_path), True)]
         for label, x0, fake in pair:
             h, d = scores(x0, tm, w)
             rows.append(dict(query_id=q.query_id, label=label, attack="none", rel_err=h, S_df=d))

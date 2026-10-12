@@ -1,26 +1,26 @@
-"""Retrain the passive head on the canonical pipeline's own data, per dataset.
+"""Train the image-only detector g_psi (S_df) on one dataset's train queries, without distortion augmentation.
 
-Same architecture as the deployed image-only detector (experiments/shared/image_only_detector.py,
-ImageNet-initialized backbone); binary benign-vs-swap on the canonical train queries, early stop
-on val AUC (DFDC uses a 10% train carve as val). This plain variant augments with flips and
-colour jitter only; train_image_detector_aug.py adds the deployed distortion recipe.
+Same architecture as the deployed detector (experiments/shared/image_only_detector.py, ImageNet-
+initialized ResNet-50); benign-vs-swap classification on the train queries of cases.csv, 20 epochs,
+keeping the weights with the best val AUC (a dataset without a val split uses its last 10% of
+train enrollments, at least 16). This plain variant augments with flips and colour jitter only;
+train_image_detector_aug.py adds the deployed distortion recipe. Training is not seeded, so a
+rerun gives a slightly different checkpoint.
 Writes <checkpoints.image_detector>/<ds>/best_val_auc.pt.
 Usage: train_image_detector.py <ffpp|dfdc|celebdf>
 """
 import os
 import sys
-from pathlib import Path
 
 import torch
 import torchvision.transforms as T
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repository root
-from doctor_trigger import config  # noqa: E402
-from doctor_trigger.manifests import DATASET_TAGS, read_cases  # noqa: E402
-from doctor_trigger.metrics import roc_auc  # noqa: E402
-from experiments.shared.image_only_detector import INPUT_SIZE, build_image_only_detector  # noqa: E402
+from doctor_trigger import config
+from doctor_trigger.manifests import DATASET_TAGS, read_cases
+from doctor_trigger.metrics import roc_auc
+from experiments.shared.image_only_detector import INPUT_SIZE, build_image_only_detector
 
 DEVICE = "cuda"
 EPOCHS = 20
@@ -57,7 +57,8 @@ def logits_of(output):
     return output["logits"] if isinstance(output, dict) else output
 
 
-def probs(m, loader):
+def detector_scores(m, loader):
+    """(labels, S_df) over a loader: softmax probability of the manipulated class."""
     m.eval(); ys, ps = [], []
     with torch.no_grad():
         for x, y in loader:
@@ -84,7 +85,7 @@ def train(tag, augmentation, checkpoint_root):
         for x, y in tl:
             opt.zero_grad()
             lossf(logits_of(m(x.to(DEVICE))), y.to(DEVICE)).backward(); opt.step()
-        ys, ps = probs(m, vl); auc = roc_auc(ys, ps)
+        ys, ps = detector_scores(m, vl); auc = roc_auc(ys, ps)
         print(f"epoch {ep}: val AUC {auc:.4f}", flush=True)
         if auc > best:
             best = auc; torch.save(m.state_dict(), f"{out}/best_val_auc.pt")
