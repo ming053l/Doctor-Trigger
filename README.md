@@ -8,8 +8,8 @@ Chia-Yu Lin<sup>3</sup>, Hung-Kai Huang<sup>2</sup>, Yi-Ting Ku<sup>3</sup>, Yu-
 
 <p align="center">
 <a href="https://ming053l.github.io/Doctor-Trigger/"><img alt="Project page" src="docs/assets/badges/project-page.svg" height="20"></a>
-<a href="https://arxiv.org/abs/2610.16336"><img alt="arXiv 2610.16336" src="docs/assets/badges/arxiv.svg" height="20"></a>
-<a href="https://ming053l.github.io/Doctor-Trigger/static/pdf/paper.pdf"><img alt="Paper" src="docs/assets/badges/paper.svg" height="20"></a>
+<a href="https://arxiv.org/abs/2610.16336v2"><img alt="arXiv 2610.16336" src="docs/assets/badges/arxiv.svg" height="20"></a>
+<a href="https://arxiv.org/pdf/2610.16336v2"><img alt="Paper (v2)" src="docs/assets/badges/paper.svg" height="20"></a>
 <a href="https://ming053l.github.io/Doctor-Trigger/#video"><img alt="Video" src="docs/assets/badges/video.svg" height="20"></a>
 <a href="LICENSE"><img alt="License: MIT" src="docs/assets/badges/license.svg" height="20"></a>
 </p>
@@ -146,8 +146,8 @@ Images only for now. Video support (per-frame enrollment, clip-level decisions) 
   eprint = {2610.16336},
   archivePrefix = {arXiv},
   primaryClass  = {cs.CR},
-  url    = {https://arxiv.org/abs/2610.16336},
-  note   = {Project page: https://ming053l.github.io/Doctor-Trigger/}
+  url    = {https://arxiv.org/abs/2610.16336v2},
+  note   = {Version 2. Project page: https://ming053l.github.io/Doctor-Trigger/}
 }
 ```
 
